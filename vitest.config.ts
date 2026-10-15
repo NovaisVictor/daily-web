@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
@@ -13,6 +13,7 @@ export default defineConfig({
     // their own and passed the 5 s default under that load, failing the deploy
     // without any change in behaviour.
     testTimeout: 15_000,
+    exclude: [...configDefaults.exclude, '**/.claude/**', '**/.worktrees/**'],
   },
   resolve: {
     alias: {

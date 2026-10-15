@@ -1181,7 +1181,7 @@ function JiraRow({
   return (
     <li
       className={rowShell}
-      style={{ paddingLeft: depth > 0 ? `calc(${depth} * var(--s4))` : undefined }}
+      style={{ paddingLeft: depth > 0 ? `calc(${depth} * 1.5rem)` : undefined }}
       draggable={focus.enabled}
       onDragStart={(event) => {
         if (!focus.enabled) return;

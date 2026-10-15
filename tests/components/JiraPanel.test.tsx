@@ -209,7 +209,7 @@ describe('JiraPanel', () => {
     // A mãe vem primeiro e a filha logo abaixo, recuada.
     expect(rows[0].textContent).toContain('TT-1');
     expect(rows[1].textContent).toContain('TT-9');
-    expect(rows[1].getAttribute('style')).toContain('padding-left');
+    expect(rows[1].getAttribute('style')).toContain('padding-left: calc(1.5rem)');
   });
 
   it('começa a árvore no objetivo, com o caminho já aberto', () => {
