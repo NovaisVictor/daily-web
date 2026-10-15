@@ -480,8 +480,10 @@ export async function listMailboxes(conn: Connection): Promise<MailboxNode[]> {
       let unread = 0;
       try {
         const status = await client.status(box.path, { messages: true, unseen: true });
-        total = status.messages ?? 0;
-        unread = status.unseen ?? 0;
+        if (status) {
+          total = status.messages ?? 0;
+          unread = status.unseen ?? 0;
+        }
       } catch {
         // Pasta que não aceita STATUS entra sem contagem: melhor uma árvore
         // completa com um número faltando do que nenhuma árvore.
