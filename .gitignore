@@ -36,3 +36,5 @@ docs/superpowers/plans/
 # Scripts de verificação local: são descartáveis e costumam carregar credencial
 *-tmp.mjs
 verify-*.mjs
+
+.serena/

@@ -83,35 +83,83 @@ describe('lineageOf', () => {
   });
 });
 
+function group<T = string>(values: T[], mode: 'include' | 'exclude' = 'include') {
+  return { values, mode };
+}
+
 describe('matchesJiraFilters', () => {
   it('sem filtro, tudo passa', () => {
     expect(keys({})).toEqual(MINE.map((i) => i.key));
   });
 
   it('filtra pelo status, sem diferenciar caixa', () => {
-    expect(keys({ status: 'backlog' })).toEqual(['TT-112']);
+    expect(keys({ status: group(['backlog']) })).toEqual(['TT-112']);
+  });
+
+  it('filtra por múltiplos status (composto / OU)', () => {
+    expect(keys({ status: group(['Backlog', 'Em Andamento']) })).toEqual(
+      MINE.map((i) => i.key),
+    );
+  });
+
+  it('filtra por exclusão de status (≠ / NÃO)', () => {
+    expect(keys({ status: group(['Backlog'], 'exclude') })).toEqual([
+      'TT-111',
+      'TT-1111',
+      'TT-211',
+      'TT-21',
+    ]);
   });
 
   it('filtra pelo tipo', () => {
-    expect(keys({ tier: 'story' })).toEqual(['TT-111', 'TT-112', 'TT-211']);
-    expect(keys({ tier: 'epic' })).toEqual(['TT-21']);
+    expect(keys({ tier: group(['story']) })).toEqual(['TT-111', 'TT-112', 'TT-211']);
+    expect(keys({ tier: group(['epic']) })).toEqual(['TT-21']);
+    expect(keys({ tier: group(['story', 'epic']) })).toEqual(['TT-111', 'TT-112', 'TT-211', 'TT-21']);
+  });
+
+  it('filtra por exclusão de tipo', () => {
+    expect(keys({ tier: group(['story'], 'exclude') })).toEqual(['TT-1111', 'TT-21']);
   });
 
   it('escolher uma iniciativa traz tudo o que está debaixo dela', () => {
-    expect(keys({ initiative: 'TT-10' })).toEqual(['TT-111', 'TT-112', 'TT-1111']);
+    expect(keys({ initiative: group(['TT-10']) })).toEqual(['TT-111', 'TT-112', 'TT-1111']);
+  });
+
+  it('escolher múltiplas iniciativas traz tudo debaixo de qualquer uma delas', () => {
+    expect(keys({ initiative: group(['TT-10', 'TT-20']) })).toEqual([
+      'TT-111',
+      'TT-112',
+      'TT-1111',
+      'TT-211',
+      'TT-21',
+    ]);
+  });
+
+  it('excluir uma iniciativa remove ela e toda a sua árvore', () => {
+    expect(keys({ initiative: group(['TT-10'], 'exclude') })).toEqual(['TT-211', 'TT-21']);
   });
 
   it('escolher um épico inclui o próprio épico quando ele é da lista', () => {
-    expect(keys({ epic: 'TT-21' })).toEqual(['TT-211', 'TT-21']);
+    expect(keys({ epic: group(['TT-21']) })).toEqual(['TT-211', 'TT-21']);
+  });
+
+  it('excluir um épico remove ele e as filhas', () => {
+    expect(keys({ epic: group(['TT-21'], 'exclude') })).toEqual(['TT-111', 'TT-112', 'TT-1111']);
   });
 
   it('escolher uma história traz ela e as subtarefas dela', () => {
-    expect(keys({ story: 'TT-111' })).toEqual(['TT-111', 'TT-1111']);
+    expect(keys({ story: group(['TT-111']) })).toEqual(['TT-111', 'TT-1111']);
+  });
+
+  it('excluir uma história remove ela e suas subtarefas', () => {
+    expect(keys({ story: group(['TT-111'], 'exclude') })).toEqual(['TT-112', 'TT-211', 'TT-21']);
   });
 
   it('os filtros de hierarquia se somam', () => {
-    expect(keys({ initiative: 'TT-10', epic: 'TT-21' })).toEqual([]);
-    expect(keys({ initiative: 'TT-10', tier: 'story', status: 'Em Andamento' })).toEqual(['TT-111']);
+    expect(keys({ initiative: group(['TT-10']), epic: group(['TT-21']) })).toEqual([]);
+    expect(
+      keys({ initiative: group(['TT-10']), tier: group(['story']), status: group(['Em Andamento']) }),
+    ).toEqual(['TT-111']);
   });
 
   it('a busca acha pelo título de um ancestral', () => {
@@ -138,13 +186,28 @@ describe('jiraFilterOptions', () => {
   });
 
   it('desce em cascata a partir da iniciativa escolhida', () => {
-    const opcoes = jiraFilterOptions(MINE, BY_KEY, { ...EMPTY_JIRA_FILTERS, initiative: 'TT-10' });
+    const opcoes = jiraFilterOptions(MINE, BY_KEY, {
+      ...EMPTY_JIRA_FILTERS,
+      initiative: group(['TT-10']),
+    });
     expect(opcoes.epics.map((i) => i.key)).toEqual(['TT-11']);
     expect(opcoes.stories.map((i) => i.key)).toEqual(['TT-112', 'TT-111']);
   });
 
+  it('desce em cascata com múltiplas iniciativas', () => {
+    const opcoes = jiraFilterOptions(MINE, BY_KEY, {
+      ...EMPTY_JIRA_FILTERS,
+      initiative: group(['TT-10', 'TT-20']),
+    });
+    expect(opcoes.epics.map((i) => i.key)).toEqual(['TT-21', 'TT-11']);
+    expect(opcoes.stories.map((i) => i.key)).toEqual(['TT-112', 'TT-211', 'TT-111']);
+  });
+
   it('e a partir do épico escolhido', () => {
-    const opcoes = jiraFilterOptions(MINE, BY_KEY, { ...EMPTY_JIRA_FILTERS, epic: 'TT-21' });
+    const opcoes = jiraFilterOptions(MINE, BY_KEY, {
+      ...EMPTY_JIRA_FILTERS,
+      epic: group(['TT-21']),
+    });
     expect(opcoes.stories.map((i) => i.key)).toEqual(['TT-211']);
   });
 
@@ -155,23 +218,32 @@ describe('jiraFilterOptions', () => {
 });
 
 describe('filtros na URL', () => {
-  it('lê e grava todos os campos, com nomes próprios do Jira', () => {
+  it('lê e grava todos os campos, com nomes próprios do Jira e suporte a múltiplos valores', () => {
     const filtros: JiraFilterState = {
       query: 'saldo',
-      status: 'Code Review PR',
-      tier: 'story',
-      initiative: 'TT-10',
-      epic: 'TT-11',
-      story: 'TT-111',
+      status: group(['Code Review PR', 'Backlog']),
+      tier: group(['story', 'epic'], 'exclude'),
+      initiative: group(['TT-10']),
+      epic: group(['TT-11']),
+      story: group(['TT-111']),
     };
     const params = jiraFiltersToParams(new URLSearchParams('jira=entregues'), filtros);
     expect(params.get('jira')).toBe('entregues');
+    expect(params.get('jiraStatus')).toBe('Code Review PR,Backlog');
+    expect(params.get('jiraTipo')).toBe('story,epic');
+    expect(params.get('jiraTipoModo')).toBe('exclude');
     expect(parseJiraFilters(params)).toEqual(filtros);
+  });
+
+  it('lê prefixo de negação ! diretamente nos valores', () => {
+    const params = new URLSearchParams('jiraStatus=!Backlog,!Em Andamento');
+    const parsed = parseJiraFilters(params);
+    expect(parsed.status).toEqual(group(['Backlog', 'Em Andamento'], 'exclude'));
   });
 
   it('o vazio não vai para a URL', () => {
     const params = jiraFiltersToParams(
-      new URLSearchParams('jiraStatus=Backlog&jiraTipo=epic'),
+      new URLSearchParams('jiraStatus=Backlog&jiraTipo=epic&jiraStatusModo=exclude'),
       EMPTY_JIRA_FILTERS,
     );
     expect(params.toString()).toBe('');
@@ -183,15 +255,16 @@ describe('filtros na URL', () => {
         `jiraTipo=objetivo&jiraIniciativa=DROP TABLE&jiraEpico=tt-11&jiraBusca=${'a'.repeat(500)}`,
       ),
     );
-    expect(filtros.tier).toBeNull();
-    expect(filtros.initiative).toBe('');
-    expect(filtros.epic).toBe('TT-11');
+    expect(filtros.tier.values).toEqual([]);
+    expect(filtros.initiative.values).toEqual([]);
+    expect(filtros.epic.values).toEqual(['TT-11']);
     expect(filtros.query).toBe('');
   });
 
   it('hasJiraFilters só liga com algum filtro de verdade', () => {
     expect(hasJiraFilters(EMPTY_JIRA_FILTERS)).toBe(false);
     expect(hasJiraFilters({ ...EMPTY_JIRA_FILTERS, query: '   ' })).toBe(false);
-    expect(hasJiraFilters({ ...EMPTY_JIRA_FILTERS, tier: 'epic' })).toBe(true);
+    expect(hasJiraFilters({ ...EMPTY_JIRA_FILTERS, tier: group(['epic']) })).toBe(true);
+    expect(hasJiraFilters({ ...EMPTY_JIRA_FILTERS, status: group(['Backlog'], 'exclude') })).toBe(true);
   });
 });

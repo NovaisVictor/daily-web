@@ -20,34 +20,51 @@ export function tierOf(item: JiraItem): JiraTier | null {
   return JIRA_TIERS.find((tier) => TIER_LEVEL[tier] === item.hierarchyLevel) ?? null;
 }
 
+export type FilterMode = 'include' | 'exclude';
+
+export interface JiraFilterGroup<T = string> {
+  values: T[];
+  mode: FilterMode;
+}
+
+export function groupOf<T>(values: T[] = [], mode: FilterMode = 'include'): JiraFilterGroup<T> {
+  return { values, mode };
+}
+
 /** O recorte do painel do Jira. Vazio é "sem filtro"; cada campo é
  *  independente, e os três de hierarquia se somam: escolher épico dentro de
- *  uma iniciativa restringe mais, não troca. */
+ *  uma iniciativa restringe mais, não troca. Cada seletor aceita valores
+ *  compostos e modo de inclusão (igual a) ou exclusão (não é igual a). */
 export interface JiraFilterState {
   query: string;
-  status: string;
-  tier: JiraTier | null;
-  initiative: string;
-  epic: string;
-  story: string;
+  status: JiraFilterGroup<string>;
+  tier: JiraFilterGroup<JiraTier>;
+  initiative: JiraFilterGroup<string>;
+  epic: JiraFilterGroup<string>;
+  story: JiraFilterGroup<string>;
 }
 
 export const EMPTY_JIRA_FILTERS: JiraFilterState = {
   query: '',
-  status: '',
-  tier: null,
-  initiative: '',
-  epic: '',
-  story: '',
+  status: { values: [], mode: 'include' },
+  tier: { values: [], mode: 'include' },
+  initiative: { values: [], mode: 'include' },
+  epic: { values: [], mode: 'include' },
+  story: { values: [], mode: 'include' },
 };
 
 const PARAMS = {
   query: 'jiraBusca',
   status: 'jiraStatus',
+  statusMode: 'jiraStatusModo',
   tier: 'jiraTipo',
+  tierMode: 'jiraTipoModo',
   initiative: 'jiraIniciativa',
+  initiativeMode: 'jiraIniciativaModo',
   epic: 'jiraEpico',
+  epicMode: 'jiraEpicoModo',
   story: 'jiraHistoria',
+  storyMode: 'jiraHistoriaModo',
 } as const;
 
 const MAX_TEXT = 200;
@@ -57,21 +74,60 @@ function text(raw: string | null): string {
   return raw.length > MAX_TEXT ? '' : raw;
 }
 
-function key(raw: string | null): string {
-  return raw && isJiraKey(raw) ? raw.toUpperCase() : '';
+function keyValidator(raw: string | null): string | null {
+  return raw && isJiraKey(raw) ? raw.toUpperCase() : null;
+}
+
+function tierValidator(raw: string | null): JiraTier | null {
+  return JIRA_TIERS.find((t) => t === raw) ?? null;
+}
+
+function statusValidator(raw: string | null): string | null {
+  const t = text(raw);
+  return t ? t : null;
+}
+
+function parseGroup<T>(
+  params: URLSearchParams,
+  paramKey: string,
+  modeKey: string,
+  validator: (raw: string) => T | null,
+): JiraFilterGroup<T> {
+  const modeParam = params.get(modeKey);
+  let mode: FilterMode = modeParam === 'exclude' ? 'exclude' : 'include';
+
+  const rawValues = params.getAll(paramKey);
+  const tokens = rawValues
+    .flatMap((val) => val.split(','))
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const values: T[] = [];
+  for (const token of tokens) {
+    let clean = token;
+    if (clean.startsWith('!')) {
+      mode = 'exclude';
+      clean = clean.slice(1).trim();
+    }
+    const validated = validator(clean);
+    if (validated !== null && !values.includes(validated)) {
+      values.push(validated);
+    }
+  }
+
+  return { values, mode };
 }
 
 /** A URL é entrada não confiável: o que não é um valor que a tela produz cai
  *  no padrão em vez de virar estado. */
 export function parseJiraFilters(params: URLSearchParams): JiraFilterState {
-  const tier = params.get(PARAMS.tier);
   return {
     query: text(params.get(PARAMS.query)),
-    status: text(params.get(PARAMS.status)),
-    tier: JIRA_TIERS.find((t) => t === tier) ?? null,
-    initiative: key(params.get(PARAMS.initiative)),
-    epic: key(params.get(PARAMS.epic)),
-    story: key(params.get(PARAMS.story)),
+    status: parseGroup(params, PARAMS.status, PARAMS.statusMode, statusValidator),
+    tier: parseGroup(params, PARAMS.tier, PARAMS.tierMode, tierValidator),
+    initiative: parseGroup(params, PARAMS.initiative, PARAMS.initiativeMode, keyValidator),
+    epic: parseGroup(params, PARAMS.epic, PARAMS.epicMode, keyValidator),
+    story: parseGroup(params, PARAMS.story, PARAMS.storyMode, keyValidator),
   };
 }
 
@@ -82,27 +138,42 @@ export function jiraFiltersToParams(
   filters: JiraFilterState,
 ): URLSearchParams {
   const params = new URLSearchParams(current);
-  const put = (name: string, value: string) => {
+  const putText = (name: string, value: string) => {
     if (value) params.set(name, value);
     else params.delete(name);
   };
-  put(PARAMS.query, filters.query);
-  put(PARAMS.status, filters.status);
-  put(PARAMS.tier, filters.tier ?? '');
-  put(PARAMS.initiative, filters.initiative);
-  put(PARAMS.epic, filters.epic);
-  put(PARAMS.story, filters.story);
+
+  const putGroup = <T>(paramKey: string, modeKey: string, group: JiraFilterGroup<T>) => {
+    if (group.values.length === 0) {
+      params.delete(paramKey);
+      params.delete(modeKey);
+    } else {
+      params.set(paramKey, group.values.join(','));
+      if (group.mode === 'exclude') {
+        params.set(modeKey, 'exclude');
+      } else {
+        params.delete(modeKey);
+      }
+    }
+  };
+
+  putText(PARAMS.query, filters.query);
+  putGroup(PARAMS.status, PARAMS.statusMode, filters.status);
+  putGroup(PARAMS.tier, PARAMS.tierMode, filters.tier);
+  putGroup(PARAMS.initiative, PARAMS.initiativeMode, filters.initiative);
+  putGroup(PARAMS.epic, PARAMS.epicMode, filters.epic);
+  putGroup(PARAMS.story, PARAMS.storyMode, filters.story);
   return params;
 }
 
 export function hasJiraFilters(filters: JiraFilterState): boolean {
   return (
     filters.query.trim() !== '' ||
-    filters.status !== '' ||
-    filters.tier !== null ||
-    filters.initiative !== '' ||
-    filters.epic !== '' ||
-    filters.story !== ''
+    filters.status.values.length > 0 ||
+    filters.tier.values.length > 0 ||
+    filters.initiative.values.length > 0 ||
+    filters.epic.values.length > 0 ||
+    filters.story.values.length > 0
   );
 }
 
@@ -138,13 +209,32 @@ export function matchesJiraFilters(
   filters: JiraFilterState,
   byKey: Map<string, JiraItem>,
 ): boolean {
-  if (filters.status && !sameStatus(item.status, filters.status)) return false;
-  if (filters.tier && tierOf(item) !== filters.tier) return false;
+  if (filters.status.values.length > 0) {
+    const matched = filters.status.values.some((s) => sameStatus(item.status, s));
+    if (filters.status.mode === 'include' && !matched) return false;
+    if (filters.status.mode === 'exclude' && matched) return false;
+  }
+
+  if (filters.tier.values.length > 0) {
+    const itemTier = tierOf(item);
+    const matched = itemTier !== null && filters.tier.values.includes(itemTier);
+    if (filters.tier.mode === 'include' && !matched) return false;
+    if (filters.tier.mode === 'exclude' && matched) return false;
+  }
 
   const lineage = lineageOf(item, byKey);
-  if (!underOrSelf(item, lineage, filters.initiative)) return false;
-  if (!underOrSelf(item, lineage, filters.epic)) return false;
-  if (!underOrSelf(item, lineage, filters.story)) return false;
+
+  const matchesHierarchy = (group: JiraFilterGroup<string>): boolean => {
+    if (group.values.length === 0) return true;
+    const inHierarchy = group.values.some(
+      (selected) => item.key === selected || lineage.some((a) => a.key === selected),
+    );
+    return group.mode === 'include' ? inHierarchy : !inHierarchy;
+  };
+
+  if (!matchesHierarchy(filters.initiative)) return false;
+  if (!matchesHierarchy(filters.epic)) return false;
+  if (!matchesHierarchy(filters.story)) return false;
 
   // A busca olha o caminho inteiro: procurar pelo nome da iniciativa traz o
   // que está debaixo dela, que é o que se quer ver ao lembrar só do tema.
@@ -182,17 +272,30 @@ export function jiraFilterOptions(
     }
   }
 
-  const ofTier = (tier: JiraTier, within: string[]) =>
+  const activeInitiatives = filters.initiative.mode === 'include' ? filters.initiative.values : [];
+  const activeEpics = filters.epic.mode === 'include' ? filters.epic.values : [];
+
+  const ofTier = (tier: JiraTier, withinInitiatives: string[], withinEpics: string[]) =>
     [...pool.values()]
       .filter(({ item }) => tierOf(item) === tier)
-      .filter(({ item, lineage }) => within.every((sel) => underOrSelf(item, lineage, sel)))
+      .filter(({ item, lineage }) => {
+        if (withinInitiatives.length > 0) {
+          const under = withinInitiatives.some((sel) => underOrSelf(item, lineage, sel));
+          if (!under) return false;
+        }
+        if (withinEpics.length > 0) {
+          const under = withinEpics.some((sel) => underOrSelf(item, lineage, sel));
+          if (!under) return false;
+        }
+        return true;
+      })
       .map(({ item }) => item)
       .sort((a, b) => a.summary.localeCompare(b.summary));
 
   return {
     statuses: [...statuses.values()].sort((a, b) => a.localeCompare(b)),
-    initiatives: ofTier('initiative', []),
-    epics: ofTier('epic', [filters.initiative]),
-    stories: ofTier('story', [filters.initiative, filters.epic]),
+    initiatives: ofTier('initiative', [], []),
+    epics: ofTier('epic', activeInitiatives, []),
+    stories: ofTier('story', activeInitiatives, activeEpics),
   };
 }

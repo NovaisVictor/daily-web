@@ -342,7 +342,7 @@ describe('JiraPanel', () => {
         }}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
     expect(screen.getByText('1 de 2')).toBeInTheDocument();
   });
 
@@ -363,6 +363,7 @@ describe('situação, idade e prazo na linha', () => {
 
   it('ainda marca quando você é só o relator, que é a exceção', () => {
     render(<Panel watched={{ data: [], error: null }} onChanged={() => {}} jira={{ data: [issue({ role: 'reporter' })], error: null }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ambas' }));
     expect(screen.getByText('REL')).toBeInTheDocument();
   });
 
@@ -980,6 +981,19 @@ describe('filtros do Jira', () => {
     expect(minhasNaTela()).toEqual(['TT-112']);
   });
 
+  it('permite alternar múltiplos status e alternar modo no dropdown interativo', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: /abrir menu filtrar por status/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
+    expect(params().get('jiraStatus')).toBe('Backlog');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Aberto' }));
+    expect(params().get('jiraStatus')).toBe('Backlog,Aberto');
+
+    fireEvent.click(screen.getByRole('button', { name: /modo não é igual a para filtrar por status/i }));
+    expect(params().get('jiraStatusModo')).toBe('exclude');
+  });
+
   it('oferece só os status que existem na lista', () => {
     montar();
     expect(opcoesDe('filtrar por status')).toEqual(['Aberto', 'Backlog', 'Em Andamento']);
@@ -1105,6 +1119,51 @@ describe('filtros do Jira', () => {
     montar();
     fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
     expect(params().get('jiraPapel')).toBe('reporter');
+  });
+
+  it('tem como padrão o papel Minhas e limpa jiraPapel ao selecioná-lo', () => {
+    nav.search = 'jiraPapel=both';
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
+    expect(params().has('jiraPapel')).toBe(false);
+  });
+
+  it('suporta filtro composto de status na URL e exibe os itens correspondentes', () => {
+    nav.search = 'jiraStatus=Backlog,Em+Andamento';
+    montar();
+    expect(screen.getByText('Status: Backlog, Em Andamento')).toBeInTheDocument();
+    expect(minhasNaTela()).toEqual(['TT-111', 'TT-112', 'TT-211', 'TT-21']);
+  });
+
+  it('suporta filtro de exclusão de status na URL e esconde itens excluídos', () => {
+    nav.search = 'jiraStatus=Backlog&jiraStatusModo=exclude';
+    montar();
+    expect(screen.getByText('Status ≠ Backlog')).toBeInTheDocument();
+    expect(minhasNaTela()).toEqual(['TT-111', 'TT-211', 'TT-21']);
+    expect(naTela('TT-112')).toBe(false);
+  });
+
+  it('suporta filtro de exclusão com prefixo ! na URL', () => {
+    nav.search = 'jiraStatus=!Backlog';
+    montar();
+    expect(screen.getByText('Status ≠ Backlog')).toBeInTheDocument();
+    expect(minhasNaTela()).toEqual(['TT-111', 'TT-211', 'TT-21']);
+  });
+
+  it('suporta exclusão de tipo na URL', () => {
+    nav.search = 'jiraTipo=story&jiraTipoModo=exclude';
+    montar();
+    expect(screen.getByText('Tipo ≠ Histórias')).toBeInTheDocument();
+    expect(minhasNaTela()).toEqual(['TT-21']);
+  });
+
+  it('suporta exclusão de iniciativa na URL', () => {
+    nav.search = 'jiraIniciativa=TT-10&jiraIniciativaModo=exclude';
+    montar();
+    expect(screen.getByText('Iniciativa ≠ TT-10 Programa de fidelidade')).toBeInTheDocument();
+    expect(minhasNaTela()).toEqual(['TT-211', 'TT-21']);
+    expect(naTela('TT-111')).toBe(false);
+    expect(naTela('TT-112')).toBe(false);
   });
 
   it('valor inventado na URL cai no padrão', () => {

@@ -18,6 +18,7 @@ import type {
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
+import { JiraMultiFilterDropdown } from './JiraMultiFilterDropdown';
 import {
   EMPTY_JIRA_FILTERS,
   JIRA_TIERS,
@@ -104,17 +105,17 @@ function JiraStatus({ issue }: { issue: JiraItem }) {
   );
 }
 
-type Filter = 'both' | 'assignee' | 'reporter';
+type Filter = 'assignee' | 'both' | 'reporter';
 
 const FILTER_LABEL: Record<Filter, string> = {
-  both: 'Ambas',
   assignee: 'Minhas',
+  both: 'Ambas',
   reporter: 'Relator',
 };
 
 const FILTER_LABEL_PESSOA: Record<Filter, string> = {
-  both: 'Ambas',
   assignee: 'Responsável',
+  both: 'Ambas',
   reporter: 'Relator',
 };
 
@@ -137,7 +138,7 @@ const PESSOA_PARAM = 'jiraPessoa';
 const PAPEL_PARAM = 'jiraPapel';
 
 function parsePapel(value: string | null): Filter {
-  return value === 'assignee' || value === 'reporter' ? value : 'both';
+  return value === 'both' || value === 'reporter' ? value : 'assignee';
 }
 
 const VISTA_VAZIA: JiraPersonView = {
@@ -402,7 +403,7 @@ export function JiraPanel({
     trocarUrl(jiraFiltersToParams(searchParams, { ...filtros, ...next }));
   const setFilter = (next: Filter) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === 'both') params.delete(PAPEL_PARAM);
+    if (next === 'assignee') params.delete(PAPEL_PARAM);
     else params.set(PAPEL_PARAM, next);
     trocarUrl(params);
   };
@@ -507,27 +508,94 @@ export function JiraPanel({
 
   const activeFilters: ActiveFilter[] = [
     ...(filtros.query.trim() ? [{ id: 'query', label: `Busca: ${filtros.query.trim()}` }] : []),
-    ...(filtros.status ? [{ id: 'status', label: `Status: ${filtros.status}` }] : []),
-    ...(filtros.tier ? [{ id: 'tier', label: `Tipo: ${JIRA_TIER_LABEL[filtros.tier]}` }] : []),
-    ...(filtros.initiative
-      ? [{ id: 'initiative', label: `Iniciativa: ${rotuloDe(filtros.initiative)}` }]
+    ...(filtros.status.values.length > 0
+      ? [
+          {
+            id: 'status',
+            label:
+              filtros.status.mode === 'exclude'
+                ? `Status ≠ ${filtros.status.values.join(', ')}`
+                : filtros.status.values.length === 1
+                  ? `Status: ${filtros.status.values[0]}`
+                  : `Status: ${filtros.status.values.join(', ')}`,
+          },
+        ]
       : []),
-    ...(filtros.epic ? [{ id: 'epic', label: `Épico: ${rotuloDe(filtros.epic)}` }] : []),
-    ...(filtros.story ? [{ id: 'story', label: `História: ${rotuloDe(filtros.story)}` }] : []),
-    ...(aba === 'abertas' && filter !== 'both'
+    ...(filtros.tier.values.length > 0
+      ? [
+          {
+            id: 'tier',
+            label:
+              filtros.tier.mode === 'exclude'
+                ? `Tipo ≠ ${filtros.tier.values.map((t) => JIRA_TIER_LABEL[t]).join(', ')}`
+                : filtros.tier.values.length === 1
+                  ? `Tipo: ${JIRA_TIER_LABEL[filtros.tier.values[0]]}`
+                  : `Tipo: ${filtros.tier.values.map((t) => JIRA_TIER_LABEL[t]).join(', ')}`,
+          },
+        ]
+      : []),
+    ...(filtros.initiative.values.length > 0
+      ? [
+          {
+            id: 'initiative',
+            label:
+              filtros.initiative.mode === 'exclude'
+                ? `Iniciativa ≠ ${filtros.initiative.values.map(rotuloDe).join(', ')}`
+                : filtros.initiative.values.length === 1
+                  ? `Iniciativa: ${rotuloDe(filtros.initiative.values[0])}`
+                  : `Iniciativa: ${filtros.initiative.values.map(rotuloDe).join(', ')}`,
+          },
+        ]
+      : []),
+    ...(filtros.epic.values.length > 0
+      ? [
+          {
+            id: 'epic',
+            label:
+              filtros.epic.mode === 'exclude'
+                ? `Épico ≠ ${filtros.epic.values.map(rotuloDe).join(', ')}`
+                : filtros.epic.values.length === 1
+                  ? `Épico: ${rotuloDe(filtros.epic.values[0])}`
+                  : `Épico: ${filtros.epic.values.map(rotuloDe).join(', ')}`,
+          },
+        ]
+      : []),
+    ...(filtros.story.values.length > 0
+      ? [
+          {
+            id: 'story',
+            label:
+              filtros.story.mode === 'exclude'
+                ? `História ≠ ${filtros.story.values.map(rotuloDe).join(', ')}`
+                : filtros.story.values.length === 1
+                  ? `História: ${rotuloDe(filtros.story.values[0])}`
+                  : `História: ${filtros.story.values.map(rotuloDe).join(', ')}`,
+          },
+        ]
+      : []),
+    ...(aba === 'abertas' && filter !== 'assignee'
       ? [{ id: 'role', label: pessoaAtiva ? FILTER_LABEL_PESSOA[filter] : FILTER_LABEL[filter] }]
       : []),
   ];
 
   const clearFilter = (id: string) => {
-    if (id === 'role') return setFilter('both');
+    if (id === 'role') return setFilter('assignee');
     if (id === 'query') return setFiltros({ query: '' });
-    if (id === 'status') return setFiltros({ status: '' });
-    if (id === 'tier') return setFiltros({ tier: null });
+    if (id === 'status') return setFiltros({ status: { values: [], mode: 'include' } });
+    if (id === 'tier') return setFiltros({ tier: { values: [], mode: 'include' } });
     // Tirar um degrau de cima solta os de baixo, que só faziam sentido nele.
-    if (id === 'initiative') return setFiltros({ initiative: '', epic: '', story: '' });
-    if (id === 'epic') return setFiltros({ epic: '', story: '' });
-    if (id === 'story') return setFiltros({ story: '' });
+    if (id === 'initiative')
+      return setFiltros({
+        initiative: { values: [], mode: 'include' },
+        epic: { values: [], mode: 'include' },
+        story: { values: [], mode: 'include' },
+      });
+    if (id === 'epic')
+      return setFiltros({
+        epic: { values: [], mode: 'include' },
+        story: { values: [], mode: 'include' },
+      });
+    if (id === 'story') return setFiltros({ story: { values: [], mode: 'include' } });
   };
 
   const clearAll = () => {
@@ -649,57 +717,90 @@ export function JiraPanel({
           label="buscar issues"
           placeholder="chave ou resumo, até do épico"
         />
-        <select
-          className={cn(selectClass, focusRing)}
-          aria-label="filtrar por status"
-          value={filtros.status}
-          onChange={(e) => setFiltros({ status: e.target.value })}
-        >
-          <option value="">Todos os status</option>
-          {comSelecionado(opcoes.statuses, filtros.status).map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
-        <select
-          className={cn(selectClass, focusRing)}
-          aria-label="filtrar por tipo"
-          value={filtros.tier ?? ''}
-          onChange={(e) =>
-            setFiltros({ tier: JIRA_TIERS.find((t) => t === e.target.value) ?? null })
-          }
-        >
-          <option value="">Todos os tipos</option>
-          {JIRA_TIERS.map((tier) => (
-            <option key={tier} value={tier}>
-              {JIRA_TIER_LABEL[tier]}
-            </option>
-          ))}
-        </select>
-        <JiraIssueSelect
+        <JiraMultiFilterDropdown
+          label="filtrar por status"
+          title="Filtrar por Status"
+          placeholder="Todos os status"
+          filter={filtros.status}
+          options={opcoes.statuses.map((status) => ({
+            value: status,
+            label: status,
+          }))}
+          onChange={(status) => setFiltros({ status })}
+        />
+        <JiraMultiFilterDropdown
+          label="filtrar por tipo"
+          title="Filtrar por Tipo"
+          placeholder="Todos os tipos"
+          filter={filtros.tier}
+          options={JIRA_TIERS.map((tier) => ({
+            value: tier,
+            label: JIRA_TIER_LABEL[tier],
+          }))}
+          onChange={(tier) => setFiltros({ tier })}
+        />
+        <JiraMultiFilterDropdown
           label="filtrar por iniciativa"
+          title="Filtrar por Iniciativa"
           placeholder="Todas as iniciativas"
-          value={filtros.initiative}
-          options={opcoes.initiatives}
-          rotuloDe={rotuloDe}
-          // Os degraus de baixo dependiam da iniciativa anterior.
-          onChange={(initiative) => setFiltros({ initiative, epic: '', story: '' })}
+          filter={filtros.initiative}
+          options={opcoes.initiatives.map((item) => ({
+            value: item.key,
+            label: rotuloDe(item.key),
+            secondary: item.key,
+          }))}
+          formatLabel={rotuloDe}
+          onChange={(initiative) => {
+            const mantemAlguma = filtros.initiative.values.some((v) =>
+              initiative.values.includes(v),
+            );
+            if (!mantemAlguma && filtros.initiative.values.length > 0) {
+              setFiltros({
+                initiative,
+                epic: { values: [], mode: 'include' },
+                story: { values: [], mode: 'include' },
+              });
+            } else {
+              setFiltros({ initiative });
+            }
+          }}
         />
-        <JiraIssueSelect
+        <JiraMultiFilterDropdown
           label="filtrar por épico"
+          title="Filtrar por Épico"
           placeholder="Todos os épicos"
-          value={filtros.epic}
-          options={opcoes.epics}
-          rotuloDe={rotuloDe}
-          onChange={(epic) => setFiltros({ epic, story: '' })}
+          filter={filtros.epic}
+          options={opcoes.epics.map((item) => ({
+            value: item.key,
+            label: rotuloDe(item.key),
+            secondary: item.key,
+          }))}
+          formatLabel={rotuloDe}
+          onChange={(epic) => {
+            const mantemAlguma = filtros.epic.values.some((v) =>
+              epic.values.includes(v),
+            );
+            if (!mantemAlguma && filtros.epic.values.length > 0) {
+              setFiltros({
+                epic,
+                story: { values: [], mode: 'include' },
+              });
+            } else {
+              setFiltros({ epic });
+            }
+          }}
         />
-        <JiraIssueSelect
+        <JiraMultiFilterDropdown
           label="filtrar por história"
+          title="Filtrar por História"
           placeholder="Todas as histórias"
-          value={filtros.story}
-          options={opcoes.stories}
-          rotuloDe={rotuloDe}
+          filter={filtros.story}
+          options={opcoes.stories.map((item) => ({
+            value: item.key,
+            label: rotuloDe(item.key),
+            secondary: item.key,
+          }))}
+          formatLabel={rotuloDe}
           onChange={(story) => setFiltros({ story })}
         />
       </FilterBar>
@@ -1004,48 +1105,6 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
 /** O que nasce aberto na árvore, até o usuário abrir ou fechar na mão: só o
  *  caminho até o objetivo, ou tudo, quando um filtro já escolheu o que ver. */
 type Abertura = 'caminho' | 'tudo';
-
-/** O valor escolhido continua na lista mesmo quando a aba aberta não tem
- *  nada dele: um seletor que perde o próprio valor parece ter se desfeito. */
-function comSelecionado(options: string[], selected: string): string[] {
-  return selected && !options.includes(selected) ? [selected, ...options] : options;
-}
-
-function JiraIssueSelect({
-  label,
-  placeholder,
-  value,
-  options,
-  rotuloDe,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  options: JiraItem[];
-  rotuloDe: (chave: string) => string;
-  onChange: (chave: string) => void;
-}) {
-  const chaves = comSelecionado(
-    options.map((o) => o.key),
-    value,
-  );
-  return (
-    <select
-      className={cn(selectClass, 'max-w-56 truncate', focusRing)}
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">{placeholder}</option>
-      {chaves.map((chave) => (
-        <option key={chave} value={chave}>
-          {rotuloDe(chave)}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 /** A hierarquia por projeto: um bloco por projeto, e dentro dele a árvore de
  *  pais e filhas. É o que as duas abas têm em comum. */
