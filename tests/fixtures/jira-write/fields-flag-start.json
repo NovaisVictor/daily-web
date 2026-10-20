@@ -1,0 +1,43 @@
+[
+  {
+    "id": "customfield_10021",
+    "key": "customfield_10021",
+    "name": "Flagged",
+    "untranslatedName": "Flagged",
+    "custom": true,
+    "orderable": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "Flagged",
+      "Flagged[Checkboxes]",
+      "cf[10021]"
+    ],
+    "schema": {
+      "type": "array",
+      "items": "option",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+      "customId": 10021
+    }
+  },
+  {
+    "id": "customfield_10015",
+    "key": "customfield_10015",
+    "name": "Data de início",
+    "untranslatedName": "Start date",
+    "custom": true,
+    "orderable": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10015]",
+      "Start date",
+      "Start date[Date]"
+    ],
+    "schema": {
+      "type": "date",
+      "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+      "customId": 10015
+    }
+  }
+]

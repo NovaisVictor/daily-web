@@ -1,0 +1,89 @@
+{
+  "startAt": 0,
+  "maxResults": 200,
+  "total": 20,
+  "fields": [
+    {
+      "required": true,
+      "schema": {
+        "type": "issuetype",
+        "system": "issuetype"
+      },
+      "name": "Tipo de item",
+      "key": "issuetype",
+      "hasDefaultValue": false,
+      "operations": [],
+      "allowedValues": [
+        {
+          "self": "https://example.atlassian.net/rest/api/3/issuetype/10005",
+          "id": "10005",
+          "description": "Funcionalidade ou recurso expressado como um objetivo do usuário.",
+          "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10311?size=medium",
+          "name": "História",
+          "subtask": false,
+          "avatarId": 10311,
+          "hierarchyLevel": 0
+        }
+      ],
+      "fieldId": "issuetype"
+    },
+    {
+      "required": false,
+      "schema": {
+        "type": "issuelink",
+        "system": "parent"
+      },
+      "name": "Pai",
+      "key": "parent",
+      "hasDefaultValue": false,
+      "operations": [
+        "set"
+      ],
+      "fieldId": "parent"
+    },
+    {
+      "required": true,
+      "schema": {
+        "type": "project",
+        "system": "project"
+      },
+      "name": "Projeto",
+      "key": "project",
+      "hasDefaultValue": false,
+      "operations": [
+        "set"
+      ],
+      "allowedValues": [
+        {
+          "self": "https://example.atlassian.net/rest/api/3/project/11118",
+          "id": "11118",
+          "key": "TT",
+          "name": "Tech Portfólio",
+          "projectTypeKey": "software",
+          "simplified": false,
+          "projectCategory": {
+            "self": "https://example.atlassian.net/rest/api/3/projectCategory/10102",
+            "id": "10102",
+            "description": "",
+            "name": "Squad Produto e Projetos"
+          }
+        }
+      ],
+      "fieldId": "project"
+    },
+    {
+      "required": true,
+      "schema": {
+        "type": "string",
+        "system": "summary"
+      },
+      "name": "Resumo",
+      "key": "summary",
+      "hasDefaultValue": false,
+      "operations": [
+        "set"
+      ],
+      "fieldId": "summary"
+    }
+  ]
+}

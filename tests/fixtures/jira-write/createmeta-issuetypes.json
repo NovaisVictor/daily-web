@@ -1,0 +1,67 @@
+{
+  "startAt": 0,
+  "maxResults": 50,
+  "total": 6,
+  "issueTypes": [
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10000",
+      "id": "10000",
+      "description": "Uma coleção de bugs, histórias e tarefas.",
+      "iconUrl": "https://example.atlassian.net/images/icons/issuetypes/epic.svg",
+      "name": "Epic",
+      "untranslatedName": "Epic",
+      "subtask": false,
+      "hierarchyLevel": 1
+    },
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10005",
+      "id": "10005",
+      "description": "Funcionalidade ou recurso expressado como um objetivo do usuário.",
+      "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10311?size=medium",
+      "name": "História",
+      "untranslatedName": "Story",
+      "subtask": false,
+      "hierarchyLevel": 0
+    },
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10099",
+      "id": "10099",
+      "description": "Uma pequena parte do trabalho que faz parte de uma tarefa maior.",
+      "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10316?size=medium",
+      "name": "Subtarefa",
+      "untranslatedName": "Sub-task",
+      "subtask": true,
+      "hierarchyLevel": -1
+    },
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10108",
+      "id": "10108",
+      "description": "Um problema ou erro.",
+      "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "name": "Bug",
+      "untranslatedName": "Bug",
+      "subtask": false,
+      "hierarchyLevel": 0
+    },
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10177",
+      "id": "10177",
+      "description": "Uma iniciativa",
+      "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10322?size=medium",
+      "name": "Iniciativa",
+      "untranslatedName": "Initiative",
+      "subtask": false,
+      "hierarchyLevel": 2
+    },
+    {
+      "self": "https://example.atlassian.net/rest/api/3/issuetype/10850",
+      "id": "10850",
+      "description": "",
+      "iconUrl": "https://example.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/11387?size=medium",
+      "name": "Objective",
+      "untranslatedName": "Objective",
+      "subtask": false,
+      "hierarchyLevel": 3
+    }
+  ]
+}

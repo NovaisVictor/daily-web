@@ -1,0 +1,109 @@
+{
+  "fields": {
+    "duedate": {
+      "required": false,
+      "schema": {
+        "type": "date",
+        "system": "duedate"
+      },
+      "name": "Data limite",
+      "key": "duedate",
+      "operations": [
+        "set"
+      ]
+    },
+    "priority": {
+      "required": false,
+      "schema": {
+        "type": "priority",
+        "system": "priority"
+      },
+      "name": "Prioridade",
+      "key": "priority",
+      "operations": [
+        "set"
+      ],
+      "allowedValues": [
+        {
+          "self": "https://example.atlassian.net/rest/api/3/priority/1",
+          "iconUrl": "https://example.atlassian.net/images/icons/priorities/highest_new.svg",
+          "name": "Crítica",
+          "id": "1"
+        },
+        {
+          "self": "https://example.atlassian.net/rest/api/3/priority/2",
+          "iconUrl": "https://example.atlassian.net/images/icons/priorities/high_new.svg",
+          "name": "Alta",
+          "id": "2"
+        },
+        {
+          "self": "https://example.atlassian.net/rest/api/3/priority/3",
+          "iconUrl": "https://example.atlassian.net/images/icons/priorities/medium_new.svg",
+          "name": "Média",
+          "id": "3"
+        },
+        {
+          "self": "https://example.atlassian.net/rest/api/3/priority/4",
+          "iconUrl": "https://example.atlassian.net/images/icons/priorities/low_new.svg",
+          "name": "Baixa",
+          "id": "4"
+        },
+        {
+          "self": "https://example.atlassian.net/rest/api/3/priority/5",
+          "iconUrl": "https://example.atlassian.net/images/icons/priorities/lowest_new.svg",
+          "name": "Trivial",
+          "id": "5"
+        }
+      ]
+    },
+    "assignee": {
+      "required": false,
+      "schema": {
+        "type": "user",
+        "system": "assignee"
+      },
+      "name": "Responsável",
+      "key": "assignee",
+      "autoCompleteUrl": "https://example.atlassian.net/rest/api/3/user/assignable/search?issueKey=TT-5019&query=",
+      "operations": [
+        "set"
+      ]
+    },
+    "customfield_10021": {
+      "required": false,
+      "schema": {
+        "type": "array",
+        "items": "option",
+        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+        "customId": 10021
+      },
+      "name": "Flagged",
+      "key": "customfield_10021",
+      "operations": [
+        "add",
+        "set",
+        "remove"
+      ],
+      "allowedValues": [
+        {
+          "self": "https://example.atlassian.net/rest/api/3/customFieldOption/10019",
+          "value": "Impediment",
+          "id": "10019"
+        }
+      ]
+    },
+    "customfield_10015": {
+      "required": false,
+      "schema": {
+        "type": "date",
+        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+        "customId": 10015
+      },
+      "name": "Data de início",
+      "key": "customfield_10015",
+      "operations": [
+        "set"
+      ]
+    }
+  }
+}

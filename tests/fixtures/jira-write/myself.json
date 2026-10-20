@@ -1,0 +1,6 @@
+{
+  "self": "https://example.atlassian.net/rest/api/3/user?accountId=557058:00000000-0000-0000-0000-000000000001",
+  "accountId": "557058:00000000-0000-0000-0000-000000000001",
+  "accountType": "atlassian",
+  "active": true
+}

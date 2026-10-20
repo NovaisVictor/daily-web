@@ -433,7 +433,7 @@ interface JiraField {
 // instância. O nome é o que se repete — em inglês ou no idioma do perfil.
 const START_FIELD_NAMES = ['start date', 'data de início', 'data de inicio'];
 
-async function startDateField(auth: JiraAuth): Promise<string> {
+export async function startDateField(auth: JiraAuth): Promise<string> {
   const fields = (await request(auth, '/rest/api/3/field', undefined)) as JiraField[];
   const field = fields.find((f) => START_FIELD_NAMES.includes(f.name?.trim().toLowerCase() ?? ''));
   // Sem o campo, toda história em andamento pareceria sem início. Melhor dizer

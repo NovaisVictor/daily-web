@@ -1,0 +1,37 @@
+{
+  "id": "3516",
+  "name": "Aprovação",
+  "finalDecision": "approved",
+  "canAnswerApproval": false,
+  "approvers": [
+    {
+      "approver": {
+        "accountId": "557058:00000000-0000-0000-0000-000000000001",
+        "emailAddress": "pessoa-1@example.com",
+        "displayName": "Pessoa 1",
+        "active": true,
+        "timeZone": "America/Sao_Paulo",
+        "_links": {
+          "jiraRest": "https://example.atlassian.net/rest/api/2/user?accountId=557058%3A00000000-0000-0000-0000-000000000001",
+          "self": "https://example.atlassian.net/rest/api/2/user?accountId=557058%3A00000000-0000-0000-0000-000000000001"
+        }
+      },
+      "approverDecision": "approved"
+    }
+  ],
+  "createdDate": {
+    "iso8601": "2026-10-14T15:02:40-0300",
+    "jira": "2026-10-14T15:02:40.378-0300",
+    "friendly": "Quarta-feira 3:02 PM",
+    "epochMillis": 1792000960378
+  },
+  "completedDate": {
+    "iso8601": "2026-10-14T19:55:05-0300",
+    "jira": "2026-10-14T19:55:05.636-0300",
+    "friendly": "Quarta-feira 7:55 PM",
+    "epochMillis": 1792018505636
+  },
+  "_links": {
+    "self": "https://example.atlassian.net/rest/servicedeskapi/request/74599/approval/3516"
+  }
+}
