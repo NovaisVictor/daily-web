@@ -398,12 +398,13 @@ async function startDateField(auth: JiraAuth): Promise<string> {
   return field.id;
 }
 
-// Histórias e épicos de quem está sendo olhado que ainda pedem atenção: o que está aberto e o que
-// mudou no último mês. Sem o recorte de tempo, todo o histórico concluído
-// entraria só para ser conferido.
+// Histórias e épicos sob a responsabilidade de quem está sendo olhado que ainda pedem atenção:
+// o que está aberto e o que mudou no último mês. Ser só o relator não basta — corrigir o
+// preenchimento é trabalho de quem responde pela issue. Sem o recorte de tempo, todo o
+// histórico concluído entraria só para ser conferido.
 const problemScope = (subject: JiraSubject) => {
   const userStr = jqlUser(subject);
-  return `(assignee = ${userStr} OR reporter = ${userStr}) AND ` +
+  return `assignee = ${userStr} AND ` +
     '(statusCategory != Done OR updated >= -30d) ORDER BY updated DESC';
 };
 

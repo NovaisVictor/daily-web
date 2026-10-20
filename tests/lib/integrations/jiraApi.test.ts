@@ -298,7 +298,8 @@ describe('fetchProblems', () => {
 
     const [scope] = searchBodies(fetchMock);
     expect(scope.fields).toEqual(expect.arrayContaining(['customfield_10015']));
-    expect(scope.jql).toContain('assignee = currentUser() OR reporter = currentUser()');
+    expect(scope.jql).toContain('assignee = currentUser() AND');
+    expect(scope.jql).not.toContain('reporter');
     expect(found.map((i) => [i.key, i.problems])).toEqual([
       ['DAD-2', ['story-in-progress-without-start']],
     ]);
@@ -400,7 +401,8 @@ describe('JiraSubject (fetch by person)', () => {
     await fetchProblems(CONN, PERSON);
     
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(body.jql).toContain('assignee = "123:abc" OR reporter = "123:abc"');
+    expect(body.jql).toContain('assignee = "123:abc" AND');
+    expect(body.jql).not.toContain('reporter');
     expect(body.jql).not.toContain('currentUser()');
   });
 
