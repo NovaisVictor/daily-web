@@ -109,26 +109,70 @@ export function toJiraItem(raw: RawIssue, baseUrl: string, role: JiraRole): Jira
   };
 }
 
-async function request(auth: JiraAuth, path: string, body: unknown): Promise<unknown> {
+export interface JiraRequestInit {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: unknown;
+  /** O que dizer quando o Jira responde 404. Numa issue, é a issue que não
+   *  existe ou não é visível, não o domínio. */
+  notFound?: string;
+}
+
+interface JiraErrorBody {
+  errorMessages?: unknown;
+  errors?: unknown;
+}
+
+/** O que o Jira disse ao recusar, em vez do status cru: numa escrita, "campo
+ *  obrigatório" ou "transição inválida" é o que a pessoa precisa ler. */
+function jiraRefusal(text: string): string {
+  try {
+    const data = JSON.parse(text) as JiraErrorBody;
+    const messages = Array.isArray(data.errorMessages)
+      ? data.errorMessages.filter((m): m is string => typeof m === 'string')
+      : [];
+    const fields =
+      data.errors && typeof data.errors === 'object'
+        ? Object.entries(data.errors as Record<string, unknown>)
+            .filter(([, v]) => typeof v === 'string')
+            .map(([k, v]) => `${k}: ${v as string}`)
+        : [];
+    const all = [...messages, ...fields];
+    if (all.length > 0) return all.join('; ').slice(0, 300);
+  } catch {
+    // Not JSON: the raw text below is the best there is.
+  }
+  return text.slice(0, 200);
+}
+
+/** Uma ida ao Jira com o método explícito. Leitura e escrita passam por aqui;
+ *  204 e corpo vazio viram `null`. */
+export async function jiraRequest(auth: JiraAuth, path: string, init: JiraRequestInit): Promise<unknown> {
+  const hasBody = init.body !== undefined;
   const response = await fetch(`${auth.baseUrl}${path}`, {
-    method: body ? 'POST' : 'GET',
+    method: init.method,
     headers: {
       authorization: auth.header,
       accept: 'application/json',
-      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: hasBody ? JSON.stringify(init.body) : undefined,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   if (response.status === 401) throw new Error('Jira recusou o e-mail ou o API token');
   if (response.status === 403) throw new Error('o API token do Jira não tem permissão para isso');
-  if (response.status === 404) throw new Error('domínio do Jira não encontrado');
+  if (response.status === 404) throw new Error(init.notFound ?? 'domínio do Jira não encontrado');
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(`Jira respondeu ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`);
+    const detail = text ? jiraRefusal(text) : '';
+    throw new Error(`Jira respondeu ${response.status}${detail ? `: ${detail}` : ''}`);
   }
+  if (response.status === 204 || response.headers?.get('content-length') === '0') return null;
   return response.json();
+}
+
+async function request(auth: JiraAuth, path: string, body: unknown): Promise<unknown> {
+  return jiraRequest(auth, path, body ? { method: 'POST', body } : { method: 'GET' });
 }
 
 interface SearchResponse {

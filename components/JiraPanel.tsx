@@ -57,6 +57,12 @@ import { cn } from '@/lib/utils';
 import { focusRing, tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
+import { JiraActionsProvider, type JiraViewer } from './jira/actions/context';
+import { IssueActions } from './jira/IssueActions';
+import { TransitionAction } from './jira/actions/TransitionAction';
+import { ApprovalBadge } from './jira/actions/ApprovalAction';
+import { FlagIndicator } from './jira/actions/FlagAction';
+import { BulkStartDate } from './jira/actions/BulkStartDate';
 
 /**
  * A panel that cannot reach its integration is information, not an alarm: the
@@ -610,8 +616,12 @@ export function JiraPanel({
   const abertura: Abertura = filtrando ? 'tudo' : 'caminho';
 
   const nome = pessoaAtivaObj?.displayName.split(' ')[0] ?? '';
+  const viewer: JiraViewer = pessoaAtivaObj
+    ? { kind: 'person', name: pessoaAtivaObj.displayName }
+    : { kind: 'self' };
 
   return (
+    <JiraActionsProvider value={{ viewer, onChanged }}>
     <Section
       eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
       count={
@@ -889,6 +899,8 @@ export function JiraPanel({
             <EmptyState title={pessoaAtivaObj ? `Nenhuma história ou épico de ${nome} com problema.` : "Nenhuma história ou épico com problema."} />
           )}
 
+          <BulkStartDate problems={problemas} />
+
           <ul>
             {problemas.map((issue) => (
               <JiraProblemRow key={issue.key} issue={issue} />
@@ -1055,6 +1067,7 @@ export function JiraPanel({
         </div>
       )}
     </Section>
+    </JiraActionsProvider>
   );
 }
 
@@ -1085,7 +1098,9 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
-          <JiraStatus issue={issue} />
+          <TransitionAction issue={issue}>
+            <JiraStatus issue={issue} />
+          </TransitionAction>
           <ul className="contents" aria-label={`problemas de ${issue.key}`}>
             {issue.problems.map((problem) => (
               <li
@@ -1098,6 +1113,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
           </ul>
         </div>
       </div>
+      <IssueActions issue={issue} />
     </li>
   );
 }
@@ -1297,20 +1313,22 @@ function JiraRow({
           )}
           {/* A pending decision is the only mark that asks something of the reader,
               so it is the one that pulls more attention than the role badge. */}
+          <FlagIndicator issue={issue} />
           {issue.awaitingApproval && (
-            <span
+            <ApprovalBadge
+              issue={issue}
               className={cn(
                 roleBadge,
                 'border-warning/45 bg-warning-tint font-semibold text-warning',
               )}
               title={pessoaNome ? `aguardando a aprovação de ${pessoaNome}` : "aguardando a sua aprovação"}
-            >
-              APROV
-            </span>
+            />
           )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
-          <JiraStatus issue={issue} />
+          <TransitionAction issue={issue}>
+            <JiraStatus issue={issue} />
+          </TransitionAction>
           {parado && <span className="whitespace-nowrap text-warning">{parado}</span>}
           {prazo && (
             <span
@@ -1331,6 +1349,7 @@ function JiraRow({
           icon={<CalendarPlus className="size-4" />}
         />
       )}
+      {origin !== 'ancestor' && <IssueActions issue={issue} />}
     </li>
   );
 }
