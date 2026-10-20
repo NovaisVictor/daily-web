@@ -137,4 +137,23 @@ describe('ApprovalBadge', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Jira respondeu 400: você não pode responder');
     expect(onChanged).not.toHaveBeenCalled();
   });
+
+  it('reloads the approvals and goes back to the choice when the approval is no longer pending', async () => {
+    const LEFT = { approvals: [{ id: '3517', name: 'Aprovação do diretor' }] };
+    const fetchMock = stubFetch(
+      json(200, PENDING),
+      json(409, { error: 'essa aprovação não está mais pendente para você' }),
+      json(200, LEFT),
+    );
+    const onChanged = renderBadge();
+    await openAndChoose('Aprovar');
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar aprovação' }));
+
+    expect(await screen.findByText('Aprovação do diretor')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('essa aprovação não está mais pendente para você');
+    expect(screen.getByRole('heading', { name: 'Aprovação de TT-123' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/jira/issues/TT-123/approvals');
+    expect(onChanged).not.toHaveBeenCalled();
+  });
 });

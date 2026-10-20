@@ -1,4 +1,5 @@
 import { jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
+import { isRecord, unexpected as unexpectedIn } from '@/lib/integrations/jira/parse';
 
 export type ApprovalDecision = 'approve' | 'decline';
 
@@ -25,13 +26,7 @@ const PAGE_SIZE = 50;
 const MAX_PAGES = 10;
 const FINAL_DECISIONS: readonly FinalDecision[] = ['approved', 'declined', 'pending'];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function unexpected(detail: string): Error {
-  return new Error(`resposta inesperada do Jira para aprovações: ${detail}`);
-}
+const unexpected = (detail: string) => unexpectedIn('para aprovações', detail);
 
 export function parseApproval(raw: unknown): Approval {
   if (!isRecord(raw)) throw unexpected('aprovação não é um objeto');

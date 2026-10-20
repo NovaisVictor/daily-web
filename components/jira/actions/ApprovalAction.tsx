@@ -70,13 +70,17 @@ export function ApprovalBadge({ issue, className, title }: { issue: JiraItem; cl
     );
   }
 
-  const openDialog = () => {
+  const reload = () => {
     const id = ++request.current;
     setLoad({ kind: 'loading' });
-    setOpen(true);
     void loadApprovals(issue.key).then((next) => {
       if (request.current === id) setLoad(next);
     });
+  };
+
+  const openDialog = () => {
+    reload();
+    setOpen(true);
   };
 
   return (
@@ -91,13 +95,23 @@ export function ApprovalBadge({ issue, className, title }: { issue: JiraItem; cl
         APROV
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        {open && <ApprovalDialogBody issue={issue} load={load} onDone={() => setOpen(false)} />}
+        {open && <ApprovalDialogBody issue={issue} load={load} onReload={reload} onDone={() => setOpen(false)} />}
       </Dialog>
     </>
   );
 }
 
-function ApprovalDialogBody({ issue, load, onDone }: { issue: JiraItem; load: Load; onDone: () => void }) {
+function ApprovalDialogBody({
+  issue,
+  load,
+  onReload,
+  onDone,
+}: {
+  issue: JiraItem;
+  load: Load;
+  onReload: () => void;
+  onDone: () => void;
+}) {
   const { onChanged } = useJiraActions();
   const [step, setStep] = useState<Step>({ kind: 'choose' });
   const [phase, setPhase] = useState<Phase>('idle');
@@ -113,6 +127,11 @@ function ApprovalDialogBody({ issue, load, onDone }: { issue: JiraItem; load: Lo
     setPhase('idle');
     if (!result.ok) {
       setError(result.error);
+      // Someone else decided in the meantime: what is still pending is the new choice.
+      if (result.status === 409) {
+        setStep({ kind: 'choose' });
+        onReload();
+      }
       return;
     }
     onChanged();
@@ -146,6 +165,12 @@ function ApprovalDialogBody({ issue, load, onDone }: { issue: JiraItem; load: Lo
           <a href={issue.url} target="_blank" rel="noreferrer" className={cn('text-brand hover:underline', focusRing)}>
             abrir no Jira
           </a>
+        </p>
+      )}
+
+      {step.kind === 'choose' && error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
         </p>
       )}
 

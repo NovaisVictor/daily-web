@@ -4,7 +4,6 @@ import changelogTwice from '@/tests/fixtures/jira-write/changelog-status-no-star
 import transitions from '@/tests/fixtures/jira-write/transitions-story.json';
 import {
   firstInProgressDay,
-  isCalendarDate,
   parseChangelogPage,
   parseCreatedDay,
   parseStatusCategories,
@@ -96,14 +95,6 @@ describe('parseCreatedDay', () => {
 
   it('fails visibly without created', () => {
     expect(() => parseCreatedDay({ fields: {} })).toThrow(/resposta inesperada do Jira na issue/);
-  });
-});
-
-describe('isCalendarDate', () => {
-  it('accepts real dates and rejects impossible ones', () => {
-    expect(isCalendarDate('2024-02-29')).toBe(true);
-    expect(isCalendarDate('2026-02-29')).toBe(false);
-    expect(isCalendarDate('2026-1-01')).toBe(false);
   });
 });
 

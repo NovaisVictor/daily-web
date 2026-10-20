@@ -30,6 +30,20 @@ describe('jiraRequest refusals', () => {
     ).rejects.toThrow('Jira respondeu 400: A aprovação já foi respondida');
   });
 
+  it("shows Jira's own reason on a 403 that carries one", async () => {
+    refuse(403, { errorMessages: ['Você não tem permissão para transicionar esta issue.'] });
+    await expect(
+      jiraRequest(AUTH, '/rest/api/3/issue/TT-1/transitions', { method: 'POST', body: {} }),
+    ).rejects.toThrow('o Jira recusou: Você não tem permissão para transicionar esta issue.');
+  });
+
+  it('falls back to the generic permission sentence on a 403 without a message', async () => {
+    refuse(403, {});
+    await expect(jiraRequest(AUTH, '/rest/api/3/issue/TT-1', { method: 'GET' })).rejects.toThrow(
+      'o API token do Jira não tem permissão para isso',
+    );
+  });
+
   it('says the issue is missing, not the domain, when the caller names it', async () => {
     refuse(404, {});
     await expect(

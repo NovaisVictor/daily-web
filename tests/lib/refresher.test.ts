@@ -184,6 +184,31 @@ describe('isolamento entre usuários', () => {
   });
 });
 
+describe('invalidate after an external write', () => {
+  it('keeps a refresh started before the write from caching or serving the old state', async () => {
+    await connect(USER, 'email', { preset: 'gmail', user: 'a@x.com', password: 's' });
+    const { refreshAll, getCachedState, invalidate } = await import('@/lib/refresher');
+
+    let releaseOld: (envelopes: unknown[]) => void = () => {};
+    vi.mocked(loadInbox).mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseOld = resolve as (envelopes: unknown[]) => void;
+      }) as ReturnType<typeof loadInbox>,
+    );
+    const old = refreshAll(USER);
+
+    invalidate(USER);
+    vi.mocked(loadInbox).mockResolvedValue([envelope({ id: 'after-write' })]);
+    const fresh = await refreshAll(USER);
+
+    releaseOld([envelope({ id: 'before-write' })]);
+    await old;
+
+    expect(fresh.email.data?.map((e) => e.id)).toEqual(['after-write']);
+    expect(getCachedState(USER)?.email.data?.map((e) => e.id)).toEqual(['after-write']);
+  });
+});
+
 describe('notificações', () => {
   it('só busca menções quando o Jira está conectado', async () => {
     const { refreshAll } = await import('@/lib/refresher');

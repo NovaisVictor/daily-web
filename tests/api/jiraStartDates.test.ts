@@ -16,8 +16,8 @@ vi.mock('@/lib/api/context', async (importOriginal) => ({
   },
 }));
 
-const dropCache = vi.fn();
-vi.mock('@/lib/refresher', () => ({ dropCache: (id: string) => dropCache(id) }));
+const invalidate = vi.fn();
+vi.mock('@/lib/refresher', () => ({ invalidate: (id: string) => invalidate(id) }));
 
 import { GET, POST } from '@/app/api/jira/problems/start-dates/route';
 import { saveConnection, setModuleEnabled } from '@/lib/vault/connections';
@@ -142,7 +142,7 @@ describe('POST /api/jira/problems/start-dates', () => {
       [`${JIRA}/rest/api/3/issue/TT-1`, JSON.stringify({ fields: { customfield_10015: '2026-10-01' } })],
       [`${JIRA}/rest/api/3/issue/TT-2`, JSON.stringify({ fields: { customfield_10015: '2026-10-02' } })],
     ]);
-    expect(dropCache).toHaveBeenCalledWith(ME.id);
+    expect(invalidate).toHaveBeenCalledWith(ME.id);
   });
 
   it('200 with partial refusals carrying Jira message', async () => {
@@ -164,7 +164,7 @@ describe('POST /api/jira/problems/start-dates', () => {
     const res = await POST(post({ items: [{ key: 'TT-1', date: '2026-10-01' }] }));
     expect(res.status).toBe(200);
     expect((await res.json()).results).toEqual([{ key: 'TT-1', outcome: 'refused', error: 'Jira respondeu 400: não' }]);
-    expect(dropCache).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it('502 when nothing could be attempted because the field lookup failed', async () => {

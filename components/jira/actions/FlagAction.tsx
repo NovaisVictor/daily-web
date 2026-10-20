@@ -16,10 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { focusRing } from '@/lib/theme';
+import { FLAG_REASON_MAX } from '@/lib/jiraLimits';
 import type { DialogProps, MenuItemProps } from '../IssueActions';
 import { sendJiraWrite, useJiraActions } from './context';
-
-const TEXT_MAX = 2000;
 
 type Phase = 'idle' | 'sending';
 
@@ -27,22 +26,26 @@ type Phase = 'idle' | 'sending';
  *  remove the impediment. */
 export function FlagIndicator({ issue }: { issue: JiraItem }) {
   const [open, setOpen] = useState(false);
-  if (issue.impediment !== 'flagged') return null;
+  // Kept mounted while open: after a write that left a warning, the refreshed
+  // row is no longer flagged, and the warning must stay on screen.
+  if (issue.impediment !== 'flagged' && !open) return null;
 
   return (
     <>
-      <button
-        type="button"
-        className={cn(
-          'inline-flex size-5 shrink-0 items-center justify-center rounded text-danger hover:brightness-110',
-          focusRing,
-        )}
-        aria-label="impedida"
-        title="impedida — clique para remover o impedimento"
-        onClick={() => setOpen(true)}
-      >
-        <Flag className="size-3.5" aria-hidden="true" />
-      </button>
+      {issue.impediment === 'flagged' && (
+        <button
+          type="button"
+          className={cn(
+            'inline-flex size-5 shrink-0 items-center justify-center rounded text-danger hover:brightness-110',
+            focusRing,
+          )}
+          aria-label="impedida"
+          title="impedida — clique para remover o impedimento"
+          onClick={() => setOpen(true)}
+        >
+          <Flag className="size-3.5" aria-hidden="true" />
+        </button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         {open && <FlagDialogBody issue={issue} current="flagged" onDone={() => setOpen(false)} />}
       </Dialog>
@@ -81,12 +84,13 @@ function FlagDialogBody({
   const [text, setText] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [flagging] = useState(current === 'none');
   const fieldId = useId();
   const hintId = useId();
 
-  const flagging = current === 'none';
   const trimmed = text.trim();
-  const valid = flagging ? trimmed.length > 0 && trimmed.length <= TEXT_MAX : trimmed.length <= TEXT_MAX;
+  const valid = flagging ? trimmed.length > 0 && trimmed.length <= FLAG_REASON_MAX : trimmed.length <= FLAG_REASON_MAX;
 
   const submit = async () => {
     setPhase('sending');
@@ -101,8 +105,33 @@ function FlagDialogBody({
       return;
     }
     onChanged();
+    if (typeof result.data.warning === 'string') {
+      setWarning(result.data.warning);
+      return;
+    }
     onDone();
   };
+
+  if (warning) {
+    return (
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{flagging ? 'Impedimento marcado' : 'Impedimento removido'}</DialogTitle>
+          <DialogDescription>
+            <span className="font-mono">{issue.key}</span> — {issue.summary}
+          </DialogDescription>
+        </DialogHeader>
+        <p role="alert" className="text-sm text-warning">
+          {warning}
+        </p>
+        <DialogFooter>
+          <Button type="button" onClick={onDone}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    );
+  }
 
   return (
     <DialogContent className="sm:max-w-md">
@@ -123,7 +152,7 @@ function FlagDialogBody({
           id={fieldId}
           aria-describedby={hintId}
           value={text}
-          maxLength={TEXT_MAX}
+          maxLength={FLAG_REASON_MAX}
           disabled={phase === 'sending'}
           onChange={(event) => setText(event.target.value)}
         />

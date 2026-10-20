@@ -60,7 +60,13 @@ function issue(key: string, over: Record<string, unknown> = {}) {
 
 // The Flagged field id is cached per instance; seeding it keeps these tests
 // about the searches, not about field discovery (covered in jiraFlag.test.ts).
-beforeEach(() => flaggedFieldIds.set('https://acme.atlassian.net', 'customfield_10021'));
+beforeEach(() =>
+  flaggedFieldIds.set('https://acme.atlassian.net', {
+    state: 'known',
+    id: 'customfield_10021',
+    expiresAt: Number.POSITIVE_INFINITY,
+  }),
+);
 afterEach(() => {
   vi.unstubAllGlobals();
   flaggedFieldIds.clear();

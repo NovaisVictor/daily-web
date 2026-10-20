@@ -170,7 +170,7 @@ describe('POST /api/jira/issues/[key]/flag', () => {
     expect((await res.json()).error).toBe('Jira respondeu 400: Você não pode editar esta issue');
   });
 
-  it('502 saying the flag changed when only the comment fails', async () => {
+  it('200 with a warning saying the flag changed when only the comment fails', async () => {
     stubJira({
       ...DISCOVERY,
       'PUT /rest/api/3/issue/TT-5019': { status: 204 },
@@ -179,10 +179,11 @@ describe('POST /api/jira/issues/[key]/flag', () => {
 
     const res = await post('TT-5019', { action: 'flag', reason: 'x' });
 
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe(
-      'o impedimento foi marcado, mas o comentário não foi gravado: Jira respondeu 400: comentário recusado',
-    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      warning: 'o impedimento foi marcado, mas o comentário não foi gravado: Jira respondeu 400: comentário recusado',
+    });
   });
 
   it('502 when the instance has no Impediment option', async () => {

@@ -80,6 +80,7 @@ interface RefresherState {
   caches: Map<string, DashboardState>;
   emVoo: Map<symbol, { userId: string; patches: Patch[] }>;
   refreshesEmCurso: Map<string, Promise<DashboardState>>;
+  generations: Map<string, number>;
   timer: ReturnType<typeof setInterval> | null;
   cicloEmCurso: boolean;
   proximoTique: number | null;
@@ -95,6 +96,7 @@ const shared: RefresherState = ((globalThis as Record<symbol, unknown>)[STATE_KE
   caches: new Map(),
   emVoo: new Map(),
   refreshesEmCurso: new Map(),
+  generations: new Map(),
   timer: null,
   cicloEmCurso: false,
   proximoTique: null,
@@ -122,21 +124,28 @@ const MAX_PATCHES_EM_VOO = 500;
 // Quem chega no meio de um refresh recebe o resultado do que já está em curso.
 const refreshesEmCurso = shared.refreshesEmCurso;
 
+// Um refresh que começou antes de uma escrita no Jira leu o estado anterior a
+// ela. Subir a geração faz esse refresh terminar sem gravar o cache.
+const generations = shared.generations;
+const generationOf = (userId: string) => generations.get(userId) ?? 0;
+
 export function refreshAll(userId: string): Promise<DashboardState> {
   const emCurso = refreshesEmCurso.get(userId);
   if (emCurso) return emCurso;
 
-  const promessa = buildFresh(userId).finally(() => refreshesEmCurso.delete(userId));
+  const promessa: Promise<DashboardState> = buildFresh(userId, generationOf(userId)).finally(() => {
+    if (refreshesEmCurso.get(userId) === promessa) refreshesEmCurso.delete(userId);
+  });
   refreshesEmCurso.set(userId, promessa);
   return promessa;
 }
 
-async function buildFresh(userId: string): Promise<DashboardState> {
+async function buildFresh(userId: string, generation: number): Promise<DashboardState> {
   const ciclo = Symbol('refresh');
   emVoo.set(ciclo, { userId, patches: [] });
   const inicio = Date.now();
   try {
-    const state = await buildState(userId, ciclo);
+    const state = await buildState(userId, ciclo, generation);
     logCycle(userId, inicio, state);
     return state;
   } finally {
@@ -166,7 +175,7 @@ function logCycle(userId: string, inicio: number, state: DashboardState): void {
   );
 }
 
-async function buildState(userId: string, ciclo: symbol): Promise<DashboardState> {
+async function buildState(userId: string, ciclo: symbol, generation: number): Promise<DashboardState> {
   const modules = enabledModules(userId);
   const has = (id: string) => modules.includes(id as never);
 
@@ -284,7 +293,7 @@ async function buildState(userId: string, ciclo: symbol): Promise<DashboardState
     pendentes.length > MAX_PATCHES_EM_VOO && atual
       ? atual
       : pendentes.reduce((acc, patch) => patch(acc), state);
-  caches.set(userId, reconciliado);
+  if (generationOf(userId) === generation) caches.set(userId, reconciliado);
 
   // Leva ao servidor o que ainda não chegou. Em segundo plano e pela fila da
   // conta: uma escrita que falhou volta a ser tentada, sem segurar a resposta.
@@ -340,6 +349,15 @@ export function getCachedState(userId: string): DashboardState | null {
 }
 
 export function dropCache(userId: string): void {
+  caches.delete(userId);
+}
+
+/** Depois de uma escrita fora daqui: derruba o cache e solta o refresh em
+ *  curso, para que nem o retrato antigo nem a promessa antiga cheguem à
+ *  próxima leitura. */
+export function invalidate(userId: string): void {
+  generations.set(userId, generationOf(userId) + 1);
+  refreshesEmCurso.delete(userId);
   caches.delete(userId);
 }
 
@@ -422,6 +440,7 @@ export function resetCachesForTests(): void {
   caches.clear();
   emVoo.clear();
   refreshesEmCurso.clear();
+  generations.clear();
   shared.cicloEmCurso = false;
   shared.proximoTique = null;
   if (shared.timer) clearInterval(shared.timer);

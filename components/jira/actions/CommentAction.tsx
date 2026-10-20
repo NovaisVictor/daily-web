@@ -14,11 +14,8 @@ import {
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import type { DialogProps, MenuItemProps } from '../IssueActions';
+import { COMMENT_MAX } from '@/lib/jiraLimits';
 import { sendJiraWrite, useJiraActions } from './context';
-
-// Mirrors COMMENT_MAX_LENGTH in lib/integrations/jira/comments.ts, which pulls
-// server-only modules and cannot be imported here.
-const MAX_LENGTH = 5000;
 
 type Sending = 'idle' | 'sending';
 type Stage = 'writing' | 'published';
@@ -49,7 +46,7 @@ export function CommentForm({ issueKey, onPublished, onCancel }: CommentFormProp
   const errorId = useId();
 
   const trimmed = text.trim();
-  const tooLong = trimmed.length > MAX_LENGTH;
+  const tooLong = trimmed.length > COMMENT_MAX;
   const ready = trimmed.length > 0 && !tooLong && sending === 'idle';
 
   const submit = async () => {
@@ -76,7 +73,7 @@ export function CommentForm({ issueKey, onPublished, onCancel }: CommentFormProp
     }
   };
 
-  const problem = refusal ?? (tooLong ? `passou de ${MAX_LENGTH} caracteres (${trimmed.length})` : null);
+  const problem = refusal ?? (tooLong ? `passou de ${COMMENT_MAX} caracteres (${trimmed.length})` : null);
 
   return (
     <form

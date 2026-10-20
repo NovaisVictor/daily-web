@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireUser, type ConnectionContext, type Guard } from '@/lib/api/context';
 import { jiraConnectionOf } from '@/lib/jiraPeople';
 import { isJiraKey } from '@/lib/preferences';
-import { dropCache } from '@/lib/refresher';
+import { invalidate } from '@/lib/refresher';
 
 /** A sessão e a conexão do Jira dela. A escrita usa sempre o token de quem
  *  está logado: quem decide o que ele pode fazer é o Jira, issue por issue. */
@@ -28,6 +28,6 @@ export function invalidKey(): NextResponse {
 
 /** Depois de gravar, o estado em cache mente: a próxima leitura busca de novo. */
 export function writeDone(userId: string, payload: Record<string, unknown> = {}): NextResponse {
-  dropCache(userId);
+  invalidate(userId);
   return NextResponse.json({ ok: true, ...payload });
 }

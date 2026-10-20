@@ -29,16 +29,18 @@ export function useJiraActions(): JiraActionsValue {
  *  mandou — que, numa recusa do Jira, é a frase do próprio Jira. */
 export async function sendJiraWrite(
   url: string,
-  method: 'POST' | 'PUT' | 'DELETE',
+  method: 'POST' | 'PUT',
   body?: unknown,
-): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string; status: number }> {
   const res = await fetch(url, {
     method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
-  if (!res) return { ok: false, error: 'sem resposta do servidor' };
+  if (!res) return { ok: false, error: 'sem resposta do servidor', status: 0 };
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) return { ok: false, error: typeof data.error === 'string' ? data.error : `falha (${res.status})` };
+  if (!res.ok) {
+    return { ok: false, error: typeof data.error === 'string' ? data.error : `falha (${res.status})`, status: res.status };
+  }
   return { ok: true, data };
 }

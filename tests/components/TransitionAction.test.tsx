@@ -149,4 +149,25 @@ describe('TransitionAction', () => {
     renderAction();
     expect(await screen.findByRole('status')).toHaveTextContent('carregando transições…');
   });
+
+  it('keeps the latest load when an older one answers after it', async () => {
+    let releaseFirst: (value: unknown) => void = () => {};
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => (releaseFirst = resolve)))
+      .mockResolvedValueOnce(json(200, { transitions: [DONE] }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAction();
+    const trigger = screen.getByRole('button', { name: 'mudar status de TT-5019 (Em Andamento)' });
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    expect(await screen.findByRole('button', { name: /Itens concluídos/ })).toBeInTheDocument();
+
+    releaseFirst(json(502, { error: 'resposta antiga' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText('resposta antiga')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Itens concluídos/ })).toBeInTheDocument();
+  });
 });

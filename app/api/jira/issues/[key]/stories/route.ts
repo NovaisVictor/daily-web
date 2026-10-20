@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { createStoryInEpic, InvalidEdit, parseNewStory, SUMMARY_MAX } from '@/lib/integrations/jira/edits';
+import { createStoryInEpic, InvalidEdit, parseNewStory } from '@/lib/integrations/jira/edits';
+import { SUMMARY_MAX } from '@/lib/jiraLimits';
 
 type Params = { params: Promise<{ key: string }> };
 

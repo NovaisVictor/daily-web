@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { addComment, commentText, COMMENT_MAX_LENGTH } from '@/lib/integrations/jira/comments';
+import { addComment, commentText } from '@/lib/integrations/jira/comments';
+import { COMMENT_MAX } from '@/lib/jiraLimits';
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const text = bodyOf(await request.json().catch(() => null));
   if (!text) {
     return NextResponse.json(
-      { error: `comentário vazio ou com mais de ${COMMENT_MAX_LENGTH} caracteres` },
+      { error: `comentário vazio ou com mais de ${COMMENT_MAX} caracteres` },
       { status: 400 },
     );
   }

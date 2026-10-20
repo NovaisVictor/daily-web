@@ -1,6 +1,7 @@
 import type { Connection } from '@/lib/vault/connections';
 import type { JiraStatusCategory } from '@/lib/types';
 import { jiraAuth, jiraRequest, startDateField, type JiraAuth } from '@/lib/integrations/jiraApi';
+import { fail, isCalendarDate, isRecord, NOT_FOUND, requiredText } from '@/lib/integrations/jira/parse';
 
 /** Where a suggested start date came from: the first move into an in-progress
  *  status, or, lacking one, the day the issue was created. */
@@ -18,42 +19,20 @@ export interface StartDateResult {
   error?: string;
 }
 
-export const MAX_START_DATE_KEYS = 50;
 const CONCURRENCY = 4;
 const CHANGELOG_PAGE = 100;
 const MAX_CHANGELOG_PAGES = 5;
-const NOT_FOUND = 'issue não encontrada no Jira';
 
 const CATEGORIES: readonly JiraStatusCategory[] = ['new', 'indeterminate', 'done'];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function fail(what: string, detail: string): never {
-  throw new Error(`resposta inesperada do Jira ${what}: ${detail}`);
-}
-
-function text(value: unknown, what: string, detail: string): string {
-  if (typeof value !== 'string' || value.trim() === '') fail(what, `${detail} ausente`);
-  return value;
-}
 
 const TIMESTAMP = /^(\d{4}-\d{2}-\d{2})T/;
 
 /** The calendar day as Jira wrote it, in the timestamp's own offset: converting
  *  to UTC would move a late-evening change to the next day. */
 function dayOf(value: unknown, what: string): string {
-  const match = TIMESTAMP.exec(text(value, what, 'data'));
+  const match = TIMESTAMP.exec(requiredText(value, what, 'data'));
   if (!match || !isCalendarDate(match[1])) fail(what, `data inválida (${String(value)})`);
   return match[1];
-}
-
-export function isCalendarDate(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /** Status id → category. The changelog only carries status ids; the
@@ -64,7 +43,7 @@ export function parseStatusCategories(data: unknown): Map<string, JiraStatusCate
   const categories = new Map<string, JiraStatusCategory>();
   for (const raw of data.transitions) {
     if (!isRecord(raw) || !isRecord(raw.to)) fail(what, 'destino da transição ausente');
-    const id = text(raw.to.id, what, 'id do status de destino');
+    const id = requiredText(raw.to.id, what, 'id do status de destino');
     const key = isRecord(raw.to.statusCategory) ? raw.to.statusCategory.key : undefined;
     const category = CATEGORIES.find((c) => c === key);
     if (!category) fail(what, `categoria de status desconhecida (${String(key)})`);
@@ -93,7 +72,7 @@ export function parseChangelogPage(data: unknown): ChangelogPage {
     const toStatusIds = history.items.flatMap((item) => {
       if (!isRecord(item)) fail(what, 'item da alteração não é um objeto');
       if (item.fieldId !== 'status' && item.field !== 'status') return [];
-      return [text(item.to, what, 'status de destino')];
+      return [requiredText(item.to, what, 'status de destino')];
     });
     return { day: dayOf(history.created, what), toStatusIds };
   });

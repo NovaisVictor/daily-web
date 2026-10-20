@@ -11,11 +11,11 @@ import {
 } from '@/lib/integrations/jiraApi';
 import {
   changeFlag,
-  commentBody,
   FlagCommentFailed,
   parseFlaggedFieldId,
   parseImpedimentOptionId,
 } from '@/lib/integrations/jira/flag';
+import { adfDocument } from '@/lib/integrations/jira/parse';
 import type { Connection } from '@/lib/vault/connections';
 
 const BASE = 'https://example.atlassian.net';
@@ -153,6 +153,42 @@ describe('row searches and the Flagged field', () => {
 
     expect(item.impediment).toBe('none');
   });
+
+  it('asks for the field list once when two reads start together', async () => {
+    const fetchMock = stubJira({
+      'GET /rest/api/3/field': { status: 200, body: fieldsFixture },
+      'POST /rest/api/3/search/jql': search([]),
+    });
+
+    await Promise.all([fetchByKeys(CONN, ['TT-1']), fetchByKeys(CONN, ['TT-2'])]);
+
+    expect(requests(fetchMock).filter((r) => r.path === '/rest/api/3/field')).toHaveLength(1);
+  });
+
+  it('remembers for a while that the instance has no Flagged field', async () => {
+    const fetchMock = stubJira({
+      'GET /rest/api/3/field': { status: 200, body: [{ id: 'summary', name: 'Resumo' }] },
+      'POST /rest/api/3/search/jql': search([]),
+    });
+
+    await fetchByKeys(CONN, ['TT-1']);
+    await fetchByKeys(CONN, ['TT-1']);
+
+    expect(requests(fetchMock).filter((r) => r.path === '/rest/api/3/field')).toHaveLength(1);
+  });
+
+  it('asks again for the field list after a failed one', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = stubJira({
+      'GET /rest/api/3/field': { status: 500, body: { errorMessages: ['boom'] } },
+      'POST /rest/api/3/search/jql': search([]),
+    });
+
+    await fetchByKeys(CONN, ['TT-1']);
+    await fetchByKeys(CONN, ['TT-1']);
+
+    expect(requests(fetchMock).filter((r) => r.path === '/rest/api/3/field')).toHaveLength(2);
+  });
 });
 
 describe('parseFlaggedFieldId', () => {
@@ -188,19 +224,6 @@ describe('parseImpedimentOptionId', () => {
   });
 });
 
-describe('commentBody', () => {
-  it('writes one ADF paragraph per non-empty line', () => {
-    expect(commentBody('Impedimento: a\n\n b ')).toEqual({
-      type: 'doc',
-      version: 1,
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'Impedimento: a' }] },
-        { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
-      ],
-    });
-  });
-});
-
 describe('changeFlag', () => {
   const discovery = {
     'GET /rest/api/3/field': { status: 200, body: fieldsFixture },
@@ -220,7 +243,7 @@ describe('changeFlag', () => {
       { method: 'GET', path: '/rest/api/3/field', body: undefined },
       { method: 'GET', path: '/rest/api/3/issue/TT-5019/editmeta', body: undefined },
       { method: 'PUT', path: '/rest/api/3/issue/TT-5019', body: { fields: { customfield_10021: [{ id: '10019' }] } } },
-      { method: 'POST', path: '/rest/api/3/issue/TT-5019/comment', body: { body: commentBody('Impedimento: aguardando API') } },
+      { method: 'POST', path: '/rest/api/3/issue/TT-5019/comment', body: { body: adfDocument('Impedimento: aguardando API') } },
     ]);
   });
 
@@ -247,7 +270,7 @@ describe('changeFlag', () => {
     expect(requests(fetchMock).at(-1)).toEqual({
       method: 'POST',
       path: '/rest/api/3/issue/TT-5019/comment',
-      body: { body: commentBody('Impedimento removido: API liberada') },
+      body: { body: adfDocument('Impedimento removido: API liberada') },
     });
   });
 

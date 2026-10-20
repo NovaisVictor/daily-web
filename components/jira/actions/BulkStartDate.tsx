@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { focusRing } from '@/lib/theme';
+import { START_DATE_BATCH } from '@/lib/jiraLimits';
+import { isCalendarDate } from '@/lib/integrations/jira/parse';
 import type { JiraProblem, JiraProblemItem } from '@/lib/types';
 import type { StartDateResult, StartDateSource, StartDateSuggestion } from '@/lib/integrations/jira/startDates';
 import { sendJiraWrite, useJiraActions } from './context';
@@ -35,7 +37,7 @@ type Phase =
   | { kind: 'failed'; error: string }
   | { kind: 'review'; rows: Row[]; error: string | null }
   | { kind: 'writing'; rows: Row[] }
-  | { kind: 'written'; rows: Row[]; results: Map<string, StartDateResult> };
+  | { kind: 'written'; rows: Row[]; results: Map<string, StartDateResult>; error: string | null };
 
 function today(): string {
   const now = new Date();
@@ -44,10 +46,7 @@ function today(): string {
 }
 
 function isWritableDate(value: string, limit: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > limit) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  return isCalendarDate(value) && value <= limit;
 }
 
 function isSuggestion(value: unknown): value is StartDateSuggestion {
@@ -64,7 +63,14 @@ function isResult(value: unknown): value is StartDateResult {
   return typeof r.key === 'string' && (r.outcome === 'written' || r.outcome === 'refused');
 }
 
-async function loadSuggestions(keys: string[]): Promise<StartDateSuggestion[] | string> {
+/** The server takes at most START_DATE_BATCH keys per request. */
+function batches<T>(list: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += START_DATE_BATCH) out.push(list.slice(i, i + START_DATE_BATCH));
+  return out;
+}
+
+async function loadBatch(keys: string[]): Promise<StartDateSuggestion[] | string> {
   const res = await fetch(`/api/jira/problems/start-dates?keys=${encodeURIComponent(keys.join(','))}`).catch(
     () => null,
   );
@@ -75,6 +81,24 @@ async function loadSuggestions(keys: string[]): Promise<StartDateSuggestion[] | 
     return 'resposta inesperada do servidor';
   }
   return data.suggestions;
+}
+
+async function loadSuggestions(keys: string[]): Promise<StartDateSuggestion[] | string> {
+  const all: StartDateSuggestion[] = [];
+  for (const batch of batches(keys)) {
+    const loaded = await loadBatch(batch);
+    if (typeof loaded === 'string') return loaded;
+    all.push(...loaded);
+  }
+  return all;
+}
+
+async function writeBatch(items: { key: string; date: string }[]): Promise<StartDateResult[] | string> {
+  const res = await sendJiraWrite('/api/jira/problems/start-dates', 'POST', { items });
+  if (!res.ok) return res.error;
+  const raw = res.data.results;
+  if (!Array.isArray(raw) || !raw.every(isResult)) return 'resposta inesperada do servidor';
+  return raw;
 }
 
 /** Writes are kept to the viewer's own stories: a bulk edit on a colleague's
@@ -127,19 +151,23 @@ export function BulkStartDate({ problems }: { problems: JiraProblemItem[] }) {
     const items = writable(rows);
     if (items.length === 0) return;
     setPhase({ kind: 'writing', rows });
-    const res = await sendJiraWrite('/api/jira/problems/start-dates', 'POST', { items });
     const settle = (next: Phase) => setPhase((current) => (current.kind === 'writing' ? next : current));
-    if (!res.ok) {
-      settle({ kind: 'review', rows, error: res.error });
+    const results: StartDateResult[] = [];
+    let error: string | null = null;
+    for (const batch of batches(items)) {
+      const written = await writeBatch(batch);
+      if (typeof written === 'string') {
+        error = written;
+        break;
+      }
+      results.push(...written);
+    }
+    if (results.length === 0) {
+      settle({ kind: 'review', rows, error });
       return;
     }
-    const raw = res.data.results;
-    if (!Array.isArray(raw) || !raw.every(isResult)) {
-      settle({ kind: 'review', rows, error: 'resposta inesperada do servidor' });
-      return;
-    }
-    settle({ kind: 'written', rows, results: new Map(raw.map((r) => [r.key, r])) });
-    if (raw.some((r) => r.outcome === 'written')) onChanged();
+    settle({ kind: 'written', rows, results: new Map(results.map((r) => [r.key, r])), error });
+    if (results.some((r) => r.outcome === 'written')) onChanged();
   };
 
   const rows = phase.kind === 'review' || phase.kind === 'writing' || phase.kind === 'written' ? phase.rows : [];
@@ -213,7 +241,7 @@ export function BulkStartDate({ problems }: { problems: JiraProblemItem[] }) {
             </ul>
           )}
 
-          {phase.kind === 'review' && phase.error && (
+          {(phase.kind === 'review' || phase.kind === 'written') && phase.error && (
             <p role="alert" className="text-sm text-danger">
               {phase.error}
             </p>

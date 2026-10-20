@@ -133,7 +133,7 @@ export function toJiraItem(
 }
 
 export interface JiraRequestInit {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT';
   body?: unknown;
   /** O que dizer quando o Jira responde 404. Numa issue, é a issue que não
    *  existe ou não é visível, não o domínio. */
@@ -147,9 +147,8 @@ interface JiraErrorBody {
   errors?: unknown;
 }
 
-/** O que o Jira disse ao recusar, em vez do status cru: numa escrita, "campo
- *  obrigatório" ou "transição inválida" é o que a pessoa precisa ler. */
-function jiraRefusal(text: string): string {
+/** As mensagens que o Jira escreveu no corpo da recusa, ou `''` sem nenhuma. */
+function jiraMessages(text: string): string {
   try {
     const data = JSON.parse(text) as JiraErrorBody;
     const messages = Array.isArray(data.errorMessages)
@@ -163,11 +162,24 @@ function jiraRefusal(text: string): string {
         : [];
     const single = typeof data.errorMessage === 'string' ? [data.errorMessage] : [];
     const all = [...messages, ...single, ...fields];
-    if (all.length > 0) return all.join('; ').slice(0, 300);
+    return all.join('; ').slice(0, 300);
   } catch {
-    // Not JSON: the raw text below is the best there is.
+    return '';
   }
-  return text.slice(0, 200);
+}
+
+/** O que o Jira disse ao recusar, em vez do status cru: numa escrita, "campo
+ *  obrigatório" ou "transição inválida" é o que a pessoa precisa ler. */
+function jiraRefusal(text: string): string {
+  return jiraMessages(text) || text.slice(0, 200);
+}
+
+async function bodyText(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
 }
 
 /** Uma ida ao Jira com o método explícito. Leitura e escrita passam por aqui;
@@ -186,7 +198,12 @@ export async function jiraRequest(auth: JiraAuth, path: string, init: JiraReques
   });
 
   if (response.status === 401) throw new Error('Jira recusou o e-mail ou o API token');
-  if (response.status === 403) throw new Error('o API token do Jira não tem permissão para isso');
+  if (response.status === 403) {
+    // Numa escrita, o 403 costuma vir com o motivo — permissão do projeto,
+    // workflow — e ele diz mais do que a frase genérica.
+    const reason = jiraMessages(await bodyText(response));
+    throw new Error(reason ? `o Jira recusou: ${reason}` : 'o API token do Jira não tem permissão para isso');
+  }
   if (response.status === 404) throw new Error(init.notFound ?? 'domínio do Jira não encontrado');
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -226,15 +243,19 @@ export function findFlaggedField(fields: readonly JiraField[]): string | null {
 
 // Em `globalThis` porque o build do Next carrega este módulo mais de uma vez
 // (rotas e instrumentation); perder o cache só custa buscar a lista de novo.
-const FLAGGED_CACHE = Symbol.for('daily-web.jira.flagged-field');
-const cacheHost = globalThis as unknown as Record<symbol, Map<string, string> | undefined>;
-export const flaggedFieldIds: Map<string, string> = (cacheHost[FLAGGED_CACHE] ??= new Map());
+// A ausência do campo também fica guardada, por pouco tempo: sem isso, toda
+// leitura de uma instância sem "Flagged" pagaria um GET /field. A busca em
+// curso é compartilhada, para leituras simultâneas fazerem uma só.
+export type FlaggedFieldEntry =
+  | { state: 'known'; id: string | null; expiresAt: number }
+  | { state: 'loading'; promise: Promise<string | null> };
 
-/** O id do "Flagged" nesta instância, ou `null` sem o campo. Não lança: sem a
- *  marca, a lista continua útil. */
-export async function flaggedField(auth: JiraAuth): Promise<string | null> {
-  const cached = flaggedFieldIds.get(auth.baseUrl);
-  if (cached) return cached;
+const MISSING_FIELD_TTL_MS = 5 * 60_000;
+const FLAGGED_CACHE = Symbol.for('daily-web.jira.flagged-field');
+const cacheHost = globalThis as unknown as Record<symbol, Map<string, FlaggedFieldEntry> | undefined>;
+export const flaggedFieldIds: Map<string, FlaggedFieldEntry> = (cacheHost[FLAGGED_CACHE] ??= new Map());
+
+async function discoverFlaggedField(auth: JiraAuth): Promise<string | null> {
   try {
     const fields = await request(auth, '/rest/api/3/field', undefined);
     if (!Array.isArray(fields)) {
@@ -242,12 +263,25 @@ export async function flaggedField(auth: JiraAuth): Promise<string | null> {
       return null;
     }
     const id = findFlaggedField(fields.filter((f): f is JiraField => typeof f === 'object' && f !== null));
-    if (id) flaggedFieldIds.set(auth.baseUrl, id);
+    const expiresAt = id ? Number.POSITIVE_INFINITY : Date.now() + MISSING_FIELD_TTL_MS;
+    flaggedFieldIds.set(auth.baseUrl, { state: 'known', id, expiresAt });
     return id;
   } catch (err) {
     console.warn(`[jira] campo Flagged indisponível: ${err instanceof Error ? err.message : String(err)}`);
+    flaggedFieldIds.delete(auth.baseUrl);
     return null;
   }
+}
+
+/** O id do "Flagged" nesta instância, ou `null` sem o campo. Não lança: sem a
+ *  marca, a lista continua útil. */
+export async function flaggedField(auth: JiraAuth): Promise<string | null> {
+  const cached = flaggedFieldIds.get(auth.baseUrl);
+  if (cached?.state === 'loading') return cached.promise;
+  if (cached && cached.expiresAt > Date.now()) return cached.id;
+  const promise = discoverFlaggedField(auth);
+  flaggedFieldIds.set(auth.baseUrl, { state: 'loading', promise });
+  return promise;
 }
 
 const rowFields = (flagged: string | null) => (flagged ? [...FIELDS, flagged] : FIELDS);

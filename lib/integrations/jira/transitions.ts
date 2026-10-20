@@ -1,6 +1,7 @@
 import type { Connection } from '@/lib/vault/connections';
 import type { JiraStatusCategory } from '@/lib/types';
 import { jiraAuth, jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
+import { fail as failIn, isRecord, NOT_FOUND, requiredText } from '@/lib/integrations/jira/parse';
 
 /** What a transition needs beyond the click. A screen means fields Jira wants
  *  filled in, which this panel does not render: those go to Jira itself. */
@@ -15,18 +16,13 @@ export interface JiraTransition {
 
 const CATEGORIES: readonly JiraStatusCategory[] = ['new', 'indeterminate', 'done'];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const WHERE = 'nas transições';
 
 function fail(detail: string): never {
-  throw new Error(`resposta inesperada do Jira nas transições: ${detail}`);
+  failIn(WHERE, detail);
 }
 
-function text(value: unknown, what: string): string {
-  if (typeof value !== 'string' || value.trim() === '') fail(`${what} ausente`);
-  return value;
-}
+const text = (value: unknown, what: string) => requiredText(value, WHERE, what);
 
 function category(value: unknown): JiraStatusCategory {
   const key = isRecord(value) ? value.key : undefined;
@@ -82,8 +78,6 @@ export function parseCurrentStatusId(data: unknown): string {
   if (!isRecord(status)) fail('status atual da issue ausente');
   return text(status.id, 'id do status atual');
 }
-
-const NOT_FOUND = 'issue não encontrada no Jira';
 
 async function load(auth: JiraAuth, key: string): Promise<JiraTransition[]> {
   const issue = encodeURIComponent(key);

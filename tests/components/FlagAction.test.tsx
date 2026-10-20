@@ -103,6 +103,27 @@ describe('FlagIndicator', () => {
   });
 });
 
+describe('FlagIndicator after a partial write', () => {
+  it('keeps the warning on screen when the refreshed row is no longer flagged', async () => {
+    const warning = 'o impedimento foi removido, mas o comentário não foi gravado: recusado';
+    stubServer(json(200, { ok: true, warning }));
+    const wrap = (impediment: JiraImpediment) => (
+      <JiraActionsProvider value={{ viewer: { kind: 'self' }, onChanged: vi.fn() }}>
+        <FlagIndicator issue={issue(impediment)} />
+      </JiraActionsProvider>
+    );
+    const { rerender } = render(wrap('flagged'));
+    fireEvent.click(screen.getByRole('button', { name: 'impedida' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Observação (opcional)' }), { target: { value: 'ok' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Remover impedimento' }));
+    await screen.findByRole('alert');
+
+    rerender(wrap('none'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(warning);
+  });
+});
+
 describe('FlagMenuItem', () => {
   it('offers to flag an issue that is not impeded', () => {
     const onOpen = renderMenu('none');
@@ -157,16 +178,31 @@ describe('FlagDialog', () => {
   });
 
   it("shows Jira's refusal inline and does not refresh", async () => {
-    stubServer(json(502, { error: 'o impedimento foi marcado, mas o comentário não foi gravado: recusado' }));
+    stubServer(json(502, { error: 'Jira respondeu 400: campo Flagged não pode ser editado' }));
     const onClose = vi.fn();
     const onChanged = withActions(<FlagDialog issue={issue('none')} open="flag" onClose={onClose} />);
     fireEvent.change(screen.getByRole('textbox', { name: 'Motivo' }), { target: { value: 'x' } });
     fireEvent.click(screen.getByRole('button', { name: 'Marcar impedimento' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'o impedimento foi marcado, mas o comentário não foi gravado: recusado',
+      'Jira respondeu 400: campo Flagged não pode ser editado',
     );
     expect(onChanged).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('refreshes but stays open with the warning when only the comment failed', async () => {
+    const warning = 'o impedimento foi marcado, mas o comentário não foi gravado: recusado';
+    stubServer(json(200, { ok: true, warning }));
+    const onClose = vi.fn();
+    const onChanged = withActions(<FlagDialog issue={issue('none')} open="flag" onClose={onClose} />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Motivo' }), { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar impedimento' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(warning);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

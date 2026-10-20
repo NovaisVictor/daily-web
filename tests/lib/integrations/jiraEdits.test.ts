@@ -4,7 +4,6 @@ import myself from '../../fixtures/jira-write/myself.json';
 import issueTypes from '../../fixtures/jira-write/createmeta-issuetypes.json';
 import flagged from '../../fixtures/jira-write/issue-flagged.json';
 import {
-  isCalendarDate,
   parseCreatedKey,
   parseEditChange,
   parseEpicInfo,
@@ -13,7 +12,6 @@ import {
   parseNewStory,
   parsePriorities,
   pickStoryTypeId,
-  toAdf,
 } from '@/lib/integrations/jira/edits';
 
 describe('parsePriorities', () => {
@@ -116,14 +114,6 @@ describe('parseEditChange', () => {
   });
 });
 
-describe('isCalendarDate', () => {
-  it('accepts real dates only', () => {
-    expect(isCalendarDate('2028-02-29')).toBe(true);
-    expect(isCalendarDate('2026-02-29')).toBe(false);
-    expect(isCalendarDate('2026-1-01')).toBe(false);
-  });
-});
-
 describe('parseNewStory', () => {
   it('trims summary and drops a blank description', () => {
     expect(parseNewStory({ summary: '  Nova  ', description: '  ' })).toEqual({ summary: 'Nova', description: null });
@@ -136,15 +126,3 @@ describe('parseNewStory', () => {
   });
 });
 
-describe('toAdf', () => {
-  it('makes one paragraph per non-empty line', () => {
-    expect(toAdf('a\n\n b ')).toEqual({
-      type: 'doc',
-      version: 1,
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
-        { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
-      ],
-    });
-  });
-});

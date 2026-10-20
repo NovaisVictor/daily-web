@@ -20,12 +20,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { focusRing } from '@/lib/theme';
+import { DESCRIPTION_MAX, SUMMARY_MAX } from '@/lib/jiraLimits';
 import type { DialogProps, MenuItemProps } from '../IssueActions';
 import { sendJiraWrite, useJiraActions } from './context';
 
 type Sending = 'idle' | 'sending';
-
-const SUMMARY_MAX = 255;
 
 function fieldsUrl(key: string): string {
   return `/api/jira/issues/${encodeURIComponent(key)}/fields`;
@@ -40,20 +39,16 @@ function formatDate(iso: string): string {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : 'sem prazo';
 }
 
-function isMine(issue: JiraItem, viewer: ReturnType<typeof useJiraActions>['viewer']): boolean {
-  return viewer.kind === 'self' && (issue.role === 'assignee' || issue.role === 'both');
-}
-
+/** "Atribuir a mim" is always offered: `role` does not say who the assignee
+ *  is (an approval-only or delivered row carries a neutral one), and assigning
+ *  to oneself again changes nothing. */
 export function EditMenuItems({ issue, onOpen }: MenuItemProps) {
-  const { viewer } = useJiraActions();
   return (
     <>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => onOpen('due')}>Alterar prazo</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => onOpen('priority')}>Alterar prioridade</DropdownMenuItem>
-      {!isMine(issue, viewer) && (
-        <DropdownMenuItem onSelect={() => onOpen('assign')}>Atribuir a mim</DropdownMenuItem>
-      )}
+      <DropdownMenuItem onSelect={() => onOpen('assign')}>Atribuir a mim</DropdownMenuItem>
       {isEpic(issue) && (
         <DropdownMenuItem onSelect={() => onOpen('create-story')}>Criar história neste épico</DropdownMenuItem>
       )}
@@ -439,6 +434,7 @@ function CreateStoryForm({ issue, onClose }: { issue: JiraItem; onClose: () => v
         <Textarea
           id={`story-description-${issue.key}`}
           value={description}
+          maxLength={DESCRIPTION_MAX}
           disabled={sending === 'sending'}
           onChange={(event) => setDescription(event.target.value)}
         />

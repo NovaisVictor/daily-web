@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addComment,
-  commentDocument,
   commentText,
   parseCreatedComment,
 } from '@/lib/integrations/jira/comments';
+import { adfDocument } from '@/lib/integrations/jira/parse';
 import type { Connection } from '@/lib/vault/connections';
 
 // Shape of the documented 201 answer of POST /rest/api/3/issue/{key}/comment,
@@ -22,24 +22,6 @@ const CREATED = {
 const conn = { values: { cloud: 'example', email: 'pessoa-1@example.com', token: 't' } } as unknown as Connection;
 
 afterEach(() => vi.unstubAllGlobals());
-
-describe('commentDocument', () => {
-  it('turns each non-empty line into one plain-text paragraph', () => {
-    expect(commentDocument('primeira\r\n\n  \nsegunda')).toEqual({
-      type: 'doc',
-      version: 1,
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'primeira' }] },
-        { type: 'paragraph', content: [{ type: 'text', text: 'segunda' }] },
-      ],
-    });
-  });
-
-  it('keeps wiki markup as literal text', () => {
-    const doc = commentDocument('*negrito* [link|https://x] {code}');
-    expect(doc.content[0].content).toEqual([{ type: 'text', text: '*negrito* [link|https://x] {code}' }]);
-  });
-});
 
 describe('commentText', () => {
   it('trims and accepts 1..5000 characters', () => {
@@ -77,6 +59,6 @@ describe('addComment', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://example.atlassian.net/rest/api/3/issue/TT-123/comment');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ body: commentDocument('linha 1\nlinha 2') });
+    expect(JSON.parse(init.body)).toEqual({ body: adfDocument('linha 1\nlinha 2') });
   });
 });

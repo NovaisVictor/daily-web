@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BulkStartDate } from '@/components/jira/actions/BulkStartDate';
 import { JiraActionsProvider, type JiraViewer } from '@/components/jira/actions/context';
 import type { JiraProblem, JiraProblemItem } from '@/lib/types';
@@ -183,5 +183,41 @@ describe('BulkStartDate', () => {
     dialog = await openReview();
     expect(within(dialog).queryByText('gravada ✓')).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Gravar 2 datas' })).toBeTruthy();
+  });
+});
+
+describe('BulkStartDate with more stories than one request takes', () => {
+  const many = Array.from({ length: 51 }, (_, i) =>
+    issue(`TT-${i + 1}`, `História ${i + 1}`, ['story-in-progress-without-start']),
+  );
+
+  function stubBatches() {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const { items } = JSON.parse(String(init.body)) as { items: { key: string }[] };
+        return json(200, { ok: true, results: items.map(({ key }) => ({ key, outcome: 'written' })) });
+      }
+      const keys = decodeURIComponent(url.split('keys=')[1]).split(',');
+      return json(200, {
+        suggestions: keys.map((key) => ({ key, status: 'suggested', date: '2026-10-01', source: 'created' })),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('asks for suggestions and writes in batches of at most 50, merging the results', async () => {
+    const fetchMock = stubBatches();
+    const { onChanged } = renderBulk({ problems: many });
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início em todas (51)' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Preencher data de início' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gravar 51 datas' }));
+    await waitFor(() => expect(within(dialog).getAllByText('gravada ✓')).toHaveLength(51));
+
+    const gets = fetchMock.mock.calls.filter(([, init]) => init?.method !== 'POST');
+    const posts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(gets.map(([url]) => decodeURIComponent(url).split(',').length)).toEqual([50, 1]);
+    expect(posts.map(([, init]) => JSON.parse(String(init?.body)).items.length)).toEqual([50, 1]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 });

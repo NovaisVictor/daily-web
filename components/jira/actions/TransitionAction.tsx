@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { JiraItem } from '@/lib/types';
 import type { JiraTransition } from '@/lib/integrations/jira/transitions';
@@ -83,10 +83,13 @@ export function TransitionAction({ issue, children }: { issue: JiraItem; childre
   const { onChanged } = useJiraActions();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>({ kind: 'loading' });
+  const request = useRef(0);
 
   const load = async () => {
+    const id = ++request.current;
     setView({ kind: 'loading' });
-    setView(await loadTransitions(issue.key));
+    const next = await loadTransitions(issue.key);
+    if (request.current === id) setView(next);
   };
 
   const onOpenChange = (next: boolean) => {

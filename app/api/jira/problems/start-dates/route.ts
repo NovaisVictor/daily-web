@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import {
-  isCalendarDate,
-  MAX_START_DATE_KEYS,
-  suggestStartDates,
-  writeStartDates,
-} from '@/lib/integrations/jira/startDates';
+import { isCalendarDate } from '@/lib/integrations/jira/parse';
+import { suggestStartDates, writeStartDates } from '@/lib/integrations/jira/startDates';
+import { START_DATE_BATCH } from '@/lib/jiraLimits';
 
 function badRequest(error: string): NextResponse {
   return NextResponse.json({ error }, { status: 400 });
@@ -15,7 +12,7 @@ function badRequest(error: string): NextResponse {
 function keysOf(raw: string | null): string[] | null {
   if (!raw) return null;
   const keys = raw.split(',').map((part) => issueKeyParam(part.trim()));
-  if (keys.length > MAX_START_DATE_KEYS || keys.some((key) => key === null)) return null;
+  if (keys.length > START_DATE_BATCH || keys.some((key) => key === null)) return null;
   return [...new Set(keys as string[])];
 }
 
@@ -23,7 +20,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireJira();
   if (!auth.ok) return auth.response;
   const keys = keysOf(request.nextUrl.searchParams.get('keys'));
-  if (!keys) return badRequest(`chaves inválidas — informe de 1 a ${MAX_START_DATE_KEYS} no formato ABC-123`);
+  if (!keys) return badRequest(`chaves inválidas — informe de 1 a ${START_DATE_BATCH} no formato ABC-123`);
 
   try {
     const suggestions = await suggestStartDates(auth.value.connection, keys);
@@ -45,8 +42,8 @@ type Items = { key: string; date: string }[];
 
 function itemsOf(body: unknown): Items | string {
   const raw = typeof body === 'object' && body !== null ? (body as { items?: unknown }).items : undefined;
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_START_DATE_KEYS) {
-    return `informe de 1 a ${MAX_START_DATE_KEYS} datas`;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > START_DATE_BATCH) {
+    return `informe de 1 a ${START_DATE_BATCH} datas`;
   }
   const limit = today();
   const items: Items = [];

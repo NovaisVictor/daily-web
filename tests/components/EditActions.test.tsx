@@ -79,9 +79,14 @@ describe('EditMenuItems', () => {
     expect(screen.getByRole('menuitem', { name: 'Criar história neste épico' })).toBeTruthy();
   });
 
-  it('hides assign when the issue is already yours', () => {
+  it('offers assign whatever the row role says, since role does not name the assignee', () => {
     render(<Menu item={issue({ role: 'both' })} />);
-    expect(screen.queryByRole('menuitem', { name: 'Atribuir a mim' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Atribuir a mim' })).toBeTruthy();
+  });
+
+  it('offers assign on an approval-only row, whose neutral role is not the assignee', () => {
+    render(<Menu item={issue({ role: 'assignee', awaitingApproval: true })} />);
+    expect(screen.getByRole('menuitem', { name: 'Atribuir a mim' })).toBeTruthy();
   });
 
   it("keeps assign when looking at someone else's issue", () => {

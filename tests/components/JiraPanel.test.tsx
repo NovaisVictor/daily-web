@@ -252,6 +252,30 @@ describe('JiraPanel', () => {
     ]);
   });
 
+  it('leaves the status of an ancestor row as plain text, without the transition picker', () => {
+    render(
+      <Panel
+        watched={{ data: [], error: null }}
+        onChanged={() => {}}
+        jira={{
+          data: [
+            issue({
+              key: 'TT-9',
+              project: 'TT',
+              summary: 'História minha',
+              parent: { key: 'TT-1', summary: 'Objetivo' },
+            }),
+          ],
+          error: null,
+        }}
+        ancestors={[issue({ key: 'TT-1', project: 'TT', summary: 'Objetivo', kind: 'Objective' })]}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /^mudar status de TT-9 / })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^mudar status de TT-1 / })).not.toBeInTheDocument();
+  });
+
   it('recolhe o caminho quando o usuário fecha o ramo', () => {
     render(
       <Panel

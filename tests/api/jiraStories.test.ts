@@ -162,4 +162,29 @@ describe('POST /api/jira/issues/[key]/stories', () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'Jira respondeu 400: parent: Pai inválido.' });
   });
+
+  it('502 telling to check the epic before retrying when the create times out', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, epic))
+      .mockResolvedValueOnce(json(200, issueTypes))
+      .mockRejectedValueOnce(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await post('TT-2376', { summary: 'Nova' });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: 'o Jira demorou a responder — confira no épico se a história foi criada antes de tentar de novo',
+    });
+  });
+
+  it('502 saying the epic or project is missing when the create answers 404', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, epic))
+      .mockResolvedValueOnce(json(200, issueTypes))
+      .mockResolvedValueOnce(json(404, {}));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await post('TT-2376', { summary: 'Nova' });
+    expect(await res.json()).toEqual({ error: 'épico ou projeto não encontrado no Jira' });
+  });
 });

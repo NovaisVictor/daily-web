@@ -2,6 +2,8 @@ import type { Connection } from '@/lib/vault/connections';
 import { jiraAuth, jiraRequest } from '@/lib/integrations/jiraApi';
 import { isJiraAccountId } from '@/lib/jiraAccount';
 import { isJiraKey } from '@/lib/jiraKey';
+import { DESCRIPTION_MAX, SUMMARY_MAX } from '@/lib/jiraLimits';
+import { adfDocument, fail as failIn, isCalendarDate, isRecord, NOT_FOUND, requiredText } from '@/lib/integrations/jira/parse';
 
 export interface JiraPriority {
   id: string;
@@ -18,8 +20,6 @@ export interface NewStory {
   description: string | null;
 }
 
-export const SUMMARY_MAX = 255;
-export const DESCRIPTION_MAX = 10_000;
 const STORY_TYPE_NAMES = ['história', 'story'];
 const EPIC_LEVEL = 1;
 const STORY_LEVEL = 0;
@@ -27,32 +27,16 @@ const STORY_LEVEL = 0;
 /** A request the panel can refuse before asking Jira: answered with 400. */
 export class InvalidEdit extends Error {}
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function fail(detail: string): never {
-  throw new Error(`resposta inesperada do Jira: ${detail}`);
+  failIn(null, detail);
 }
 
-function text(value: unknown, what: string): string {
-  if (typeof value !== 'string' || value.trim() === '') fail(`${what} ausente`);
-  return value;
-}
+const text = (value: unknown, what: string) => requiredText(value, null, what);
 
 function numericId(value: unknown, what: string): string {
   const id = text(value, what);
   if (!/^\d+$/.test(id)) fail(`${what} inválido (${id})`);
   return id;
-}
-
-export function isCalendarDate(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 export function parseEditChange(body: unknown): EditChange | null {
@@ -147,23 +131,14 @@ export function parseCreatedKey(data: unknown): string {
   return String(data.key);
 }
 
-export function toAdf(value: string) {
-  return {
-    type: 'doc',
-    version: 1,
-    content: value
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line !== '')
-      .map((line) => ({ type: 'paragraph', content: [{ type: 'text', text: line }] })),
-  };
+function isTimeout(err: unknown): boolean {
+  const name = typeof err === 'object' && err !== null && 'name' in err ? err.name : undefined;
+  return name === 'TimeoutError' || name === 'AbortError';
 }
 
 function issuePath(key: string): string {
   return `/rest/api/3/issue/${encodeURIComponent(key)}`;
 }
-
-const NOT_FOUND = 'issue não encontrada no Jira';
 
 export async function fetchPriorityOptions(
   conn: Connection,
@@ -224,18 +199,28 @@ export async function createStoryInEpic(
       notFound: 'projeto não encontrado no Jira',
     }),
   );
-  const created = await jiraRequest(auth, '/rest/api/3/issue', {
-    method: 'POST',
-    body: {
-      fields: {
-        project: { key: epic.project },
-        issuetype: { id: typeId },
-        summary: story.summary,
-        parent: { key: epicKey },
-        ...(story.description ? { description: toAdf(story.description) } : {}),
+  let created: unknown;
+  try {
+    created = await jiraRequest(auth, '/rest/api/3/issue', {
+      method: 'POST',
+      body: {
+        fields: {
+          project: { key: epic.project },
+          issuetype: { id: typeId },
+          summary: story.summary,
+          parent: { key: epicKey },
+          ...(story.description ? { description: adfDocument(story.description) } : {}),
+        },
       },
-    },
-  });
+      notFound: 'épico ou projeto não encontrado no Jira',
+    });
+  } catch (err) {
+    // A create that timed out may still have happened: retrying blindly would duplicate it.
+    if (isTimeout(err)) {
+      throw new Error('o Jira demorou a responder — confira no épico se a história foi criada antes de tentar de novo');
+    }
+    throw err;
+  }
   const key = parseCreatedKey(created);
   return { key, url: `${auth.baseUrl}/browse/${encodeURIComponent(key)}` };
 }

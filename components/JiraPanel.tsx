@@ -1326,9 +1326,13 @@ function JiraRow({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
-          <TransitionAction issue={issue}>
+          {origin === 'ancestor' ? (
             <JiraStatus issue={issue} />
-          </TransitionAction>
+          ) : (
+            <TransitionAction issue={issue}>
+              <JiraStatus issue={issue} />
+            </TransitionAction>
+          )}
           {parado && <span className="whitespace-nowrap text-warning">{parado}</span>}
           {prazo && (
             <span
