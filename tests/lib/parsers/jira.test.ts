@@ -22,6 +22,8 @@ function issue(over: Partial<JiraItem>): JiraItem {
     hierarchyLevel: null,
     updatedAt: '2026-08-26T10:00:00.000Z',
     dueDate: '',
+    priority: null,
+    flag: 'none',
     ...over,
   };
 }

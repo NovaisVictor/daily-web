@@ -28,6 +28,8 @@ function issue(over: Partial<JiraItem>): JiraItem {
     hierarchyLevel: null,
     updatedAt: '2026-08-26T10:00:00.000-0300',
     dueDate: '',
+    priority: null,
+    flag: 'none',
     ...over,
   };
 }

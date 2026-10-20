@@ -80,6 +80,8 @@ function issue(over: Partial<JiraItem>): JiraItem {
     hierarchyLevel: null,
     updatedAt: new Date().toISOString(),
     dueDate: '',
+    priority: null,
+    flag: 'none',
     ...over,
   };
 }
@@ -1171,5 +1173,182 @@ describe('filtros do Jira', () => {
     montar();
     expect(screen.queryByText(/^Tipo:|^Iniciativa:/)).toBeNull();
     expect(minhasNaTela()).toEqual(['TT-111', 'TT-112', 'TT-21']);
+  });
+});
+
+describe('prioridade e impedimento na linha', () => {
+  it('mostra a bandeira de impedimento só na issue impedida', () => {
+    render(
+      <Panel
+        jira={{
+          data: [issue({ key: 'A-1', flag: 'impediment' }), issue({ key: 'A-2', flag: 'none' })],
+          error: null,
+        }}
+      />,
+    );
+    const linhas = screen.getAllByRole('listitem').filter((li) => within(li).queryByText(/^A-\d$/));
+    expect(within(linhas[0]).getByTitle('impedimento')).toBeInTheDocument();
+    expect(within(linhas[1]).queryByTitle('impedimento')).toBeNull();
+  });
+
+  it('mostra a prioridade e pinta só as duas mais altas', () => {
+    render(
+      <Panel
+        jira={{
+          data: [
+            issue({ key: 'A-1', priority: { name: 'Crítica', rank: 0 } }),
+            issue({ key: 'A-2', priority: { name: 'Média', rank: 2 } }),
+            issue({ key: 'A-3', priority: null }),
+          ],
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText('Crítica')).toHaveClass('text-danger');
+    expect(screen.getByText('Média')).toHaveClass('text-ink-dim');
+    expect(screen.getAllByTitle('prioridade')).toHaveLength(2);
+  });
+});
+
+describe('ordenação', () => {
+  const chavesNaTela = () =>
+    screen
+      .getAllByRole('link')
+      .map((a) => a.textContent ?? '')
+      .filter((t) => /^A-\d+$/.test(t));
+
+  const lista = [
+    issue({ key: 'A-1', updatedAt: '2026-10-15T10:00:00Z', priority: { name: 'Baixa', rank: 3 } }),
+    issue({ key: 'A-2', updatedAt: '2026-10-01T10:00:00Z', priority: { name: 'Crítica', rank: 0 } }),
+  ];
+
+  it('começa na ordem do Jira e grava a escolha na URL', () => {
+    render(<Panel jira={{ data: lista, error: null }} />);
+    expect(chavesNaTela()).toEqual(['A-1', 'A-2']);
+
+    fireEvent.change(screen.getByLabelText('ordenar issues'), { target: { value: 'prioridade' } });
+
+    expect(new URLSearchParams(nav.search).get('jiraOrdem')).toBe('prioridade');
+    expect(chavesNaTela()).toEqual(['A-2', 'A-1']);
+  });
+
+  it('lê a ordem da URL e volta ao padrão tirando o parâmetro', () => {
+    nav.search = 'jiraOrdem=parado';
+    render(<Panel jira={{ data: lista, error: null }} />);
+    expect(screen.getByLabelText('ordenar issues')).toHaveValue('parado');
+    expect(chavesNaTela()).toEqual(['A-2', 'A-1']);
+
+    fireEvent.change(screen.getByLabelText('ordenar issues'), { target: { value: 'atualizacao' } });
+    expect(nav.search).toBe('');
+  });
+
+  it('valor desconhecido na URL cai na ordem padrão', () => {
+    nav.search = 'jiraOrdem=constructor';
+    render(<Panel jira={{ data: lista, error: null }} />);
+    expect(screen.getByLabelText('ordenar issues')).toHaveValue('atualizacao');
+  });
+});
+
+describe('corrigir pela aba Problemas', () => {
+  const problema = (over: Partial<JiraProblemItem> = {}): JiraProblemItem => ({
+    ...issue({ key: 'DAD-7', project: 'DAD', summary: 'Checkout novo' }),
+    problems: ['story-in-progress-without-start'],
+    ...over,
+  });
+
+  const abrir = (item: JiraProblemItem, onChanged = vi.fn()) => {
+    nav.search = 'jira=problemas';
+    render(<Panel problems={{ data: [item], error: null }} onChanged={onChanged} />);
+    return onChanged;
+  };
+
+  const json = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body });
+
+  it('sugere a data, deixa conferir e só grava no Salvar', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'PUT' ? json(200, { ok: true }) : json(200, { date: '2026-10-20' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onChanged = abrir(problema());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    const campo = await screen.findByLabelText('data de início de DAD-7');
+    expect(campo).toHaveValue('2026-10-20');
+    expect(screen.getByText('primeira passagem por andamento')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(campo, { target: { value: '2026-10-18' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await screen.findByText('início gravado no Jira');
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe('/api/jira/issues/DAD-7/start-date');
+    expect(JSON.parse(String(init?.body))).toEqual({ date: '2026-10-18' });
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem passagem por andamento, pede a data e não deixa salvar vazio', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: null })));
+    abrir(problema());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    expect(await screen.findByLabelText('data de início de DAD-7')).toHaveValue('');
+    expect(screen.getByText('sem passagem por andamento no histórico')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
+
+  it('mostra o erro do Jira e mantém a data para tentar de novo', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) =>
+        init?.method === 'PUT'
+          ? json(502, { error: 'o API token do Jira não tem permissão para isso' })
+          : json(200, { date: '2026-10-20' }),
+      ),
+    );
+    const onChanged = abrir(problema());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    await screen.findByLabelText('data de início de DAD-7');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('o API token do Jira não tem permissão para isso')).toBeInTheDocument();
+    expect(screen.getByLabelText('data de início de DAD-7')).toHaveValue('2026-10-20');
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('escolhe o épico entre os abertos do projeto da história', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'PUT'
+        ? json(200, { ok: true })
+        : json(200, { epics: [{ key: 'DAD-1', summary: 'Pagamentos' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onChanged = abrir(problema({ problems: ['story-without-epic'] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escolher épico' }));
+    const select = await screen.findByLabelText('épico de DAD-7');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/jira/epics?project=DAD');
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+
+    fireEvent.change(select, { target: { value: 'DAD-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await screen.findByText('épico gravado no Jira');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/jira/issues/DAD-7/parent');
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ epic: 'DAD-1' });
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('avisa quando o projeto não tem épico aberto', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { epics: [] })));
+    abrir(problema({ problems: ['story-without-epic'] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Escolher épico' }));
+    expect(await screen.findByText('nenhum épico aberto em DAD')).toBeInTheDocument();
+  });
+
+  it('não oferece correção para problema de épico', () => {
+    abrir(problema({ problems: ['epic-without-stories'] }));
+    expect(screen.queryByRole('button', { name: /Preencher início|Escolher épico/ })).toBeNull();
   });
 });

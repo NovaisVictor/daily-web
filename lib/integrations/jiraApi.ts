@@ -1,6 +1,7 @@
 import type { Connection } from '@/lib/vault/connections';
 import type {
   JiraDatedItem,
+  JiraFlag,
   JiraItem,
   JiraProblemItem,
   JiraRole,
@@ -33,7 +34,7 @@ const PAGE_SIZE = 100;
 
 // `updated` e `duedate` são o que transforma a lista em "o que precisa de
 // mim": sem eles não dá para saber o que está parado nem o que vence.
-const FIELDS = ['summary', 'status', 'project', 'parent', 'issuetype', 'updated', 'duedate'];
+const FIELDS = ['summary', 'status', 'project', 'parent', 'issuetype', 'updated', 'duedate', 'priority'];
 
 export interface JiraAuth {
   baseUrl: string;
@@ -76,7 +77,11 @@ interface RawIssue {
       hierarchyLevel?: number | null;
     } | null;
     parent?: { key?: string; fields?: { summary?: string | null } | null } | null;
+    priority?: { id?: string | null; name?: string | null } | null;
   } | null;
+  /** O que depende de campo personalizado ou da ordem da instância, resolvido
+   *  pela busca que trouxe a issue. Ausente quando ela veio de outro caminho. */
+  resolved?: { flag: JiraFlag; priorityRank: number | null };
 }
 
 /** O Jira usa três chaves de categoria; qualquer outra coisa é tratada como
@@ -106,12 +111,21 @@ export function toJiraItem(raw: RawIssue, baseUrl: string, role: JiraRole): Jira
     subtask: fields.issuetype?.subtask ?? false,
     hierarchyLevel:
       typeof fields.issuetype?.hierarchyLevel === 'number' ? fields.issuetype.hierarchyLevel : null,
+    priority: fields.priority?.name
+      ? { name: fields.priority.name, rank: raw.resolved?.priorityRank ?? null }
+      : null,
+    flag: raw.resolved?.flag ?? 'none',
   };
 }
 
-async function request(auth: JiraAuth, path: string, body: unknown): Promise<unknown> {
+async function request(
+  auth: JiraAuth,
+  path: string,
+  body: unknown,
+  method: 'GET' | 'POST' | 'PUT' = body ? 'POST' : 'GET',
+): Promise<unknown> {
   const response = await fetch(`${auth.baseUrl}${path}`, {
-    method: body ? 'POST' : 'GET',
+    method,
     headers: {
       authorization: auth.header,
       accept: 'application/json',
@@ -128,7 +142,120 @@ async function request(auth: JiraAuth, path: string, body: unknown): Promise<unk
     const text = await response.text().catch(() => '');
     throw new Error(`Jira respondeu ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`);
   }
+  // A edição de issue responde 204, sem corpo.
+  if (response.status === 204) return null;
   return response.json();
+}
+
+interface JiraField {
+  id?: string;
+  name?: string;
+}
+
+interface JiraPriorityEntry {
+  id?: string;
+}
+
+/** O que muda de uma instância do Jira para outra e quase nunca muda dentro
+ *  dela: os ids dos campos personalizados e a ordem das prioridades. */
+export interface InstanceMeta {
+  startField: string | null;
+  flaggedField: string | null;
+  priorityRank: Map<string, number>;
+}
+
+const NO_META: InstanceMeta = { startField: null, flaggedField: null, priorityRank: new Map() };
+
+// A data de início e a bandeira são campos personalizados, com id diferente
+// em cada instância. O nome é o que se repete — em inglês ou no idioma do
+// perfil.
+const START_FIELD_NAMES = ['start date', 'data de início', 'data de inicio'];
+const FLAGGED_FIELD_NAMES = ['flagged', 'sinalizado'];
+
+// Seis horas: o campo só muda se alguém reconfigurar a instância, e cada
+// ciclo de cinco minutos pagava duas idas ao Jira só para redescobri-lo.
+const META_TTL_MS = 6 * 60 * 60 * 1000;
+
+// No processo, não no módulo: o build empacota este arquivo mais de uma vez,
+// e uma cópia do cache por pacote voltaria a pagar a descoberta.
+const META_KEY = Symbol.for('daily-web.jira-instance-meta');
+const metaState = ((globalThis as Record<symbol, unknown>)[META_KEY] ??= {
+  cache: new Map(),
+  inFlight: new Map(),
+}) as {
+  cache: Map<string, { at: number; meta: InstanceMeta }>;
+  // As buscas de um ciclo saem juntas; sem isto, cada uma pagaria a
+  // descoberta quando o cache está frio.
+  inFlight: Map<string, Promise<InstanceMeta>>;
+};
+const metaCache = metaState.cache;
+
+const fieldIdByName = (fields: JiraField[], names: string[]) =>
+  fields.find((f) => names.includes(f.name?.trim().toLowerCase() ?? ''))?.id ?? null;
+
+async function loadInstanceMeta(auth: JiraAuth): Promise<InstanceMeta> {
+  const [fields, priorities] = await Promise.all([
+    request(auth, '/rest/api/3/field', undefined),
+    request(auth, '/rest/api/3/priority', undefined),
+  ]);
+  const list = Array.isArray(fields) ? (fields as JiraField[]) : [];
+  // A lista de prioridades vem na ordem da instância, da mais alta para a
+  // mais baixa; é a posição, e não o id, que diz qual vem antes.
+  const ordered = Array.isArray(priorities) ? (priorities as JiraPriorityEntry[]) : [];
+  return {
+    startField: fieldIdByName(list, START_FIELD_NAMES),
+    flaggedField: fieldIdByName(list, FLAGGED_FIELD_NAMES),
+    priorityRank: new Map(
+      ordered.flatMap((p, index) => (p.id ? [[p.id, index] as [string, number]] : [])),
+    ),
+  };
+}
+
+/** Os metadados da instância, do cache quando ainda valem. A falha não é
+ *  guardada nem derruba a busca: sem eles a lista sai sem bandeira e sem
+ *  ordem de prioridade, e a próxima busca tenta de novo. */
+export async function instanceMeta(auth: JiraAuth): Promise<InstanceMeta> {
+  const cached = metaCache.get(auth.baseUrl);
+  if (cached && Date.now() - cached.at < META_TTL_MS) return cached.meta;
+  const pending = metaState.inFlight.get(auth.baseUrl);
+  if (pending) return pending;
+
+  const loading = loadInstanceMeta(auth)
+    .then((meta) => {
+      metaCache.set(auth.baseUrl, { at: Date.now(), meta });
+      return meta;
+    })
+    .catch(() => NO_META)
+    .finally(() => metaState.inFlight.delete(auth.baseUrl));
+  metaState.inFlight.set(auth.baseUrl, loading);
+  return loading;
+}
+
+export function setInstanceMetaForTests(baseUrl: string, meta: InstanceMeta | null): void {
+  metaState.inFlight.delete(baseUrl);
+  if (meta) metaCache.set(baseUrl, { at: Date.now(), meta });
+  else metaCache.delete(baseUrl);
+}
+
+const searchFields = (meta: InstanceMeta, extra: string[] = []) => [
+  ...FIELDS,
+  ...(meta.flaggedField ? [meta.flaggedField] : []),
+  ...extra,
+];
+
+function resolve(issues: RawIssue[], meta: InstanceMeta): RawIssue[] {
+  return issues.map((issue) => {
+    const fields = (issue.fields ?? {}) as Record<string, unknown>;
+    const flagged = meta.flaggedField ? fields[meta.flaggedField] : null;
+    const priorityId = issue.fields?.priority?.id;
+    return {
+      ...issue,
+      resolved: {
+        flag: Array.isArray(flagged) && flagged.length > 0 ? 'impediment' : 'none',
+        priorityRank: priorityId ? (meta.priorityRank.get(priorityId) ?? null) : null,
+      },
+    };
+  });
 }
 
 interface SearchResponse {
@@ -138,9 +265,10 @@ interface SearchResponse {
 }
 
 async function search(auth: JiraAuth, jql: string): Promise<RawIssue[]> {
-  const payload = { jql, fields: FIELDS, maxResults: PAGE_SIZE };
+  const meta = await instanceMeta(auth);
+  const payload = { jql, fields: searchFields(meta), maxResults: PAGE_SIZE };
   const data = (await request(auth, '/rest/api/3/search/jql', payload)) as SearchResponse;
-  return data.issues ?? [];
+  return resolve(data.issues ?? [], meta);
 }
 
 const OPEN = 'statusCategory != Done';
@@ -367,35 +495,31 @@ export async function fetchAncestors(conn: Connection, items: JiraItem[]): Promi
 // lista cortada em silêncio.
 const MAX_PAGES = 10;
 
-async function searchAll(auth: JiraAuth, jql: string, fields: string[]): Promise<RawIssue[]> {
+async function searchAll(
+  auth: JiraAuth,
+  jql: string,
+  meta: InstanceMeta,
+  extraFields: string[] = [],
+): Promise<RawIssue[]> {
   const issues: RawIssue[] = [];
+  const fields = searchFields(meta, extraFields);
   let nextPageToken: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
     const payload = { jql, fields, maxResults: PAGE_SIZE, ...(nextPageToken ? { nextPageToken } : {}) };
     const data = (await request(auth, '/rest/api/3/search/jql', payload)) as SearchResponse;
-    issues.push(...(data.issues ?? []));
+    issues.push(...resolve(data.issues ?? [], meta));
     if (data.isLast !== false || !data.nextPageToken) return issues;
     nextPageToken = data.nextPageToken;
   }
   throw new Error(`a busca do Jira passou de ${MAX_PAGES * PAGE_SIZE} issues`);
 }
 
-interface JiraField {
-  id?: string;
-  name?: string;
-}
-
-// A data de início é um campo personalizado, com id diferente em cada
-// instância. O nome é o que se repete — em inglês ou no idioma do perfil.
-const START_FIELD_NAMES = ['start date', 'data de início', 'data de inicio'];
-
-async function startDateField(auth: JiraAuth): Promise<string> {
-  const fields = (await request(auth, '/rest/api/3/field', undefined)) as JiraField[];
-  const field = fields.find((f) => START_FIELD_NAMES.includes(f.name?.trim().toLowerCase() ?? ''));
+async function startDateField(auth: JiraAuth): Promise<{ meta: InstanceMeta; startField: string }> {
+  const meta = await instanceMeta(auth);
   // Sem o campo, toda história em andamento pareceria sem início. Melhor dizer
   // que não dá para checar do que acusar a lista inteira.
-  if (!field?.id) throw new Error('campo "Start date" não encontrado no Jira');
-  return field.id;
+  if (!meta.startField) throw new Error('campo "Start date" não encontrado no Jira');
+  return { meta, startField: meta.startField };
 }
 
 // Histórias e épicos sob a responsabilidade de quem está sendo olhado que ainda pedem atenção:
@@ -425,9 +549,9 @@ const EPIC_CHUNK = 50;
  *  os épicos vêm juntas, por `parent in (...)`. */
 export async function fetchProblems(conn: Connection, subject = ME): Promise<JiraProblemItem[]> {
   const auth = jiraAuth(conn);
-  const startField = await startDateField(auth);
+  const { meta, startField } = await startDateField(auth);
 
-  const raw = await searchAll(auth, problemScope(subject), [...FIELDS, startField]);
+  const raw = await searchAll(auth, problemScope(subject), meta, [startField]);
   const scope: JiraAuditIssue[] = raw
     .map((issue) => {
       const fields = (issue.fields ?? {}) as Record<string, unknown>;
@@ -448,7 +572,7 @@ export async function fetchProblems(conn: Connection, subject = ME): Promise<Jir
   const children = (
     await Promise.all(
       chunks.map((keys) =>
-        searchAll(auth, `parent in (${keys.map((k) => `"${k}"`).join(', ')})`, FIELDS),
+        searchAll(auth, `parent in (${keys.map((k) => `"${k}"`).join(', ')})`, meta),
       ),
     )
   )
@@ -456,6 +580,108 @@ export async function fetchProblems(conn: Connection, subject = ME): Promise<Jir
     .map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee'));
 
   return findProblems(scope, children);
+}
+
+interface ChangelogPage {
+  values?: {
+    created?: string;
+    items?: { fieldId?: string; field?: string; to?: string | null }[];
+  }[];
+  isLast?: boolean;
+}
+
+interface JiraStatusEntry {
+  id?: string;
+  statusCategory?: { key?: string | null } | null;
+}
+
+// Um histórico de issue raramente passa de uma página; o teto existe para a
+// leitura terminar mesmo diante de uma issue com milhares de alterações.
+const CHANGELOG_PAGES = 10;
+
+/** O dia em que a issue entrou em andamento pela primeira vez, AAAA-MM-DD, ou
+ *  nulo quando o histórico não tem essa passagem. O status de destino é
+ *  julgado pela categoria, não pelo nome: "Em andamento" e "Code Review PR"
+ *  são o mesmo começo de trabalho. O dia é o do horário gravado pelo Jira,
+ *  que já vem no fuso do perfil. */
+export async function suggestStartDate(conn: Connection, key: string): Promise<string | null> {
+  if (!isJiraKey(key)) throw new Error('chave inválida');
+  const auth = jiraAuth(conn);
+
+  const statuses = (await request(auth, '/rest/api/3/status', undefined)) as JiraStatusEntry[];
+  const started = new Set(
+    (Array.isArray(statuses) ? statuses : [])
+      .filter((st) => st.id && st.statusCategory?.key === 'indeterminate')
+      .map((st) => st.id as string),
+  );
+
+  const moments: string[] = [];
+  for (let page = 0; page < CHANGELOG_PAGES; page++) {
+    const path =
+      `/rest/api/3/issue/${encodeURIComponent(key)}/changelog` +
+      `?startAt=${page * PAGE_SIZE}&maxResults=${PAGE_SIZE}`;
+    const data = (await request(auth, path, undefined)) as ChangelogPage;
+    for (const entry of data.values ?? []) {
+      const entered = (entry.items ?? []).some(
+        (item) => (item.fieldId ?? item.field) === 'status' && item.to && started.has(item.to),
+      );
+      if (entered && entry.created) moments.push(entry.created);
+    }
+    if (data.isLast !== false) break;
+  }
+
+  const first = moments.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+  return first ? first.slice(0, 10) : null;
+}
+
+/** Grava a data de início. A data chega da tela, então é conferida aqui: só
+ *  um dia que existe no calendário vai para o Jira. */
+export async function setStartDate(conn: Connection, key: string, date: string): Promise<void> {
+  if (!isJiraKey(key)) throw new Error('chave inválida');
+  if (!isCalendarDate(date)) throw new Error('data inválida — use AAAA-MM-DD');
+  const auth = jiraAuth(conn);
+  const { startField } = await startDateField(auth);
+  await request(auth, `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: { [startField]: date } }, 'PUT');
+}
+
+export function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+const EPIC_LEVEL = 1;
+
+/** Os épicos abertos de um projeto, para escolher o pai da história. O tipo
+ *  vai pelo nome na JQL, que é o nome de sistema nesta instância; o degrau da
+ *  hierarquia confere o resultado, para não oferecer como épico o que não é. */
+export async function fetchOpenEpics(conn: Connection, project: string): Promise<JiraItem[]> {
+  if (!isJiraProjectKey(project)) throw new Error('projeto inválido');
+  const auth = jiraAuth(conn);
+  const raw = await search(
+    auth,
+    `project = "${project}" AND issuetype = Epic AND statusCategory != Done ORDER BY updated DESC`,
+  );
+  return raw
+    .map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee'))
+    .filter((issue) => issue.hierarchyLevel === EPIC_LEVEL);
+}
+
+export function isJiraProjectKey(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z][A-Z0-9_]{1,9}$/.test(value);
+}
+
+/** Põe a história sob o épico. O épico é lido antes de gravar: o pai precisa
+ *  existir, ser um épico e ser do mesmo projeto — o Jira aceitaria um épico
+ *  de outro projeto, e a história sumiria do quadro do time. */
+export async function setEpic(conn: Connection, key: string, epicKey: string): Promise<void> {
+  if (!isJiraKey(key) || !isJiraKey(epicKey)) throw new Error('chave inválida');
+  const auth = jiraAuth(conn);
+  const [epic] = await search(auth, `key = "${epicKey}"`);
+  const item = epic ? toJiraItem(epic, auth.baseUrl, 'assignee') : null;
+  if (!item || item.hierarchyLevel !== EPIC_LEVEL) throw new Error(`${epicKey} não é um épico`);
+  if (item.project !== key.split('-')[0]) throw new Error(`${epicKey} é de outro projeto`);
+  await request(auth, `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: { parent: { key: epicKey } } }, 'PUT');
 }
 
 export async function testConnection(conn: Connection): Promise<void> {

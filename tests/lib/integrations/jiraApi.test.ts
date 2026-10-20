@@ -1,13 +1,25 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchAncestors,
   fetchApproved,
   fetchDelivered,
   fetchIssues,
   fetchProblems,
+  fetchByKeys,
+  fetchOpenEpics,
+  instanceMeta,
+  isCalendarDate,
+  jiraAuth,
   jiraBaseUrl,
+  setEpic,
+  setInstanceMetaForTests,
+  setStartDate,
+  suggestStartDate,
   toJiraItem,
 } from '@/lib/integrations/jiraApi';
+import changelogFixture from '../../fixtures/jira-changelog.json';
+import statusesFixture from '../../fixtures/jira-statuses.json';
+import flaggedFixture from '../../fixtures/jira-flagged-search.json';
 import type { Connection } from '@/lib/vault/connections';
 
 const CONN = {
@@ -57,7 +69,17 @@ function issue(key: string, over: Record<string, unknown> = {}) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+const BASE_URL = 'https://acme.atlassian.net';
+const EMPTY_META = { startField: null, flaggedField: null, priorityRank: new Map<string, number>() };
+
+// Os metadados da instância ficam em cache no processo. Cada teste começa com
+// eles já resolvidos e vazios, para a sequência de respostas falsas ser só a
+// das buscas; quem testa a descoberta limpa o cache.
+beforeEach(() => setInstanceMetaForTests(BASE_URL, EMPTY_META));
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setInstanceMetaForTests(BASE_URL, null);
+});
 
 describe('jiraBaseUrl', () => {
   it('aceita o nome, o domínio e a URL inteira', () => {
@@ -247,9 +269,14 @@ describe('fetchProblems', () => {
   /** Responde pela rota: a lista de campos numa, as buscas em sequência na
    *  outra. Devolve o mock para conferir o que foi perguntado. */
   function stubJira(searches: unknown[], fields: unknown = FIELDS_RESPONSE) {
+    setInstanceMetaForTests(BASE_URL, null);
     const pending = [...searches];
     const fetchMock = vi.fn(async (url: string) => {
-      const body = url.endsWith('/rest/api/3/field') ? fields : pending.shift();
+      const body = url.endsWith('/rest/api/3/field')
+        ? fields
+        : url.endsWith('/rest/api/3/priority')
+          ? []
+          : pending.shift();
       return { ok: true, status: 200, json: async () => body };
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -393,14 +420,14 @@ describe('JiraSubject (fetch by person)', () => {
   });
 
   it('fetchProblems usa conta específica e não currentUser', async () => {
+    setInstanceMetaForTests(BASE_URL, { ...EMPTY_META, startField: 'customfield_10015' });
     const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'customfield_10015', name: 'Start date' }] });
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ issues: [] }) });
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchProblems(CONN, PERSON);
-    
-    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.jql).toContain('assignee = "123:abc" AND');
     expect(body.jql).not.toContain('reporter');
     expect(body.jql).not.toContain('currentUser()');
@@ -521,5 +548,245 @@ describe('fetchAncestors', () => {
     const fetchMock = stubSearch([]);
     expect(await fetchAncestors(CONN, [])).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/** Responde pelo caminho da URL; o que não tem rota é um erro do teste. */
+function stubRoutes(routes: Record<string, unknown | ((init: RequestInit | undefined) => unknown)>) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const { pathname } = new URL(url);
+    if (!(pathname in routes)) throw new Error(`rota não esperada: ${pathname}`);
+    const route = routes[pathname];
+    const body = typeof route === 'function' ? route(init) : route;
+    if (body === 204) return { ok: true, status: 204, json: async () => null };
+    return { ok: true, status: 200, json: async () => body };
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+const META = {
+  startField: 'customfield_10015',
+  flaggedField: 'customfield_10021',
+  priorityRank: new Map([['1', 0], ['2', 1], ['3', 2], ['4', 3], ['5', 4]]),
+};
+
+describe('metadados da instância', () => {
+  it('descobre a bandeira, a data de início e a ordem das prioridades uma vez só', async () => {
+    setInstanceMetaForTests(BASE_URL, null);
+    const fetchMock = stubRoutes({
+      '/rest/api/3/field': [
+        { id: 'customfield_10021', name: 'Flagged' },
+        { id: 'customfield_10015', name: 'Data de início' },
+      ],
+      '/rest/api/3/priority': [{ id: '1' }, { id: '5' }],
+    });
+    const auth = jiraAuth(CONN);
+
+    const [primeira, segunda] = await Promise.all([instanceMeta(auth), instanceMeta(auth)]);
+    await instanceMeta(auth);
+
+    expect(primeira).toBe(segunda);
+    expect(primeira.startField).toBe('customfield_10015');
+    expect(primeira.flaggedField).toBe('customfield_10021');
+    expect([...primeira.priorityRank]).toEqual([['1', 0], ['5', 1]]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sem metadados a busca segue, e a falha não fica guardada', async () => {
+    setInstanceMetaForTests(BASE_URL, null);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/search/jql')) return { ok: true, status: 200, json: async () => ({ issues: [issue('TT-1')] }) };
+      return { ok: false, status: 500, text: async () => 'fora do ar' };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const items = await fetchByKeys(CONN, ['TT-1']);
+    expect(items[0].flag).toBe('none');
+    expect(items[0].priority).toBeNull();
+
+    await fetchByKeys(CONN, ['TT-1']);
+    const metaCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/rest/api/3/field'));
+    expect(metaCalls).toHaveLength(2);
+  });
+});
+
+describe('prioridade e impedimento', () => {
+  // A resposta é a de uma issue impedida de verdade, capturada do Jira.
+  it('lê a bandeira e a prioridade pelo campo descoberto', async () => {
+    setInstanceMetaForTests(BASE_URL, META);
+    const fetchMock = stubSearch(flaggedFixture.issues.map((i) => issue(i.key, i.fields)));
+
+    const [item] = await fetchByKeys(CONN, ['TT-2343']);
+
+    expect(item.flag).toBe('impediment');
+    expect(item.priority).toEqual({ name: 'Trivial', rank: 4 });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).fields).toEqual(
+      expect.arrayContaining(['priority', 'customfield_10021']),
+    );
+  });
+
+  it('bandeira vazia ou nula não é impedimento', async () => {
+    setInstanceMetaForTests(BASE_URL, META);
+    stubSearch([issue('TT-1', { customfield_10021: null }), issue('TT-2', { customfield_10021: [] })]);
+    const items = await fetchByKeys(CONN, ['TT-1', 'TT-2']);
+    expect(items.map((i) => i.flag)).toEqual(['none', 'none']);
+  });
+
+  it('prioridade fora da ordem conhecida aparece sem posição', async () => {
+    setInstanceMetaForTests(BASE_URL, META);
+    stubSearch([issue('TT-1', { priority: { id: '99', name: 'Nova' } })]);
+    const [item] = await fetchByKeys(CONN, ['TT-1']);
+    expect(item.priority).toEqual({ name: 'Nova', rank: null });
+  });
+
+  it('toJiraItem sem a busca não inventa bandeira nem posição', () => {
+    const item = toJiraItem(issue('TT-1', { priority: { id: '1', name: 'Crítica' } }), BASE_URL, 'assignee');
+    expect(item.flag).toBe('none');
+    expect(item.priority).toEqual({ name: 'Crítica', rank: null });
+  });
+});
+
+describe('suggestStartDate', () => {
+  // O histórico real: o card foi criado, ganhou data de início à mão e só
+  // depois entrou em "Em Andamento". O que vale é a passagem pelo status.
+  it('usa o dia da primeira passagem por um status em andamento', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-5016/changelog': changelogFixture,
+    });
+    expect(await suggestStartDate(CONN, 'TT-5016')).toBe('2026-10-20');
+  });
+
+  it('pega a mais antiga mesmo quando o histórico vem fora de ordem', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1/changelog': {
+        isLast: true,
+        values: [
+          { created: '2026-10-12T09:00:00.000-0300', items: [{ fieldId: 'status', to: '11298' }] },
+          { created: '2026-10-05T23:30:00.000-0300', items: [{ fieldId: 'status', to: '11540' }] },
+        ],
+      },
+    });
+    expect(await suggestStartDate(CONN, 'TT-1')).toBe('2026-10-05');
+  });
+
+  it('nulo quando a issue nunca passou por andamento', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1/changelog': {
+        isLast: true,
+        values: [{ created: '2026-10-05T10:00:00.000-0300', items: [{ fieldId: 'status', to: '5' }] }],
+      },
+    });
+    expect(await suggestStartDate(CONN, 'TT-1')).toBeNull();
+  });
+
+  it('segue as páginas do histórico', async () => {
+    let pagina = 0;
+    const fetchMock = stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1/changelog': () =>
+        pagina++ === 0
+          ? { isLast: false, values: [] }
+          : { isLast: true, values: [{ created: '2026-09-30T10:00:00.000-0300', items: [{ fieldId: 'status', to: '3' }] }] },
+    });
+    expect(await suggestStartDate(CONN, 'TT-1')).toBe('2026-09-30');
+    const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((u) => u.includes('changelog'));
+    expect(urls[1]).toContain('startAt=100');
+  });
+
+  it('recusa chave inválida antes de ir ao Jira', async () => {
+    const fetchMock = stubRoutes({});
+    await expect(suggestStartDate(CONN, 'TT-1/../x')).rejects.toThrow('chave inválida');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('setStartDate', () => {
+  it('grava a data no campo descoberto', async () => {
+    setInstanceMetaForTests(BASE_URL, META);
+    const fetchMock = stubRoutes({ '/rest/api/3/issue/TT-1': 204 });
+    await setStartDate(CONN, 'TT-1', '2026-10-20');
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(String(init?.body))).toEqual({ fields: { customfield_10015: '2026-10-20' } });
+  });
+
+  it.each(['2026-02-30', '20/10/2026', '', '2026-10-20T00:00'])('recusa a data %s', async (date) => {
+    const fetchMock = stubRoutes({});
+    await expect(setStartDate(CONN, 'TT-1', date)).rejects.toThrow('data inválida');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('erro claro quando a instância não tem o campo', async () => {
+    stubRoutes({});
+    await expect(setStartDate(CONN, 'TT-1', '2026-10-20')).rejects.toThrow('campo "Start date" não encontrado');
+  });
+});
+
+describe('isCalendarDate', () => {
+  it('aceita só dia que existe', () => {
+    expect(isCalendarDate('2024-02-29')).toBe(true);
+    expect(isCalendarDate('2026-02-29')).toBe(false);
+    expect(isCalendarDate(20261020)).toBe(false);
+  });
+});
+
+describe('épicos', () => {
+  const epic = (key: string, project = key.split('-')[0]) =>
+    issue(key, { project: { key: project }, issuetype: { name: 'Epic', subtask: false, hierarchyLevel: 1 } });
+
+  it('lista só os épicos abertos do projeto, pelo degrau da hierarquia', async () => {
+    const fetchMock = stubSearch([epic('TT-10'), issue('TT-11', { issuetype: { name: 'Epic', hierarchyLevel: 0 } })]);
+    const epicos = await fetchOpenEpics(CONN, 'TT');
+    expect(epicos.map((e) => e.key)).toEqual(['TT-10']);
+    expect(jqlOf(fetchMock)).toBe('project = "TT" AND issuetype = Epic AND statusCategory != Done ORDER BY updated DESC');
+  });
+
+  it('recusa projeto fora do formato', async () => {
+    const fetchMock = stubSearch([]);
+    await expect(fetchOpenEpics(CONN, 'TT" OR 1=1')).rejects.toThrow('projeto inválido');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('põe a história sob o épico depois de conferir que ele é épico do mesmo projeto', async () => {
+    const calls: { method?: string; body?: unknown }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (url.endsWith('/search/jql')) return { ok: true, status: 200, json: async () => ({ issues: [epic('TT-10')] }) };
+      return { ok: true, status: 204, json: async () => null };
+    }));
+
+    await setEpic(CONN, 'TT-5', 'TT-10');
+
+    expect((calls[0].body as { jql: string }).jql).toBe('key = "TT-10"');
+    expect(calls[1]).toEqual({ method: 'PUT', body: { fields: { parent: { key: 'TT-10' } } } });
+  });
+
+  it('não grava quando o pai não é épico', async () => {
+    const fetchMock = stubSearch([issue('TT-10', { issuetype: { name: 'História', hierarchyLevel: 0 } })]);
+    await expect(setEpic(CONN, 'TT-5', 'TT-10')).rejects.toThrow('TT-10 não é um épico');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('não grava quando o épico não existe', async () => {
+    stubSearch([]);
+    await expect(setEpic(CONN, 'TT-5', 'TT-10')).rejects.toThrow('não é um épico');
+  });
+
+  it('não grava épico de outro projeto', async () => {
+    const fetchMock = stubSearch([epic('CYB-10')]);
+    await expect(setEpic(CONN, 'TT-5', 'CYB-10')).rejects.toThrow('CYB-10 é de outro projeto');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('o erro de permissão do Jira chega à tela', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/search/jql')) return { ok: true, status: 200, json: async () => ({ issues: [epic('TT-10')] }) };
+      return { ok: false, status: 403, text: async () => '' };
+    }));
+    await expect(setEpic(CONN, 'TT-5', 'TT-10')).rejects.toThrow('não tem permissão');
   });
 });

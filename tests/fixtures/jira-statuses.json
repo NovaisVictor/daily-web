@@ -1,0 +1,37 @@
+[
+  {
+    "id": "3",
+    "name": "Em andamento",
+    "statusCategory": {
+      "key": "indeterminate"
+    }
+  },
+  {
+    "id": "5",
+    "name": "Resolvido",
+    "statusCategory": {
+      "key": "done"
+    }
+  },
+  {
+    "id": "10175",
+    "name": "Backlog",
+    "statusCategory": {
+      "key": "new"
+    }
+  },
+  {
+    "id": "11298",
+    "name": "Code Review PR",
+    "statusCategory": {
+      "key": "indeterminate"
+    }
+  },
+  {
+    "id": "11540",
+    "name": "Em Andamento",
+    "statusCategory": {
+      "key": "indeterminate"
+    }
+  }
+]

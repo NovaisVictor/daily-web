@@ -19,6 +19,8 @@ function item(over: Partial<JiraItem> = {}): JiraItem {
     hierarchyLevel: null,
     updatedAt: '2026-09-10T12:00:00.000Z',
     dueDate: '',
+    priority: null,
+    flag: 'none',
     ...over,
   };
 }

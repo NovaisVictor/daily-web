@@ -11,14 +11,17 @@ vi.mock('@/lib/integrations/jiraApi', () => ({
   fetchIssues: vi.fn(),
   fetchMentions: vi.fn(),
   fetchAncestors: vi.fn(async () => []),
+  fetchProblems: vi.fn(async () => []),
+  fetchByKeys: vi.fn(async () => []),
 }));
 vi.mock('@/lib/tasks', () => ({ fetchTasks: vi.fn() }));
 
 import { loadInbox } from '@/lib/email/inbox';
 import { fetchAgenda } from '@/lib/integrations/ics';
 import { fetchPulls } from '@/lib/integrations/githubApi';
-import { fetchIssues, fetchMentions } from '@/lib/integrations/jiraApi';
+import { fetchByKeys, fetchIssues, fetchMentions, fetchProblems } from '@/lib/integrations/jiraApi';
 import { fetchTasks } from '@/lib/tasks';
+import type { JiraItem, JiraProblem, JiraProblemItem } from '@/lib/types';
 
 let dir: string;
 
@@ -59,6 +62,8 @@ beforeEach(async () => {
   vi.mocked(fetchPulls).mockResolvedValue({ items: [], errors: [] });
   vi.mocked(fetchIssues).mockResolvedValue([]);
   vi.mocked(fetchMentions).mockResolvedValue([]);
+  vi.mocked(fetchProblems).mockResolvedValue([]);
+  vi.mocked(fetchByKeys).mockResolvedValue([]);
   vi.mocked(fetchTasks).mockResolvedValue([]);
 });
 
@@ -370,3 +375,160 @@ describe('estado compartilhado entre cópias do módulo', () => {
     expect(state?.nextRefreshAt).toBe('2026-09-11T12:10:00.000Z');
   });
 });
+
+describe('aba de problemas do Jira', () => {
+  const problema = (key: string, problems: JiraProblem[]): JiraProblemItem => ({
+    key,
+    summary: key,
+    status: 'Em andamento',
+    statusCategory: 'indeterminate',
+    project: 'TT',
+    url: `https://acme.atlassian.net/browse/${key}`,
+    parent: null,
+    role: 'assignee',
+    awaitingApproval: false,
+    kind: 'História',
+    subtask: false,
+    hierarchyLevel: 0,
+    updatedAt: '',
+    dueDate: '',
+    priority: null,
+    flag: 'none',
+    problems,
+  });
+
+  beforeEach(async () => {
+    await connect(USER, 'jira', { cloud: 'acme', email: 'a@x.com', token: 't' });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('o relógio reaproveita a busca por meia hora', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const { refreshAll } = await import('@/lib/refresher');
+    await refreshAll(USER);
+    await refreshAll(USER);
+    expect(fetchProblems).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + 31 * 60 * 1000);
+    await refreshAll(USER);
+    expect(fetchProblems).toHaveBeenCalledTimes(2);
+  });
+
+  it('o botão de atualizar busca de novo', async () => {
+    const { refreshAll } = await import('@/lib/refresher');
+    await refreshAll(USER);
+    await refreshAll(USER, 'user');
+    expect(fetchProblems).toHaveBeenCalledTimes(2);
+  });
+
+  it('não guarda a busca que falhou', async () => {
+    vi.mocked(fetchProblems).mockRejectedValueOnce(new Error('Jira fora'));
+    const { refreshAll } = await import('@/lib/refresher');
+    const primeiro = await refreshAll(USER);
+    expect(primeiro.jiraProblems.error).toBe('Jira fora');
+
+    await refreshAll(USER);
+    expect(fetchProblems).toHaveBeenCalledTimes(2);
+  });
+
+  it('a correção sai da tela e não volta no ciclo seguinte', async () => {
+    vi.mocked(fetchProblems).mockResolvedValue([
+      problema('TT-1', ['story-in-progress-without-start', 'story-without-epic']),
+      problema('TT-2', ['story-without-epic']),
+    ]);
+    const { refreshAll, resolveJiraProblem, getCachedState } = await import('@/lib/refresher');
+    await refreshAll(USER);
+
+    resolveJiraProblem(USER, 'TT-1', ['story-in-progress-without-start']);
+    resolveJiraProblem(USER, 'TT-2', ['story-without-epic']);
+    const depois = getCachedState(USER)!.jiraProblems.data!;
+    expect(depois.map((i) => [i.key, i.problems])).toEqual([['TT-1', ['story-without-epic']]]);
+
+    const ciclo = await refreshAll(USER);
+    expect(fetchProblems).toHaveBeenCalledTimes(1);
+    expect(ciclo.jiraProblems.data!.map((i) => i.key)).toEqual(['TT-1']);
+  });
+
+  it('a correção de um usuário não mexe na lista do outro', async () => {
+    await connect(OTHER, 'jira', { cloud: 'acme', email: 'b@x.com', token: 'u' });
+    vi.mocked(fetchProblems).mockResolvedValue([problema('TT-1', ['story-without-epic'])]);
+    const { refreshAll, resolveJiraProblem, getCachedState } = await import('@/lib/refresher');
+    await refreshAll(USER);
+    await refreshAll(OTHER);
+
+    resolveJiraProblem(USER, 'TT-1', ['story-without-epic']);
+    expect(getCachedState(USER)!.jiraProblems.data).toEqual([]);
+    expect(getCachedState(OTHER)!.jiraProblems.data!.map((i) => i.key)).toEqual(['TT-1']);
+  });
+});
+
+describe('cards do Jira nos PRs', () => {
+  const pr = (title: string) => ({
+    repo: 'acme/app',
+    number: 7,
+    title,
+    url: 'https://github.com/acme/app/pull/7',
+    author: 'eu',
+    draft: false,
+    awaitingYou: false,
+    mine: true,
+    isPullRequest: true,
+    updatedAt: '2026-10-20T10:00:00Z',
+  });
+
+  it('busca os cards citados nos títulos e põe o status no PR', async () => {
+    await connect(USER, 'pulls', { token: 'gh', repos: 'acme/app' });
+    await connect(USER, 'jira', { cloud: 'acme', email: 'a@x.com', token: 't' });
+    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [] });
+    vi.mocked(fetchByKeys).mockResolvedValue([
+      { ...problemaBase('TT-42'), status: 'Code Review PR', statusCategory: 'indeterminate' },
+    ]);
+
+    const { refreshAll } = await import('@/lib/refresher');
+    const state = await refreshAll(USER);
+
+    expect(vi.mocked(fetchByKeys).mock.calls[0][1]).toEqual(['TT-42']);
+    expect(state.pulls.data!.items[0].jira).toEqual([
+      { key: 'TT-42', url: 'https://acme.atlassian.net/browse/TT-42', status: 'Code Review PR', statusCategory: 'indeterminate' },
+    ]);
+  });
+
+  it('sem o Jira o PR chega sem card, e a falha da busca não derruba o PR', async () => {
+    await connect(USER, 'pulls', { token: 'gh', repos: 'acme/app' });
+    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [] });
+    const { refreshAll, dropCache } = await import('@/lib/refresher');
+
+    const semJira = await refreshAll(USER);
+    expect(fetchByKeys).not.toHaveBeenCalled();
+    expect(semJira.pulls.data!.items[0].jira).toBeUndefined();
+
+    await connect(USER, 'jira', { cloud: 'acme', email: 'a@x.com', token: 't' });
+    vi.mocked(fetchByKeys).mockRejectedValueOnce(new Error('Jira fora'));
+    dropCache(USER);
+    const comFalha = await refreshAll(USER);
+    expect(comFalha.pulls.error).toBeNull();
+    expect(comFalha.pulls.data!.items[0].jira).toBeUndefined();
+  });
+});
+
+function problemaBase(key: string): JiraItem {
+  return {
+    key,
+    summary: key,
+    status: '',
+    statusCategory: 'new',
+    project: key.split('-')[0],
+    url: `https://acme.atlassian.net/browse/${key}`,
+    parent: null,
+    role: 'assignee',
+    awaitingApproval: false,
+    kind: 'História',
+    subtask: false,
+    hierarchyLevel: 0,
+    updatedAt: '',
+    dueDate: '',
+    priority: null,
+    flag: 'none',
+  };
+}

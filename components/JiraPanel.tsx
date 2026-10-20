@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { CalendarPlus, Plus, X, UserPlus } from 'lucide-react';
+import { CalendarPlus, Flag, Plus, X, UserPlus } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -13,7 +13,6 @@ import type {
   JiraPerson,
   JiraPersonView,
   JiraProblemItem,
-  JiraStatusCategory,
   PanelResult,
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
@@ -37,11 +36,20 @@ import {
   groupByStatusCategory,
   isOverdue,
   issueMarker,
-  normalizeStatus,
   stalenessLabel,
 } from '@/lib/parsers/jira';
 import type { JiraNode, JiraNodeOrigin, JiraProjectGroup } from '@/lib/parsers/jira';
 import { PROBLEM_LABEL } from '@/lib/parsers/jiraProblems';
+import {
+  JIRA_ORDER_DEFAULT,
+  JIRA_ORDER_LABEL,
+  JIRA_ORDER_PARAM,
+  parseJiraOrder,
+  sortJira,
+  sortJiraTree,
+  type JiraOrder,
+} from '@/lib/jiraOrder';
+import { JiraProblemFix } from './JiraProblemFix';
 import { Section } from './ui/Section';
 import { Tabs } from './ui/legacy-tabs';
 import { FilterBar } from './ui/FilterBar';
@@ -52,7 +60,7 @@ import { EmptyState } from '@/components/data/EmptyState';
 import { SkeletonRows } from './ui/legacy-skeleton';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { GLYPH } from './data/Status';
+import { JiraStatus } from './data/JiraStatus';
 import { cn } from '@/lib/utils';
 import { focusRing, tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
@@ -77,33 +85,6 @@ const caret =
 
 const roleBadge =
   'inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 type-caption';
-
-/**
- * A situation never borrows the accent: it would change hue whenever the accent
- * changes, with nothing about the issue having changed. The glyph carries the
- * state alongside the tone so the reading survives a grayscale print.
- */
-const STATUS_TONE: Record<JiraStatusCategory, { glyph: string; tone: string }> = {
-  new: { glyph: GLYPH.idle, tone: 'text-ink-dim' },
-  indeterminate: { glyph: GLYPH.moving, tone: 'text-info' },
-  done: { glyph: GLYPH.live, tone: 'text-success' },
-};
-
-/** The legacy `jira-status-<category>` class rides along: it is what the panel's
- *  tests reach for when they check which situation a row is showing. */
-function JiraStatus({ issue }: { issue: JiraItem }) {
-  const { glyph, tone } = STATUS_TONE[issue.statusCategory];
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-      <span aria-hidden className={tone}>
-        {glyph}
-      </span>
-      <span className={cn(tone, `jira-status-${issue.statusCategory}`)}>
-        {normalizeStatus(issue.status)}
-      </span>
-    </span>
-  );
-}
 
 type Filter = 'assignee' | 'both' | 'reporter';
 
@@ -407,6 +388,13 @@ export function JiraPanel({
     else params.set(PAPEL_PARAM, next);
     trocarUrl(params);
   };
+  const ordem = parseJiraOrder(searchParams.get(JIRA_ORDER_PARAM));
+  const setOrdem = (next: JiraOrder) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === JIRA_ORDER_DEFAULT) params.delete(JIRA_ORDER_PARAM);
+    else params.set(JIRA_ORDER_PARAM, next);
+    trocarUrl(params);
+  };
   const [grouped, setGrouped] = useState(false);
 
   const all = useMemo(() => jira.data ?? [], [jira.data]);
@@ -455,8 +443,11 @@ export function JiraPanel({
     [all, recortar, filter],
   );
 
-  const projects = useMemo(() => buildJiraTree(visible, caminho), [visible, caminho]);
-  const situations = useMemo(() => groupByStatusCategory(visible), [visible]);
+  const projects = useMemo(
+    () => sortJiraTree(buildJiraTree(visible, caminho), ordem),
+    [visible, caminho, ordem],
+  );
+  const situations = useMemo(() => groupByStatusCategory(sortJira(visible, ordem)), [visible, ordem]);
 
   // Entregues e Aprovados repetem a estrutura de "Em aberto": hierarquia,
   // separada por projeto, para DAD e PDS não se misturarem só porque saíram no
@@ -473,8 +464,8 @@ export function JiraPanel({
   );
   const entregues = useMemo(() => recortar(noPeriodoEntregues), [noPeriodoEntregues, recortar]);
   const entreguesProjects = useMemo(
-    () => buildJiraTree(entregues, caminho),
-    [entregues, caminho],
+    () => sortJiraTree(buildJiraTree(entregues, caminho), ordem),
+    [entregues, caminho, ordem],
   );
 
   const noPeriodoAprovados = useMemo(
@@ -483,11 +474,14 @@ export function JiraPanel({
   );
   const aprovados = useMemo(() => recortar(noPeriodoAprovados), [noPeriodoAprovados, recortar]);
   const aprovadosProjects = useMemo(
-    () => buildJiraTree(aprovados, caminho),
-    [aprovados, caminho],
+    () => sortJiraTree(buildJiraTree(aprovados, caminho), ordem),
+    [aprovados, caminho, ordem],
   );
 
-  const problemas = useMemo(() => recortar(problems.data ?? []), [problems.data, recortar]);
+  const problemas = useMemo(
+    () => sortJira(recortar(problems.data ?? []), ordem),
+    [problems.data, recortar, ordem],
+  );
 
   // As opções falam da aba aberta, antes do recorte: o seletor de status
   // mostra os status desta lista, não os de outra aba.
@@ -803,6 +797,18 @@ export function JiraPanel({
           formatLabel={rotuloDe}
           onChange={(story) => setFiltros({ story })}
         />
+        <select
+          aria-label="ordenar issues"
+          className={cn(selectClass, 'border-line-strong')}
+          value={ordem}
+          onChange={(event) => setOrdem(parseJiraOrder(event.target.value))}
+        >
+          {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
+            <option key={o} value={o}>
+              Ordenar: {JIRA_ORDER_LABEL[o]}
+            </option>
+          ))}
+        </select>
       </FilterBar>
 
       <ActiveFilters filters={activeFilters} onRemove={clearFilter} onClearAll={clearAll} />
@@ -891,7 +897,7 @@ export function JiraPanel({
 
           <ul>
             {problemas.map((issue) => (
-              <JiraProblemRow key={issue.key} issue={issue} />
+              <JiraProblemRow key={issue.key} issue={issue} onFixed={onChanged} />
             ))}
           </ul>
         </div>
@@ -1059,9 +1065,35 @@ export function JiraPanel({
 }
 
 
+/** A bandeira vermelha do Jira: a issue está impedida. É a marca que mais pede
+ *  atenção na linha, então fica colada à chave. */
+function JiraFlagMark({ issue }: { issue: JiraItem }) {
+  if (issue.flag !== 'impediment') return null;
+  return (
+    <span className="inline-flex shrink-0 self-center text-danger" title="impedimento">
+      <Flag className="size-3.5 fill-current" aria-hidden />
+      <span className="sr-only">impedimento</span>
+    </span>
+  );
+}
+
+// Só as duas mais altas ganham cor: pintar todas faria a "Média" de quase
+// toda issue competir com a "Crítica" que importa.
+const PRIORITY_TONE = ['text-danger', 'text-warning'];
+
+function JiraPriorityLabel({ issue }: { issue: JiraItem }) {
+  if (!issue.priority) return null;
+  const tone = issue.priority.rank === null ? undefined : PRIORITY_TONE[issue.priority.rank];
+  return (
+    <span className={cn('whitespace-nowrap', tone ?? 'text-ink-dim')} title="prioridade">
+      {issue.priority.name}
+    </span>
+  );
+}
+
 /** Uma issue da aba de problemas: o que ela é e tudo o que está faltando nela,
  *  para corrigir de uma vez ao abrir no Jira. */
-function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
+function JiraProblemRow({ issue, onFixed }: { issue: JiraProblemItem; onFixed: () => void }) {
   return (
     <li className={rowShell}>
       <span className="shrink-0 type-caption leading-6 text-ink-dim">{issueMarker(issue)}</span>
@@ -1075,6 +1107,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
           >
             {issue.key}
           </a>
+          <JiraFlagMark issue={issue} />
           <span
             className={cn(
               'min-w-0 flex-1 truncate',
@@ -1086,6 +1119,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
           <JiraStatus issue={issue} />
+          <JiraPriorityLabel issue={issue} />
           <ul className="contents" aria-label={`problemas de ${issue.key}`}>
             {issue.problems.map((problem) => (
               <li
@@ -1097,6 +1131,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
             ))}
           </ul>
         </div>
+        <JiraProblemFix issue={issue} onFixed={onFixed} />
       </div>
     </li>
   );
@@ -1282,6 +1317,7 @@ function JiraRow({
           >
             {issue.key}
           </a>
+          <JiraFlagMark issue={issue} />
           <span
             className={cn(
               'min-w-0 flex-1 truncate',
@@ -1311,6 +1347,7 @@ function JiraRow({
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
           <JiraStatus issue={issue} />
+          <JiraPriorityLabel issue={issue} />
           {parado && <span className="whitespace-nowrap text-warning">{parado}</span>}
           {prazo && (
             <span

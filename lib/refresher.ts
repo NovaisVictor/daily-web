@@ -16,7 +16,8 @@ import { enabledModules, listConnections } from './vault/connections';
 import { agendaDays, dashboardLayout, dashboardLayouts, jiraWatchedKeys, jiraFollowedPeople } from './preferences';
 import type { Connection } from './vault/connections';
 import { fetchSlack, SlackDigestError } from './integrations/slack/digest';
-import type { SlackDigest } from '@/lib/types';
+import type { JiraProblem, JiraProblemItem, SlackDigest } from '@/lib/types';
+import { jiraKeysInPulls, withJira } from './pullJira';
 
 const EMAIL_LIMIT = 30;
 
@@ -32,6 +33,15 @@ export function refreshIntervalSeconds(raw: string | undefined): number {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_REFRESH_SECONDS;
 }
 const JIRA_FILTER = 'both' as const;
+
+/** Quem pediu o ciclo. O botão de atualizar quer tudo de agora; o relógio
+ *  pode reaproveitar o que muda devagar. */
+export type RefreshTrigger = 'user' | 'timer';
+
+// A aba de problemas é a busca mais cara do ciclo — pagina o escopo inteiro e
+// as filhas de todos os épicos — e o que ela aponta é defeito de
+// preenchimento, que não surge a cada cinco minutos.
+const PROBLEMS_TTL_MS = 30 * 60 * 1000;
 
 /** Módulo desligado não é erro nem lista vazia: é ausência. O painel some da
  *  tela em vez de mostrar "nada por aqui" para quem nunca quis aquilo. */
@@ -81,6 +91,8 @@ interface RefresherState {
   emVoo: Map<symbol, { userId: string; patches: Patch[] }>;
   refreshesEmCurso: Map<string, Promise<DashboardState>>;
   timer: ReturnType<typeof setInterval> | null;
+  /** A última aba de problemas buscada, por usuário e conexão. */
+  problems: Map<string, { at: number; result: PanelResult<JiraProblemItem[]> }>;
   cicloEmCurso: boolean;
   proximoTique: number | null;
 }
@@ -96,9 +108,13 @@ const shared: RefresherState = ((globalThis as Record<symbol, unknown>)[STATE_KE
   emVoo: new Map(),
   refreshesEmCurso: new Map(),
   timer: null,
+  problems: new Map(),
   cicloEmCurso: false,
   proximoTique: null,
 } satisfies RefresherState) as RefresherState;
+// Um processo que já tinha o estado de antes deste campo continua de pé até o
+// próximo reinício.
+shared.problems ??= new Map();
 
 // Um cache por usuário. Era uma variável só de módulo, o que fazia todo mundo
 // que abrisse o painel ver os dados de quem tivesse atualizado por último.
@@ -122,21 +138,21 @@ const MAX_PATCHES_EM_VOO = 500;
 // Quem chega no meio de um refresh recebe o resultado do que já está em curso.
 const refreshesEmCurso = shared.refreshesEmCurso;
 
-export function refreshAll(userId: string): Promise<DashboardState> {
+export function refreshAll(userId: string, trigger: RefreshTrigger = 'timer'): Promise<DashboardState> {
   const emCurso = refreshesEmCurso.get(userId);
   if (emCurso) return emCurso;
 
-  const promessa = buildFresh(userId).finally(() => refreshesEmCurso.delete(userId));
+  const promessa = buildFresh(userId, trigger).finally(() => refreshesEmCurso.delete(userId));
   refreshesEmCurso.set(userId, promessa);
   return promessa;
 }
 
-async function buildFresh(userId: string): Promise<DashboardState> {
+async function buildFresh(userId: string, trigger: RefreshTrigger): Promise<DashboardState> {
   const ciclo = Symbol('refresh');
   emVoo.set(ciclo, { userId, patches: [] });
   const inicio = Date.now();
   try {
-    const state = await buildState(userId, ciclo);
+    const state = await buildState(userId, ciclo, trigger);
     logCycle(userId, inicio, state);
     return state;
   } finally {
@@ -166,7 +182,50 @@ function logCycle(userId: string, inicio: number, state: DashboardState): void {
   );
 }
 
-async function buildState(userId: string, ciclo: symbol): Promise<DashboardState> {
+const problemsKey = (userId: string, connection: Connection) => `${userId}:${connection.id}`;
+
+/** A aba de problemas do cache enquanto vale. Resultado com erro não é
+ *  guardado: a falha é tentada de novo no ciclo seguinte. */
+async function jiraProblemsOf(
+  userId: string,
+  connection: Connection,
+  trigger: RefreshTrigger,
+): Promise<PanelResult<JiraProblemItem[]>> {
+  const key = problemsKey(userId, connection);
+  const cached = shared.problems.get(key);
+  if (trigger === 'timer' && cached && Date.now() - cached.at < PROBLEMS_TTL_MS) return cached.result;
+
+  const result = await panel(() => jiraApi.fetchProblems(connection));
+  if (result.error) shared.problems.delete(key);
+  else shared.problems.set(key, { at: Date.now(), result });
+  return result;
+}
+
+/** Tira um problema corrigido da aba, no estado da tela e no cache da busca.
+ *  Sem o segundo, a correção voltaria a aparecer no próximo ciclo, que
+ *  reaproveita a busca por até meia hora. */
+export function resolveJiraProblem(userId: string, key: string, problems: JiraProblem[]): void {
+  const semEste = (result: PanelResult<JiraProblemItem[]>): PanelResult<JiraProblemItem[]> =>
+    result.data === null
+      ? result
+      : {
+          ...result,
+          data: result.data
+            .map((item) =>
+              item.key === key
+                ? { ...item, problems: item.problems.filter((p) => !problems.includes(p)) }
+                : item,
+            )
+            .filter((item) => item.problems.length > 0),
+        };
+
+  for (const [cacheKey, entry] of shared.problems) {
+    if (cacheKey.startsWith(`${userId}:`)) shared.problems.set(cacheKey, { ...entry, result: semEste(entry.result) });
+  }
+  patchCachedState(userId, (state) => ({ ...state, jiraProblems: semEste(state.jiraProblems) }));
+}
+
+async function buildState(userId: string, ciclo: symbol, trigger: RefreshTrigger): Promise<DashboardState> {
   const modules = enabledModules(userId);
   const has = (id: string) => modules.includes(id as never);
 
@@ -216,7 +275,7 @@ async function buildState(userId: string, ciclo: symbol): Promise<DashboardState
         : ({ data: [], error: null } as PanelResult<never[]>),
       jiraConnection ? panel(() => jiraApi.fetchDelivered(jiraConnection)) : OFF,
       jiraConnection ? panel(() => jiraApi.fetchApproved(jiraConnection)) : OFF,
-      jiraConnection ? panel(() => jiraApi.fetchProblems(jiraConnection)) : OFF,
+      jiraConnection ? jiraProblemsOf(userId, jiraConnection, trigger) : OFF,
       slackConnection ? slackPanel(slackConnection) : OFF,
     ]);
 
@@ -234,6 +293,24 @@ async function buildState(userId: string, ciclo: symbol): Promise<DashboardState
         ])
         .catch(() => [])
     : [];
+
+  // Os cards citados nos títulos dos PRs, numa busca só para as duas listas.
+  // Como os ancestrais, é uma segunda rodada que não derruba nada: sem ela o
+  // PR só não mostra o status do card.
+  const pullsJira = jiraConnection
+    ? await jiraApi
+        .fetchByKeys(
+          jiraConnection,
+          jiraKeysInPulls([...(pulls.data?.items ?? []), ...(reviewRequests.data?.items ?? [])]),
+        )
+        .catch(() => [])
+    : [];
+  const pullsComJira = pulls.data
+    ? { ...pulls, data: { ...pulls.data, items: withJira(pulls.data.items, pullsJira) } }
+    : pulls;
+  const reviewsComJira = reviewRequests.data
+    ? { ...reviewRequests, data: { ...reviewRequests.data, items: withJira(reviewRequests.data.items, pullsJira) } }
+    : reviewRequests;
 
   // O que o usuário pediu vence o retrato do servidor. As ações que o retrato
   // já reflete saem do caminho aqui; as demais são sobrepostas a ele.
@@ -263,8 +340,8 @@ async function buildState(userId: string, ciclo: symbol): Promise<DashboardState
     layouts: dashboardLayouts(userId),
     email: emailReconciliado,
     agenda,
-    pulls,
-    reviewRequests,
+    pulls: pullsComJira,
+    reviewRequests: reviewsComJira,
     jira,
     jiraWatched,
     jiraFollowedPeople: jiraConnection ? jiraFollowedPeople(userId) : [],
@@ -422,6 +499,7 @@ export function resetCachesForTests(): void {
   caches.clear();
   emVoo.clear();
   refreshesEmCurso.clear();
+  shared.problems.clear();
   shared.cicloEmCurso = false;
   shared.proximoTique = null;
   if (shared.timer) clearInterval(shared.timer);
