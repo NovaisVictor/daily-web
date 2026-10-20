@@ -23,6 +23,7 @@ import {
   type ThemePreference,
 } from '@/lib/theme';
 import { AccountMenu } from './AccountMenu';
+import { ChangelogDialog, useChangelog } from './ChangelogDialog';
 import { CommandPalette } from './CommandPalette';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { NAV_ITEMS, groupStart } from './nav-items';
@@ -69,6 +70,7 @@ function RailTooltip({
 export function AppShell({ theme, density, backdrop, sidebar, username, children }: Props) {
   const pathname = usePathname() ?? '/';
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const changelog = useChangelog();
   // Server-rendered from the cookie, so a collapsed rail never expands for one
   // frame on reload.
   const [collapsed, setCollapsed] = useState(sidebar === 'collapsed');
@@ -101,6 +103,7 @@ export function AppShell({ theme, density, backdrop, sidebar, username, children
       initialBackdrop={backdrop}
       username={username}
       collapsed={collapsed}
+      onShowChangelog={changelog.showLatest}
     />
   );
 
@@ -283,6 +286,7 @@ export function AppShell({ theme, density, backdrop, sidebar, username, children
                   initialDensity={density}
                   initialBackdrop={backdrop}
                   username={username}
+                  onShowChangelog={changelog.showLatest}
                 />
               </div>
             </div>
@@ -294,6 +298,7 @@ export function AppShell({ theme, density, backdrop, sidebar, username, children
         </div>
 
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+        <ChangelogDialog shown={changelog.shown} dismiss={changelog.dismiss} />
       </div>
     </TooltipProvider>
   );

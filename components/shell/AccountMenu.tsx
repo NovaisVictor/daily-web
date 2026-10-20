@@ -49,6 +49,7 @@ interface Props {
   /** On the collapsed rail there is no room for a name: the trigger becomes the
    *  theme icon alone, with the name still reachable inside the menu. */
   collapsed?: boolean;
+  onShowChangelog: () => void;
 }
 
 /**
@@ -62,6 +63,7 @@ export function AccountMenu({
   initialBackdrop,
   username,
   collapsed = false,
+  onShowChangelog,
 }: Props) {
   const router = useRouter();
   const [theme, setTheme] = useState<ThemePreference>(initialTheme);
@@ -161,6 +163,9 @@ export function AccountMenu({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem onSelect={onShowChangelog}>Novidades</DropdownMenuItem>
         <DropdownMenuSeparator />
 
         <DropdownMenuItem disabled={leaving} onSelect={() => void signOut()}>
