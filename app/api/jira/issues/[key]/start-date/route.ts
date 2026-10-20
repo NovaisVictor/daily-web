@@ -20,7 +20,8 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!conn) return NextResponse.json({ error: 'Jira não conectado' }, { status: 400 });
 
   try {
-    return NextResponse.json({ date: await suggestStartDate(conn, key) });
+    const suggestion = await suggestStartDate(conn, key);
+    return NextResponse.json(suggestion ?? { date: null, basis: null });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
   }

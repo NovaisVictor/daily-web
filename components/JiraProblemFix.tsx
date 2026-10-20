@@ -2,12 +2,20 @@
 
 import { useState } from 'react';
 import type { JiraProblem, JiraProblemItem } from '@/lib/types';
+import type { StartDateBasis } from '@/lib/integrations/jiraApi';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { selectClass } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const START_PROBLEMS: JiraProblem[] = ['story-in-progress-without-start', 'story-done-without-start'];
+
+/** De onde veio a sugestão, para a pessoa saber o que está confirmando. */
+const BASIS_NOTE: Record<StartDateBasis, string> = {
+  started: 'primeira passagem por andamento',
+  finished: 'foi do Backlog direto para concluída: dia da conclusão',
+  created: 'criada já fora do Backlog: dia da criação',
+};
 
 interface EpicOption {
   key: string;
@@ -54,7 +62,8 @@ function StartDateFix({ issueKey, onFixed }: { issueKey: string; onFixed: () => 
     try {
       const body = await readJson(await fetch(url));
       const date = typeof body.date === 'string' ? body.date : '';
-      setNota(date ? 'primeira passagem por andamento' : 'sem passagem por andamento no histórico');
+      const basis = typeof body.basis === 'string' && Object.hasOwn(BASIS_NOTE, body.basis) ? (body.basis as StartDateBasis) : null;
+      setNota(date && basis ? BASIS_NOTE[basis] : 'o histórico não diz quando começou');
       setStep({ kind: 'editing', value: date });
     } catch (err) {
       setErro(err instanceof Error ? err.message : String(err));

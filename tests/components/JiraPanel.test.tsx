@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { JiraPanel } from '@/components/JiraPanel';
-import type { JiraDatedItem, JiraItem, JiraProblemItem } from '@/lib/types';
+import type { JiraDatedItem, JiraItem, JiraProblemItem, PullRequestItem } from '@/lib/types';
 import { FocusBlockProvider } from '@/components/FocusBlockProvider';
 
 /** A URL da página, em memória: o painel lê a aba dela e escreve nela, e o
@@ -1266,7 +1266,7 @@ describe('corrigir pela aba Problemas', () => {
 
   it('sugere a data, deixa conferir e só grava no Salvar', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
-      init?.method === 'PUT' ? json(200, { ok: true }) : json(200, { date: '2026-10-20' }),
+      init?.method === 'PUT' ? json(200, { ok: true }) : json(200, { date: '2026-10-20', basis: 'started' }),
     );
     vi.stubGlobal('fetch', fetchMock);
     const onChanged = abrir(problema());
@@ -1287,14 +1287,41 @@ describe('corrigir pela aba Problemas', () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-  it('sem passagem por andamento, pede a data e não deixa salvar vazio', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: null })));
+  // O caso do Leo: a história foi de Backlog direto para Concluído.
+  it('sem passagem por andamento, propõe o dia da conclusão e diz de onde veio', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: '2026-10-19', basis: 'finished' })));
+    abrir(problema({ problems: ['story-done-without-start'] }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    expect(await screen.findByLabelText('data de início de DAD-7')).toHaveValue('2026-10-19');
+    expect(screen.getByText('foi do Backlog direto para concluída: dia da conclusão')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled();
+  });
+
+  it('criada já fora do Backlog, propõe o dia da criação', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: '2026-10-07', basis: 'created' })));
+    abrir(problema());
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    expect(await screen.findByLabelText('data de início de DAD-7')).toHaveValue('2026-10-07');
+    expect(screen.getByText('criada já fora do Backlog: dia da criação')).toBeInTheDocument();
+  });
+
+  it('sem nada no histórico, pede a data e não deixa salvar vazio', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: null, basis: null })));
     abrir(problema());
 
     fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
     expect(await screen.findByLabelText('data de início de DAD-7')).toHaveValue('');
-    expect(screen.getByText('sem passagem por andamento no histórico')).toBeInTheDocument();
+    expect(screen.getByText('o histórico não diz quando começou')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
+
+  it('origem desconhecida na resposta não vira nota inventada', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { date: '2026-10-07', basis: 'constructor' })));
+    abrir(problema());
+    fireEvent.click(screen.getByRole('button', { name: 'Preencher início' }));
+    expect(await screen.findByLabelText('data de início de DAD-7')).toHaveValue('2026-10-07');
+    expect(screen.getByText('o histórico não diz quando começou')).toBeInTheDocument();
   });
 
   it('mostra o erro do Jira e mantém a data para tentar de novo', async () => {
@@ -1303,7 +1330,7 @@ describe('corrigir pela aba Problemas', () => {
       vi.fn(async (_url: string, init?: RequestInit) =>
         init?.method === 'PUT'
           ? json(502, { error: 'o API token do Jira não tem permissão para isso' })
-          : json(200, { date: '2026-10-20' }),
+          : json(200, { date: '2026-10-20', basis: 'started' }),
       ),
     );
     const onChanged = abrir(problema());
@@ -1350,5 +1377,53 @@ describe('corrigir pela aba Problemas', () => {
   it('não oferece correção para problema de épico', () => {
     abrir(problema({ problems: ['epic-without-stories'] }));
     expect(screen.queryByRole('button', { name: /Preencher início|Escolher épico/ })).toBeNull();
+  });
+});
+
+describe('PRs sob a issue', () => {
+  const pr = (over: Partial<PullRequestItem> = {}): PullRequestItem => ({
+    repo: 'acme/app',
+    number: 7,
+    title: 'feat: login (A-1)',
+    url: 'https://github.com/acme/app/pull/7',
+    author: 'eu',
+    draft: false,
+    awaitingYou: false,
+    mine: true,
+    isPullRequest: true,
+    updatedAt: '2026-10-20T10:00:00Z',
+    jira: [{ key: 'A-1', url: 'https://acme.atlassian.net/browse/A-1', status: 'Em andamento', statusCategory: 'indeterminate' }],
+    ...over,
+  });
+
+  it('mostra o PR que cita a issue, com link para o GitHub', () => {
+    render(<Panel jira={{ data: [issue({ key: 'A-1' }), issue({ key: 'A-2' })], error: null }} pulls={[pr()]} />);
+    const lista = screen.getByRole('list', { name: 'PRs de A-1' });
+    const link = within(lista).getByRole('link');
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    expect(link).toHaveTextContent('acme/app#7');
+    expect(link).toHaveTextContent('feat: login (A-1)');
+    expect(screen.queryByRole('list', { name: 'PRs de A-2' })).toBeNull();
+  });
+
+  it('o PR que está nas duas listas aparece uma vez', () => {
+    render(<Panel jira={{ data: [issue({ key: 'A-1' })], error: null }} pulls={[pr(), pr({ awaitingYou: true })]} />);
+    expect(within(screen.getByRole('list', { name: 'PRs de A-1' })).getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('também aparece na aba Problemas', () => {
+    nav.search = 'jira=problemas';
+    render(
+      <Panel
+        problems={{ data: [{ ...issue({ key: 'A-1' }), problems: ['story-without-epic'] }], error: null }}
+        pulls={[pr()]}
+      />,
+    );
+    expect(screen.getByRole('list', { name: 'PRs de A-1' })).toBeInTheDocument();
+  });
+
+  it('sem PRs o painel não muda', () => {
+    render(<Panel jira={{ data: [issue({ key: 'A-1' })], error: null }} />);
+    expect(screen.queryByRole('list', { name: /^PRs de/ })).toBeNull();
   });
 });

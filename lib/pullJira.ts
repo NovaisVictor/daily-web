@@ -36,3 +36,18 @@ export function withJira(items: PullRequestItem[], issues: JiraItem[]): PullRequ
     return jira.length > 0 ? { ...item, jira } : item;
   });
 }
+
+/** Os PRs que citam cada card, pela chave. Só entra o card que o Jira
+ *  devolveu: é o mesmo vínculo que a lista de PRs mostra. O PR que aparece nas
+ *  duas listas — seu e com revisão pedida — conta uma vez. */
+export function pullsByJiraKey(items: PullRequestItem[]): Map<string, PullRequestItem[]> {
+  const byKey = new Map<string, PullRequestItem[]>();
+  for (const item of items) {
+    for (const ref of item.jira ?? []) {
+      const list = byKey.get(ref.key) ?? [];
+      if (!list.some((known) => known.url === item.url)) list.push(item);
+      byKey.set(ref.key, list);
+    }
+  }
+  return byKey;
+}

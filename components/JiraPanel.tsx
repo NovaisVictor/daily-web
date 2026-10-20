@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
-import { CalendarPlus, Flag, Plus, X, UserPlus } from 'lucide-react';
+import { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
+import { CalendarPlus, Flag, GitPullRequest, Plus, X, UserPlus } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -14,7 +14,9 @@ import type {
   JiraPersonView,
   JiraProblemItem,
   PanelResult,
+  PullRequestItem,
 } from '@/lib/types';
+import { pullsByJiraKey } from '@/lib/pullJira';
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
 import { JiraMultiFilterDropdown } from './JiraMultiFilterDropdown';
@@ -161,6 +163,40 @@ interface Props {
   refreshedAt: string | null;
   onChanged: () => void;
   loading?: boolean;
+  /** Os PRs do painel do GitHub. Os que citam uma issue aparecem sob ela. */
+  pulls?: PullRequestItem[];
+}
+
+const SEM_PRS = new Map<string, PullRequestItem[]>();
+
+// As linhas ficam três componentes abaixo do painel; o contexto evita passar
+// os PRs por cada um deles só para chegar à linha.
+const JiraPullsContext = createContext<Map<string, PullRequestItem[]>>(SEM_PRS);
+
+/** Os PRs que citam a issue, cada um com o link para o GitHub. */
+function JiraPullLinks({ issueKey }: { issueKey: string }) {
+  const pulls = useContext(JiraPullsContext).get(issueKey);
+  if (!pulls?.length) return null;
+  return (
+    <ul className="flex flex-col gap-0.5 pt-0.5" aria-label={`PRs de ${issueKey}`}>
+      {pulls.map((pr) => (
+        <li key={pr.url} className="min-w-0">
+          <a
+            className={cn('flex min-w-0 items-center gap-1.5 type-caption text-ink-dim hover:text-ink hover:underline', focusRing)}
+            href={pr.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GitPullRequest className="size-3.5 shrink-0" aria-hidden />
+            <span className={cn('shrink-0', tabular)}>
+              {pr.repo}#{pr.number}
+            </span>
+            <span className="min-w-0 truncate">{pr.title}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function JiraPanel({
@@ -174,7 +210,9 @@ export function JiraPanel({
   refreshedAt,
   onChanged,
   loading: meLoading = false,
+  pulls,
 }: Props) {
+  const prsPorChave = useMemo(() => (pulls ? pullsByJiraKey(pulls) : SEM_PRS), [pulls]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -606,6 +644,7 @@ export function JiraPanel({
   const nome = pessoaAtivaObj?.displayName.split(' ')[0] ?? '';
 
   return (
+    <JiraPullsContext.Provider value={prsPorChave}>
     <Section
       eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
       count={
@@ -1061,6 +1100,7 @@ export function JiraPanel({
         </div>
       )}
     </Section>
+    </JiraPullsContext.Provider>
   );
 }
 
@@ -1131,6 +1171,7 @@ function JiraProblemRow({ issue, onFixed }: { issue: JiraProblemItem; onFixed: (
             ))}
           </ul>
         </div>
+        <JiraPullLinks issueKey={issue.key} />
         <JiraProblemFix issue={issue} onFixed={onFixed} />
       </div>
     </li>
@@ -1360,6 +1401,7 @@ function JiraRow({
             </span>
           )}
         </div>
+        <JiraPullLinks issueKey={issue.key} />
       </div>
       {focus.enabled && (
         <IconAction

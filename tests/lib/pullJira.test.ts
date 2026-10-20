@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jiraKeysInPulls, jiraKeysInTitle, withJira } from '@/lib/pullJira';
+import { jiraKeysInPulls, jiraKeysInTitle, pullsByJiraKey, withJira } from '@/lib/pullJira';
 import type { JiraItem, PullRequestItem } from '@/lib/types';
 
 const pull = (title: string, number = 1): PullRequestItem => ({
@@ -79,5 +79,19 @@ describe('withJira', () => {
   it('mantém o PR sem campo quando nenhum card voltou', () => {
     const original = pull('chore: sem card');
     expect(withJira([original], [])[0]).toBe(original);
+  });
+});
+
+describe('pullsByJiraKey', () => {
+  it('agrupa por card e conta o mesmo PR uma vez só', () => {
+    const [a] = withJira([pull('feat (TT-1, TT-2)', 1)], [issue('TT-1', 'x', 'new'), issue('TT-2', 'x', 'new')]);
+    const [b] = withJira([pull('fix (TT-1)', 2)], [issue('TT-1', 'x', 'new')]);
+    const byKey = pullsByJiraKey([a, b, a]);
+    expect(byKey.get('TT-1')?.map((p) => p.number)).toEqual([1, 2]);
+    expect(byKey.get('TT-2')?.map((p) => p.number)).toEqual([1]);
+  });
+
+  it('PR sem card resolvido não entra', () => {
+    expect(pullsByJiraKey([pull('feat (TT-9)')]).size).toBe(0);
   });
 });

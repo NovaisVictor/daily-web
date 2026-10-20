@@ -110,11 +110,26 @@ describe('/api/jira/issues/[key]/start-date', () => {
     stubJira((url) =>
       url.pathname === '/rest/api/3/status'
         ? { status: 200, body: statusesFixture }
-        : { status: 200, body: changelogFixture },
+        : url.pathname.endsWith('/changelog')
+          ? { status: 200, body: changelogFixture }
+          : { status: 200, body: { fields: { created: '2026-10-20T10:00:00.000-0300', status: { statusCategory: { key: 'indeterminate' } } } } },
     );
     const res = await getStartDate(req('GET', '/x'), params('tt-5016'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ date: '2026-10-20' });
+    expect(await res.json()).toEqual({ date: '2026-10-20', basis: 'started' });
+  });
+
+  it('GET sem nada no histórico responde data nula, para a tela pedir a data', async () => {
+    connectJira();
+    stubJira((url) =>
+      url.pathname === '/rest/api/3/status'
+        ? { status: 200, body: statusesFixture }
+        : url.pathname.endsWith('/changelog')
+          ? { status: 200, body: { isLast: true, values: [] } }
+          : { status: 200, body: { fields: { created: '2026-10-20T10:00:00.000-0300', status: { statusCategory: { key: 'new' } } } } },
+    );
+    const res = await getStartDate(req('GET', '/x'), params('TT-1'));
+    expect(await res.json()).toEqual({ date: null, basis: null });
   });
 
   it('PUT grava e tira o problema da lista', async () => {

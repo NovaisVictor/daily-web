@@ -33,5 +33,12 @@
     "statusCategory": {
       "key": "indeterminate"
     }
+  },
+  {
+    "id": "10104",
+    "name": "Concluído",
+    "statusCategory": {
+      "key": "done"
+    }
   }
 ]

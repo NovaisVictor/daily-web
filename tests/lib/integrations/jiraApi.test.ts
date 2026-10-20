@@ -20,6 +20,8 @@ import {
 import changelogFixture from '../../fixtures/jira-changelog.json';
 import statusesFixture from '../../fixtures/jira-statuses.json';
 import flaggedFixture from '../../fixtures/jira-flagged-search.json';
+import backlogToDoneChangelog from '../../fixtures/jira-changelog-backlog-to-done.json';
+import backlogToDoneIssue from '../../fixtures/jira-issue-backlog-to-done.json';
 import type { Connection } from '@/lib/vault/connections';
 
 const CONN = {
@@ -648,19 +650,52 @@ describe('prioridade e impedimento', () => {
 });
 
 describe('suggestStartDate', () => {
+  /** A issue em si: quando foi criada e em que situação está agora. */
+  const issueNow = (created: string, category: 'new' | 'indeterminate' | 'done') => ({
+    fields: { created, status: { statusCategory: { key: category } } },
+  });
+
   // O histórico real: o card foi criado, ganhou data de início à mão e só
   // depois entrou em "Em Andamento". O que vale é a passagem pelo status.
   it('usa o dia da primeira passagem por um status em andamento', async () => {
     stubRoutes({
       '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-5016': issueNow('2026-10-20T15:46:00.000-0300', 'indeterminate'),
       '/rest/api/3/issue/TT-5016/changelog': changelogFixture,
     });
-    expect(await suggestStartDate(CONN, 'TT-5016')).toBe('2026-10-20');
+    expect(await suggestStartDate(CONN, 'TT-5016')).toEqual({ date: '2026-10-20', basis: 'started' });
+  });
+
+  // O caso que o painel deixava em branco: a história foi de Backlog direto
+  // para Concluído. Histórico real, de TT-4898.
+  it('sem passagem por andamento, usa o dia em que saiu do Backlog', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-4898': backlogToDoneIssue,
+      '/rest/api/3/issue/TT-4898/changelog': backlogToDoneChangelog,
+    });
+    expect(await suggestStartDate(CONN, 'TT-4898')).toEqual({ date: '2026-10-19', basis: 'finished' });
+  });
+
+  it('prefere a passagem por andamento mesmo depois de uma conclusão anterior', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1': issueNow('2026-10-01T10:00:00.000-0300', 'indeterminate'),
+      '/rest/api/3/issue/TT-1/changelog': {
+        isLast: true,
+        values: [
+          { created: '2026-10-02T10:00:00.000-0300', items: [{ fieldId: 'status', to: '10104' }] },
+          { created: '2026-10-05T10:00:00.000-0300', items: [{ fieldId: 'status', to: '11540' }] },
+        ],
+      },
+    });
+    expect(await suggestStartDate(CONN, 'TT-1')).toEqual({ date: '2026-10-05', basis: 'started' });
   });
 
   it('pega a mais antiga mesmo quando o histórico vem fora de ordem', async () => {
     stubRoutes({
       '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1': issueNow('2026-10-01T10:00:00.000-0300', 'indeterminate'),
       '/rest/api/3/issue/TT-1/changelog': {
         isLast: true,
         values: [
@@ -669,15 +704,25 @@ describe('suggestStartDate', () => {
         ],
       },
     });
-    expect(await suggestStartDate(CONN, 'TT-1')).toBe('2026-10-05');
+    expect(await suggestStartDate(CONN, 'TT-1')).toEqual({ date: '2026-10-05', basis: 'started' });
   });
 
-  it('nulo quando a issue nunca passou por andamento', async () => {
+  it('criada já fora do Backlog e sem transição, usa o dia da criação', async () => {
     stubRoutes({
       '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1': issueNow('2026-10-07T22:10:00.000-0300', 'indeterminate'),
+      '/rest/api/3/issue/TT-1/changelog': { isLast: true, values: [] },
+    });
+    expect(await suggestStartDate(CONN, 'TT-1')).toEqual({ date: '2026-10-07', basis: 'created' });
+  });
+
+  it('nulo quando a issue nunca saiu do Backlog', async () => {
+    stubRoutes({
+      '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1': issueNow('2026-10-07T22:10:00.000-0300', 'new'),
       '/rest/api/3/issue/TT-1/changelog': {
         isLast: true,
-        values: [{ created: '2026-10-05T10:00:00.000-0300', items: [{ fieldId: 'status', to: '5' }] }],
+        values: [{ created: '2026-10-08T10:00:00.000-0300', items: [{ fieldId: 'status', to: '10175' }] }],
       },
     });
     expect(await suggestStartDate(CONN, 'TT-1')).toBeNull();
@@ -687,12 +732,13 @@ describe('suggestStartDate', () => {
     let pagina = 0;
     const fetchMock = stubRoutes({
       '/rest/api/3/status': statusesFixture,
+      '/rest/api/3/issue/TT-1': issueNow('2026-09-01T10:00:00.000-0300', 'indeterminate'),
       '/rest/api/3/issue/TT-1/changelog': () =>
         pagina++ === 0
           ? { isLast: false, values: [] }
           : { isLast: true, values: [{ created: '2026-09-30T10:00:00.000-0300', items: [{ fieldId: 'status', to: '3' }] }] },
     });
-    expect(await suggestStartDate(CONN, 'TT-1')).toBe('2026-09-30');
+    expect(await suggestStartDate(CONN, 'TT-1')).toEqual({ date: '2026-09-30', basis: 'started' });
     const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((u) => u.includes('changelog'));
     expect(urls[1]).toContain('startAt=100');
   });

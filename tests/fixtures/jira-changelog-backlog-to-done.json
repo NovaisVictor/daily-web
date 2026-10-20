@@ -1,0 +1,32 @@
+{
+  "startAt": 0,
+  "maxResults": 100,
+  "total": 1,
+  "isLast": true,
+  "values": [
+    {
+      "id": "312767",
+      "created": "2026-10-19T14:56:55.005-0300",
+      "items": [
+        {
+          "field": "resolution",
+          "fieldtype": "jira",
+          "fieldId": "resolution",
+          "from": null,
+          "fromString": null,
+          "to": "10000",
+          "toString": "Done"
+        },
+        {
+          "field": "status",
+          "fieldtype": "jira",
+          "fieldId": "status",
+          "from": "10175",
+          "fromString": "Backlog",
+          "to": "10104",
+          "toString": "Concluído"
+        }
+      ]
+    }
+  ]
+}

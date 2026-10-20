@@ -599,39 +599,72 @@ interface JiraStatusEntry {
 // leitura terminar mesmo diante de uma issue com milhares de alterações.
 const CHANGELOG_PAGES = 10;
 
-/** O dia em que a issue entrou em andamento pela primeira vez, AAAA-MM-DD, ou
- *  nulo quando o histórico não tem essa passagem. O status de destino é
- *  julgado pela categoria, não pelo nome: "Em andamento" e "Code Review PR"
- *  são o mesmo começo de trabalho. O dia é o do horário gravado pelo Jira,
- *  que já vem no fuso do perfil. */
-export async function suggestStartDate(conn: Connection, key: string): Promise<string | null> {
+/** De onde veio a data sugerida. A preferida é a passagem por andamento; sem
+ *  ela, o que o histórico tiver de mais próximo do começo do trabalho. */
+export type StartDateBasis = 'started' | 'finished' | 'created';
+
+export interface StartDateSuggestion {
+  date: string;
+  basis: StartDateBasis;
+}
+
+interface IssueCreated {
+  fields?: { created?: string | null; status?: { statusCategory?: { key?: string | null } | null } | null } | null;
+}
+
+/** O dia em que o trabalho na issue começou, pelo histórico. O status de
+ *  destino é julgado pela categoria, não pelo nome: "Em andamento" e "Code
+ *  Review PR" são o mesmo começo de trabalho.
+ *
+ *  Muita história vai de Backlog direto para Concluído, sem passar por
+ *  andamento. Nesse caso o melhor que o histórico diz é o dia em que ela saiu
+ *  do Backlog. E a issue criada já fora do Backlog não tem transição nenhuma:
+ *  o começo é o dia da criação. Nulo só quando nada disso existe.
+ *
+ *  O dia é o do horário gravado pelo Jira, que já vem no fuso do perfil. */
+export async function suggestStartDate(conn: Connection, key: string): Promise<StartDateSuggestion | null> {
   if (!isJiraKey(key)) throw new Error('chave inválida');
   const auth = jiraAuth(conn);
+  const issuePath = `/rest/api/3/issue/${encodeURIComponent(key)}`;
 
-  const statuses = (await request(auth, '/rest/api/3/status', undefined)) as JiraStatusEntry[];
-  const started = new Set(
-    (Array.isArray(statuses) ? statuses : [])
-      .filter((st) => st.id && st.statusCategory?.key === 'indeterminate')
-      .map((st) => st.id as string),
+  const [statuses, issue] = await Promise.all([
+    request(auth, '/rest/api/3/status', undefined) as Promise<JiraStatusEntry[]>,
+    request(auth, `${issuePath}?fields=created,status`, undefined) as Promise<IssueCreated>,
+  ]);
+  const categoryOf = new Map(
+    (Array.isArray(statuses) ? statuses : []).flatMap((st) =>
+      st.id ? [[st.id, toCategory(st.statusCategory?.key)] as [string, JiraStatusCategory]] : [],
+    ),
   );
 
-  const moments: string[] = [];
+  const entered: Record<'indeterminate' | 'done', string[]> = { indeterminate: [], done: [] };
+  let statusChanges = 0;
   for (let page = 0; page < CHANGELOG_PAGES; page++) {
-    const path =
-      `/rest/api/3/issue/${encodeURIComponent(key)}/changelog` +
-      `?startAt=${page * PAGE_SIZE}&maxResults=${PAGE_SIZE}`;
+    const path = `${issuePath}/changelog?startAt=${page * PAGE_SIZE}&maxResults=${PAGE_SIZE}`;
     const data = (await request(auth, path, undefined)) as ChangelogPage;
     for (const entry of data.values ?? []) {
-      const entered = (entry.items ?? []).some(
-        (item) => (item.fieldId ?? item.field) === 'status' && item.to && started.has(item.to),
-      );
-      if (entered && entry.created) moments.push(entry.created);
+      for (const item of entry.items ?? []) {
+        if ((item.fieldId ?? item.field) !== 'status' || !entry.created) continue;
+        statusChanges += 1;
+        const category = item.to ? categoryOf.get(item.to) : undefined;
+        if (category === 'indeterminate' || category === 'done') entered[category].push(entry.created);
+      }
     }
     if (data.isLast !== false) break;
   }
 
-  const first = moments.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
-  return first ? first.slice(0, 10) : null;
+  const earliest = (moments: string[]) =>
+    moments.sort((a, b) => Date.parse(a) - Date.parse(b))[0]?.slice(0, 10) ?? null;
+
+  const started = earliest(entered.indeterminate);
+  if (started) return { date: started, basis: 'started' };
+  const finished = earliest(entered.done);
+  if (finished) return { date: finished, basis: 'finished' };
+
+  const created = issue.fields?.created;
+  const leftBacklog = toCategory(issue.fields?.status?.statusCategory?.key) !== 'new';
+  if (statusChanges === 0 && leftBacklog && created) return { date: created.slice(0, 10), basis: 'created' };
+  return null;
 }
 
 /** Grava a data de início. A data chega da tela, então é conferida aqui: só
