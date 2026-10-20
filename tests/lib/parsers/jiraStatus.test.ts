@@ -26,6 +26,7 @@ function issue(over: Partial<JiraItem>): JiraItem {
     kind: 'História',
     subtask: false,
     hierarchyLevel: null,
+    impediment: 'none',
     updatedAt: '2026-08-26T10:00:00.000-0300',
     dueDate: '',
     ...over,

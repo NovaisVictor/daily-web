@@ -1,6 +1,7 @@
 import type { Connection } from '@/lib/vault/connections';
 import type {
   JiraDatedItem,
+  JiraImpediment,
   JiraItem,
   JiraProblemItem,
   JiraRole,
@@ -62,6 +63,7 @@ export function jiraAuth(conn: Connection): JiraAuth {
 interface RawIssue {
   key: string;
   fields?: {
+    [field: string]: unknown;
     summary?: string | null;
     updated?: string | null;
     duedate?: string | null;
@@ -86,7 +88,27 @@ function toCategory(key: string | null | undefined): JiraStatusCategory {
   return 'new';
 }
 
-export function toJiraItem(raw: RawIssue, baseUrl: string, role: JiraRole): JiraItem {
+let warnedImpedimentShape = false;
+
+/** O valor do "Flagged": lista de opções marcadas, ou `null`. Um formato
+ *  diferente vira `none` com um aviso — a marca é um detalhe da linha, e
+ *  lançar aqui esconderia a lista inteira. */
+function toImpediment(value: unknown): JiraImpediment {
+  if (value === null || value === undefined) return 'none';
+  if (Array.isArray(value)) return value.length > 0 ? 'flagged' : 'none';
+  if (!warnedImpedimentShape) {
+    warnedImpedimentShape = true;
+    console.warn('[jira] formato inesperado no campo Flagged; a issue aparece sem impedimento');
+  }
+  return 'none';
+}
+
+export function toJiraItem(
+  raw: RawIssue,
+  baseUrl: string,
+  role: JiraRole,
+  flaggedField: string | null = null,
+): JiraItem {
   const fields = raw.fields ?? {};
   return {
     key: raw.key,
@@ -106,6 +128,7 @@ export function toJiraItem(raw: RawIssue, baseUrl: string, role: JiraRole): Jira
     subtask: fields.issuetype?.subtask ?? false,
     hierarchyLevel:
       typeof fields.issuetype?.hierarchyLevel === 'number' ? fields.issuetype.hierarchyLevel : null,
+    impediment: flaggedField ? toImpediment(fields[flaggedField]) : 'none',
   };
 }
 
@@ -119,6 +142,8 @@ export interface JiraRequestInit {
 
 interface JiraErrorBody {
   errorMessages?: unknown;
+  /** O Service Desk responde no singular. */
+  errorMessage?: unknown;
   errors?: unknown;
 }
 
@@ -136,7 +161,8 @@ function jiraRefusal(text: string): string {
             .filter(([, v]) => typeof v === 'string')
             .map(([k, v]) => `${k}: ${v as string}`)
         : [];
-    const all = [...messages, ...fields];
+    const single = typeof data.errorMessage === 'string' ? [data.errorMessage] : [];
+    const all = [...messages, ...single, ...fields];
     if (all.length > 0) return all.join('; ').slice(0, 300);
   } catch {
     // Not JSON: the raw text below is the best there is.
@@ -181,8 +207,53 @@ interface SearchResponse {
   isLast?: boolean;
 }
 
-async function search(auth: JiraAuth, jql: string): Promise<RawIssue[]> {
-  const payload = { jql, fields: FIELDS, maxResults: PAGE_SIZE };
+interface JiraField {
+  id?: string;
+  name?: string;
+  untranslatedName?: string;
+}
+
+// O "Flagged" é um campo personalizado, com id diferente em cada instância;
+// o nome se repete, em inglês ou no idioma do perfil.
+const FLAGGED_FIELD_NAMES = ['flagged', 'sinalizado', 'impedimento'];
+
+export function findFlaggedField(fields: readonly JiraField[]): string | null {
+  const named = (name: unknown) =>
+    typeof name === 'string' && FLAGGED_FIELD_NAMES.includes(name.trim().toLowerCase());
+  const field = fields.find((f) => named(f.name) || named(f.untranslatedName));
+  return typeof field?.id === 'string' && field.id ? field.id : null;
+}
+
+// Em `globalThis` porque o build do Next carrega este módulo mais de uma vez
+// (rotas e instrumentation); perder o cache só custa buscar a lista de novo.
+const FLAGGED_CACHE = Symbol.for('daily-web.jira.flagged-field');
+const cacheHost = globalThis as unknown as Record<symbol, Map<string, string> | undefined>;
+export const flaggedFieldIds: Map<string, string> = (cacheHost[FLAGGED_CACHE] ??= new Map());
+
+/** O id do "Flagged" nesta instância, ou `null` sem o campo. Não lança: sem a
+ *  marca, a lista continua útil. */
+export async function flaggedField(auth: JiraAuth): Promise<string | null> {
+  const cached = flaggedFieldIds.get(auth.baseUrl);
+  if (cached) return cached;
+  try {
+    const fields = await request(auth, '/rest/api/3/field', undefined);
+    if (!Array.isArray(fields)) {
+      console.warn('[jira] lista de campos em formato inesperado; impedimentos não serão mostrados');
+      return null;
+    }
+    const id = findFlaggedField(fields.filter((f): f is JiraField => typeof f === 'object' && f !== null));
+    if (id) flaggedFieldIds.set(auth.baseUrl, id);
+    return id;
+  } catch (err) {
+    console.warn(`[jira] campo Flagged indisponível: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+const rowFields = (flagged: string | null) => (flagged ? [...FIELDS, flagged] : FIELDS);
+
+async function search(auth: JiraAuth, jql: string, flagged: string | null): Promise<RawIssue[]> {
+  const payload = { jql, fields: rowFields(flagged), maxResults: PAGE_SIZE };
   const data = (await request(auth, '/rest/api/3/search/jql', payload)) as SearchResponse;
   return data.issues ?? [];
 }
@@ -209,31 +280,32 @@ export async function fetchIssues(conn: Connection, filter: JiraFilter, subject 
   const wantAssignee = filter === 'assignee' || filter === 'both';
   const wantReporter = filter === 'reporter' || filter === 'both';
   const userStr = jqlUser(subject);
+  const flagged = await flaggedField(auth);
 
   if (wantAssignee) {
-    for (const raw of await search(auth, `assignee = ${userStr} AND ${OPEN} ORDER BY updated DESC`)) {
-      byKey.set(raw.key, toJiraItem(raw, auth.baseUrl, 'assignee'));
+    for (const raw of await search(auth, `assignee = ${userStr} AND ${OPEN} ORDER BY updated DESC`, flagged)) {
+      byKey.set(raw.key, toJiraItem(raw, auth.baseUrl, 'assignee', flagged));
     }
   }
   if (wantReporter) {
-    for (const raw of await search(auth, `reporter = ${userStr} AND ${OPEN} ORDER BY updated DESC`)) {
+    for (const raw of await search(auth, `reporter = ${userStr} AND ${OPEN} ORDER BY updated DESC`, flagged)) {
       const existing = byKey.get(raw.key);
       if (existing) existing.role = 'both';
-      else byKey.set(raw.key, toJiraItem(raw, auth.baseUrl, 'reporter'));
+      else byKey.set(raw.key, toJiraItem(raw, auth.baseUrl, 'reporter', flagged));
     }
   }
 
   // Buscada sempre, inclusive quando o filtro é só responsável ou só relator:
   // aprovar não é um papel na issue, e o filtro de papel não deveria
   // esconder o que espera aprovação.
-  for (const raw of await search(auth, awaitingApprovalJql(subject))) {
+  for (const raw of await search(auth, awaitingApprovalJql(subject), flagged)) {
     const existing = byKey.get(raw.key);
     // A issue que já veio pelo papel mantém o papel e ganha a marca. A que só
     // aparece por aprovação não tem papel: nem responsável, nem relator.
     // Entra com o valor neutro que o resto do módulo já usa nesse caso, para
     // não afirmar um papel que não se aplica — quem explica a presença dela na
     // lista é a marca de aprovação, não o papel.
-    const item = existing ?? toJiraItem(raw, auth.baseUrl, 'assignee');
+    const item = existing ?? toJiraItem(raw, auth.baseUrl, 'assignee', flagged);
     item.awaitingApproval = true;
     byKey.set(raw.key, item);
   }
@@ -251,10 +323,15 @@ const WEEK = 'startOfDay(-7d)';
 const TODAY = 'startOfDay()';
 
 /** Marca, na lista da semana, quem também apareceu na busca do dia. */
-function withToday(week: RawIssue[], today: RawIssue[], baseUrl: string): JiraDatedItem[] {
+function withToday(
+  week: RawIssue[],
+  today: RawIssue[],
+  baseUrl: string,
+  flagged: string | null,
+): JiraDatedItem[] {
   const doDia = new Set(today.map((issue) => issue.key));
   return week.map((issue) => ({
-    ...toJiraItem(issue, baseUrl, 'assignee'),
+    ...toJiraItem(issue, baseUrl, 'assignee', flagged),
     today: doDia.has(issue.key),
   }));
 }
@@ -283,11 +360,10 @@ const delivered = (desde: string, subject: JiraSubject) => {
  *  caiam ou não no dia de hoje. */
 export async function fetchDelivered(conn: Connection, subject = ME): Promise<JiraDatedItem[]> {
   const auth = jiraAuth(conn);
-  const [week, today] = await Promise.all([
-    search(auth, delivered(WEEK, subject)),
-    search(auth, delivered(TODAY, subject)),
-  ]);
-  return withToday(week, today, auth.baseUrl);
+  const jql = [delivered(WEEK, subject), delivered(TODAY, subject)];
+  const flagged = await flaggedField(auth);
+  const [week, today] = await Promise.all(jql.map((q) => search(auth, q, flagged)));
+  return withToday(week, today, auth.baseUrl, flagged);
 }
 
 // O que foi aprovado por quem está sendo olhado. Não há função JQL para isto: `myApproved()` e
@@ -310,11 +386,10 @@ const approved = (desde: string, subject: JiraSubject) =>
  *  caiam ou não no dia de hoje. */
 export async function fetchApproved(conn: Connection, subject = ME): Promise<JiraDatedItem[]> {
   const auth = jiraAuth(conn);
-  const [week, today] = await Promise.all([
-    search(auth, approved(WEEK, subject)),
-    search(auth, approved(TODAY, subject)),
-  ]);
-  return withToday(week, today, auth.baseUrl);
+  const jql = [approved(WEEK, subject), approved(TODAY, subject)];
+  const flagged = await flaggedField(auth);
+  const [week, today] = await Promise.all(jql.map((q) => search(auth, q, flagged)));
+  return withToday(week, today, auth.baseUrl, flagged);
 }
 
 interface Myself {
@@ -329,11 +404,13 @@ export async function fetchMentions(conn: Connection): Promise<JiraItem[]> {
   const me = (await request(auth, '/rest/api/3/myself', undefined)) as Myself;
   if (!me.accountId) return [];
 
+  const flagged = await flaggedField(auth);
   const raw = await search(
     auth,
     `comment ~ "${me.accountId}" AND updated >= -30d ORDER BY updated DESC`,
+    flagged,
   );
-  return raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee'));
+  return raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee', flagged));
 }
 
 /**
@@ -345,8 +422,9 @@ export async function fetchByKeys(conn: Connection, keys: string[]): Promise<Jir
   if (keys.length === 0) return [];
   const auth = jiraAuth(conn);
   const lista = keys.map((k) => `"${k}"`).join(', ');
-  const raw = await search(auth, `key in (${lista}) ORDER BY updated DESC`);
-  return raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee'));
+  const flagged = await flaggedField(auth);
+  const raw = await search(auth, `key in (${lista}) ORDER BY updated DESC`, flagged);
+  return raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee', flagged));
 }
 
 // Quantos degraus a subida percorre. Uma subtarefa fica a quatro degraus do
@@ -378,6 +456,7 @@ export async function fetchAncestors(conn: Connection, items: JiraItem[]): Promi
   const known = new Set(items.map((i) => i.key));
   const ancestors: JiraItem[] = [];
   let level: JiraItem[] = items;
+  let flagged: string | null | undefined;
 
   for (let degrau = 0; degrau < ANCESTOR_LEVELS && level.length > 0; degrau += 1) {
     // As chaves vêm do próprio Jira, mas entram numa JQL: a mesma validação
@@ -392,13 +471,15 @@ export async function fetchAncestors(conn: Connection, items: JiraItem[]): Promi
       chunks.push(keys.slice(i, i + ANCESTOR_CHUNK));
     }
 
+    if (flagged === undefined) flagged = await flaggedField(auth);
+    const fieldId = flagged;
     const raw = (
       await Promise.all(
-        chunks.map((lote) => search(auth, `key in (${lote.map((k) => `"${k}"`).join(', ')})`)),
+        chunks.map((lote) => search(auth, `key in (${lote.map((k) => `"${k}"`).join(', ')})`, fieldId)),
       )
     ).flat();
 
-    level = raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee'));
+    level = raw.map((issue) => toJiraItem(issue, auth.baseUrl, 'assignee', fieldId));
     ancestors.push(...level);
   }
 
@@ -422,11 +503,6 @@ async function searchAll(auth: JiraAuth, jql: string, fields: string[]): Promise
     nextPageToken = data.nextPageToken;
   }
   throw new Error(`a busca do Jira passou de ${MAX_PAGES * PAGE_SIZE} issues`);
-}
-
-interface JiraField {
-  id?: string;
-  name?: string;
 }
 
 // A data de início é um campo personalizado, com id diferente em cada
@@ -470,14 +546,15 @@ const EPIC_CHUNK = 50;
 export async function fetchProblems(conn: Connection, subject = ME): Promise<JiraProblemItem[]> {
   const auth = jiraAuth(conn);
   const startField = await startDateField(auth);
+  const flagged = await flaggedField(auth);
 
-  const raw = await searchAll(auth, problemScope(subject), [...FIELDS, startField]);
+  const raw = await searchAll(auth, problemScope(subject), [...rowFields(flagged), startField]);
   const scope: JiraAuditIssue[] = raw
     .map((issue) => {
       const fields = (issue.fields ?? {}) as Record<string, unknown>;
       const text = (value: unknown) => (typeof value === 'string' ? value : '');
       return {
-        ...toJiraItem(issue, auth.baseUrl, 'assignee'),
+        ...toJiraItem(issue, auth.baseUrl, 'assignee', flagged),
         startDate: text(fields[startField]),
       };
     })

@@ -146,7 +146,12 @@ export interface JiraItem {
   updatedAt: string;
   /** AAAA-MM-DD, ou vazio quando a issue não tem prazo. */
   dueDate: string;
+  /** O campo "Flagged" do Jira. `none` também quando a instância não tem o
+   *  campo: a falta dele não pode derrubar o painel. */
+  impediment: JiraImpediment;
 }
+
+export type JiraImpediment = 'flagged' | 'none';
 
 /** Uma issue com a marca do recorte de tempo. As listas de entregues e de
  *  aprovados cobrem sete dias; `today` diz quais delas caem no dia de hoje,

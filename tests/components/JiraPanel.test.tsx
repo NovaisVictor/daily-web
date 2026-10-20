@@ -78,6 +78,7 @@ function issue(over: Partial<JiraItem>): JiraItem {
     kind: 'História',
     subtask: false,
     hierarchyLevel: null,
+    impediment: 'none',
     updatedAt: new Date().toISOString(),
     dueDate: '',
     ...over,

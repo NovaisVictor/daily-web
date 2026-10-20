@@ -9,6 +9,19 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- Jira actions straight from the panel, every one following the same contract:
+  show what will change, write only on confirmation, and show Jira's own
+  message when it refuses. The status on a row opens the transitions the
+  workflow allows (a transition that needs fields opens Jira instead); the
+  APROV badge approves or declines your own pending approval; a flag marks an
+  issue as impeded with a reason that becomes a comment, and clicking it
+  clears it; "Preencher início em todas" on the Problems tab suggests each
+  story's start date from the first time it went in progress, for review
+  before writing them all; the row's "⋯" menu comments, changes the due date
+  or priority, assigns the issue to you, and creates a story inside an epic;
+  and Jira mentions in the bell can be answered in place.
+- A "Novidades" dialog shows the release notes once per browser, remembered in
+  `localStorage`, and can be reopened from the account menu.
 - Jira filters shared by every tab: status, type (initiatives, epics or
   stories, read from the issue type's hierarchy level rather than its name),
   and a specific initiative, epic or story, cascading so each picker only

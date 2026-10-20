@@ -351,3 +351,79 @@ describe('marcar todas como lidas', () => {
     expect(onChanged).toHaveBeenCalled();
   });
 });
+
+describe('NotificationsBell — reply to a Jira mention', () => {
+  const mention = {
+    id: 'jira_mention:TT-123',
+    source: 'jira_mention' as const,
+    title: 'TT-123 — Liberar acesso',
+    url: 'https://x/TT-123',
+    read: false,
+    date: '2026-10-20T10:00:00Z',
+  };
+  const pull = {
+    id: 'pull_request:joao/repo#7',
+    source: 'pull_request' as const,
+    title: 'joao/repo#7 — Ajusta login',
+    url: 'https://x/pr/7',
+    read: false,
+    date: '2026-10-20T09:00:00Z',
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function json(status: number, body: unknown) {
+    return { ok: status >= 200 && status < 300, status, json: async () => body };
+  }
+
+  function openReply(props: Partial<ComponentProps<typeof NotificationsBell>> = {}) {
+    render(<Bell notifications={{ data: [mention, pull], error: null }} {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /notificações/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'responder TT-123 — Liberar acesso' }));
+    return screen.getByRole('textbox', { name: 'comentário em TT-123' });
+  }
+
+  it('offers "Responder" only on Jira mentions', () => {
+    render(<Bell notifications={{ data: [mention, pull], error: null }} />);
+    fireEvent.click(screen.getByRole('button', { name: /notificações/ }));
+    expect(screen.getAllByRole('button', { name: /^responder / })).toHaveLength(1);
+  });
+
+  it('opens the form inline, inside the bell, not as another dialog', () => {
+    openReply();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByText('vai aparecer como seu comentário em TT-123')).toBeInTheDocument();
+  });
+
+  it('posts the reply, marks the mention read and says so, without refetching', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, { ok: true, comment: { id: '10000' } }))
+      .mockResolvedValueOnce(json(200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onMarkedRead = vi.fn();
+    const onChanged = vi.fn();
+
+    fireEvent.change(openReply({ onMarkedRead, onChanged }), { target: { value: 'já vejo isso' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('resposta publicada');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/jira/issues/TT-123/comments');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ body: 'já vejo isso' });
+    await waitFor(() => expect(onMarkedRead).toHaveBeenCalledWith('jira_mention:TT-123'));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ id: 'jira_mention:TT-123' });
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("keeps the text and shows Jira's refusal when the reply fails", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(502, { error: 'Jira respondeu 400: sem permissão' })));
+    const onMarkedRead = vi.fn();
+
+    fireEvent.change(openReply({ onMarkedRead }), { target: { value: 'meu texto' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('sem permissão');
+    expect(screen.getByRole('textbox', { name: 'comentário em TT-123' })).toHaveValue('meu texto');
+    expect(onMarkedRead).not.toHaveBeenCalled();
+  });
+});

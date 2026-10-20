@@ -12,6 +12,8 @@ import { tabular } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { Chip } from '@/components/ui/Chip';
 import { NARROW_BREAKPOINT } from '@/lib/dashboardLayout';
+import { isJiraKey } from '@/lib/jiraKey';
+import { CommentForm } from '@/components/jira/actions/CommentAction';
 
 /** De onde o aviso veio, em uma palavra. O rótulo era fixo em "JIRA", que
  *  passou a mentir quando o sino ganhou pull request e e-mail. */
@@ -21,6 +23,16 @@ const SOURCE_LABEL: Record<NotificationSource, string> = {
   email: 'E-MAIL',
   slack: 'SLACK',
 };
+
+const MENTION_PREFIX = 'jira_mention:';
+
+function mentionKey(item: NotificationItem): string | null {
+  if (item.source !== 'jira_mention' || !item.id.startsWith(MENTION_PREFIX)) return null;
+  const key = item.id.slice(MENTION_PREFIX.length);
+  return isJiraKey(key) ? key : null;
+}
+
+type Reply = { id: string; stage: 'writing' | 'published' } | null;
 
 interface Props {
   notifications: PanelResult<NotificationItem[]>;
@@ -48,6 +60,7 @@ export function NotificationsBell({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [marcandoTodas, setMarcandoTodas] = useState(false);
+  const [reply, setReply] = useState<Reply>(null);
   const items = notifications.data ?? [];
   const naoLidas = items.filter((n) => !n.read);
   const unreadCount = naoLidas.length;
@@ -246,47 +259,82 @@ export function NotificationsBell({
               )}
 
               <ul>
-                {items.map((item) => (
-                  <li
-                    key={item.id}
-                    className={cn(
-                      'flex flex-col gap-2 border-b border-line py-3 last:border-b-0',
-                      item.read && 'text-ink-dim',
-                    )}
-                  >
-                    {/* O aviso de e-mail não tem página para abrir: vira texto,
-                      porque um href vazio recarregaria o dashboard. */}
-                    {item.url ? (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cn(
-                          'type-body block leading-snug hover:underline [overflow-wrap:anywhere]',
-                          item.read ? 'text-ink-dim' : 'text-ink',
+                {items.map((item) => {
+                  const mention = mentionKey(item);
+                  return (
+                    <li
+                      key={item.id}
+                      className={cn(
+                        'flex flex-col gap-2 border-b border-line py-3 last:border-b-0',
+                        item.read && 'text-ink-dim',
+                      )}
+                    >
+                      {/* O aviso de e-mail não tem página para abrir: vira texto,
+                        porque um href vazio recarregaria o dashboard. */}
+                      {item.url ? (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cn(
+                            'type-body block leading-snug hover:underline [overflow-wrap:anywhere]',
+                            item.read ? 'text-ink-dim' : 'text-ink',
+                          )}
+                        >
+                          {item.title}
+                        </a>
+                      ) : (
+                        <span className="type-body [overflow-wrap:anywhere]">{item.title}</span>
+                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="type-caption tracking-wider text-ink-dim">
+                          {SOURCE_LABEL[item.source]}
+                        </span>
+                        <span className="flex-1" />
+                        {mention && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            className="min-h-10"
+                            aria-label={`responder ${item.title}`}
+                            aria-expanded={reply?.id === item.id && reply.stage === 'writing'}
+                            onClick={() =>
+                              setReply((r) =>
+                                r?.id === item.id && r.stage === 'writing' ? null : { id: item.id, stage: 'writing' },
+                              )
+                            }
+                          >
+                            Responder
+                          </Button>
                         )}
-                      >
-                        {item.title}
-                      </a>
-                    ) : (
-                      <span className="type-body [overflow-wrap:anywhere]">{item.title}</span>
-                    )}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="type-caption tracking-wider text-ink-dim">
-                        {SOURCE_LABEL[item.source]}
-                      </span>
-                      {!item.read && (
-                        <IconAction
-                          size="icon-xs"
-                          className="min-h-10 min-w-10"
-                          label={`marcar ${item.title} como lida`}
-                          onClick={() => void markRead(item)}
-                          icon={<Check className="size-4" />}
+                        {!item.read && (
+                          <IconAction
+                            size="icon-xs"
+                            className="min-h-10 min-w-10"
+                            label={`marcar ${item.title} como lida`}
+                            onClick={() => void markRead(item)}
+                            icon={<Check className="size-4" />}
+                          />
+                        )}
+                      </div>
+                      {mention && reply?.id === item.id && reply.stage === 'writing' && (
+                        <CommentForm
+                          issueKey={mention}
+                          onCancel={() => setReply(null)}
+                          onPublished={() => {
+                            setReply({ id: item.id, stage: 'published' });
+                            if (!item.read) void markRead(item);
+                          }}
                         />
                       )}
-                    </div>
-                  </li>
-                ))}
+                      {reply?.id === item.id && reply.stage === 'published' && (
+                        <p role="status" className="type-caption text-ink-mid">
+                          resposta publicada
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </>,

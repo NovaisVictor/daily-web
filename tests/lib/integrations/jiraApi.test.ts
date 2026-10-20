@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchAncestors,
   fetchApproved,
   fetchDelivered,
   fetchIssues,
   fetchProblems,
+  flaggedFieldIds,
   jiraBaseUrl,
   toJiraItem,
 } from '@/lib/integrations/jiraApi';
@@ -57,7 +58,13 @@ function issue(key: string, over: Record<string, unknown> = {}) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+// The Flagged field id is cached per instance; seeding it keeps these tests
+// about the searches, not about field discovery (covered in jiraFlag.test.ts).
+beforeEach(() => flaggedFieldIds.set('https://acme.atlassian.net', 'customfield_10021'));
+afterEach(() => {
+  vi.unstubAllGlobals();
+  flaggedFieldIds.clear();
+});
 
 describe('jiraBaseUrl', () => {
   it('aceita o nome, o domínio e a URL inteira', () => {
