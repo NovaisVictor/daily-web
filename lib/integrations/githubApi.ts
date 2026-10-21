@@ -4,12 +4,16 @@ import { isValidRepo } from '@/lib/api/validation';
 import { githubCall, githubGraphql, graphqlErrorMessage, type GraphqlReply } from './github/client';
 import {
   MY_PULLS_QUERY,
+  MY_PULLS_SEARCH,
   parseReposData,
   parseSearchData,
+  partialNote,
   repoAlias,
+  REPOS_PER_QUERY,
   reposQuery,
   REVIEW_REQUESTS_QUERY,
-  SEARCH_PULLS_QUERY,
+  REVIEW_REQUESTS_SEARCH,
+  type ParsedRepos,
 } from './github/pulls';
 
 export { githubCall, githubErrorDetail, githubGraphql, githubRequest } from './github/client';
@@ -25,11 +29,17 @@ export {
   parseSearchData,
   pendingReviewersOf,
   PER_REPO_LIMIT,
+  REPOS_PER_QUERY,
   REVIEW_REQUESTS_QUERY,
+  reviewersOf,
+  reviewerStateOf,
   reviewFromDecision,
   SEARCH_LIMIT,
 } from './github/pulls';
 export type { ReviewRequestsDigest } from '@/lib/types';
+
+/** Past this the panel stops being a glance; also bounds the GraphQL batches. */
+export const TRACKED_REPOS_MAX = 30;
 
 export function parseRepoList(raw: string): string[] {
   return raw
@@ -91,7 +101,24 @@ export function trackedRepos(conn: Connection): string[] {
   return parseRepoList(conn.values.repos ?? '');
 }
 
-/** Every tracked repo in one GraphQL query, not one call per repo. */
+async function fetchRepoBatch(token: string, repos: string[]): Promise<ParsedRepos> {
+  const { query, variables } = reposQuery(repos);
+  const { data, errors } = await githubGraphql(token, query, variables);
+  const aliases = new Set(repos.map((_, index) => repoAlias(index)));
+  const global = errors.find((error) => !aliases.has(error.path[0] ?? ''));
+  if (global) throw new Error(graphqlErrorMessage(global));
+  return parseReposData(data, repos, errors);
+}
+
+function batchesOf<T>(values: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let start = 0; start < values.length; start += size) batches.push(values.slice(start, start + size));
+  return batches;
+}
+
+/** Tracked repos in GraphQL queries of up to REPOS_PER_QUERY repos each, run in
+ *  parallel, never one call per repo. A failed query puts only its repos in
+ *  `errors`; when every query fails, the panel fails with the first reason. */
 export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
   const token = githubToken(conn);
   const tracked = trackedRepos(conn);
@@ -104,14 +131,24 @@ export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
     .map((repo) => `${repo}: nome inválido — use o formato dono/nome`);
   if (repos.length === 0) return { ...empty, errors: invalid };
 
-  const { query, variables } = reposQuery(repos);
-  const { data, errors } = await githubGraphql(token, query, variables);
-  const aliases = new Set(repos.map((_, index) => repoAlias(index)));
-  const global = errors.find((error) => !aliases.has(error.path[0] ?? ''));
-  if (global) throw new Error(graphqlErrorMessage(global));
+  const batches = batchesOf(repos, REPOS_PER_QUERY);
+  const settled = await Promise.allSettled(batches.map((batch) => fetchRepoBatch(token, batch)));
+  const failures = settled.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []));
+  if (failures.length === settled.length) throw failures[0];
 
-  const parsed = parseReposData(data, repos, errors);
-  return { ...parsed, items: rankPulls(parsed.items), errors: [...invalid, ...parsed.errors] };
+  const merged: PullsDigest = { ...empty, errors: [...invalid] };
+  settled.forEach((outcome, index) => {
+    if (outcome.status === 'rejected') {
+      const reason = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+      merged.errors.push(...batches[index].map((repo) => `${repo}: ${reason}`));
+      return;
+    }
+    merged.items.push(...outcome.value.items);
+    merged.errors.push(...outcome.value.errors);
+    merged.defaultBranches.push(...outcome.value.defaultBranches);
+    merged.truncated.push(...outcome.value.truncated);
+  });
+  return { ...merged, items: rankPulls(merged.items) };
 }
 
 // --- Buscas globais ------------------------------------------------------------
@@ -122,14 +159,22 @@ export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
 // o que ainda espera a sua revisão — o GitHub tira o pedido quando a revisão
 // chega.
 
-async function searchPulls(
-  conn: Connection,
-  q: string,
-): Promise<{ reply: GraphqlReply; items: PullRequestItem[]; total: number }> {
-  const reply = await githubGraphql(githubToken(conn), SEARCH_PULLS_QUERY, { q });
-  if (reply.errors.length > 0) throw new Error(graphqlErrorMessage(reply.errors[0]));
+interface SearchResult {
+  reply: GraphqlReply;
+  items: PullRequestItem[];
+  total: number;
+  errors: string[];
+}
+
+/** An error on `search` itself fails the list; one inside it (a node or field
+ *  GitHub refused) keeps the rest and becomes a single note. */
+async function searchPulls(conn: Connection, query: string, q: string): Promise<SearchResult> {
+  const reply = await githubGraphql(githubToken(conn), query, { q });
+  const fatal = reply.errors.find((error) => error.path[0] !== 'search' || error.path.length === 1);
+  if (fatal) throw new Error(graphqlErrorMessage(fatal));
   const { items, total } = parseSearchData(reply.data);
-  return { reply, items, total };
+  const note = partialNote('busca do GitHub', reply.errors);
+  return { reply, items, total, errors: note ? [note] : [] };
 }
 
 /**
@@ -156,7 +201,7 @@ export function scopeNote(scopesHeader: string | null, empty: boolean): string |
 }
 
 export async function fetchReviewRequests(conn: Connection): Promise<ReviewRequestsDigest> {
-  const { reply, items, total } = await searchPulls(conn, REVIEW_REQUESTS_QUERY);
+  const { reply, items, total, errors } = await searchPulls(conn, REVIEW_REQUESTS_SEARCH, REVIEW_REQUESTS_QUERY);
   // A busca já filtrou por isto: toda linha aqui espera a sua revisão.
   const pedidos = items.map((item) => ({ ...item, awaitingYou: true, mine: false }));
   return {
@@ -164,13 +209,14 @@ export async function fetchReviewRequests(conn: Connection): Promise<ReviewReque
     truncated: total > pedidos.length,
     total,
     scopeNote: scopeNote(reply.headers.get('x-oauth-scopes'), pedidos.length === 0),
+    ...(errors.length > 0 ? { errors } : {}),
   };
 }
 
 export async function fetchMyPulls(conn: Connection): Promise<MyPullsDigest> {
-  const { items, total } = await searchPulls(conn, MY_PULLS_QUERY);
+  const { items, total, errors } = await searchPulls(conn, MY_PULLS_SEARCH, MY_PULLS_QUERY);
   const meus = items.map((item) => ({ ...item, awaitingYou: false, mine: true }));
-  return { items: rankPulls(meus), truncated: total > meus.length, total };
+  return { items: rankPulls(meus), truncated: total > meus.length, total, ...(errors.length > 0 ? { errors } : {}) };
 }
 
 export async function testConnection(conn: Connection): Promise<void> {

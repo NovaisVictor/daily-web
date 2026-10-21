@@ -8,7 +8,7 @@ import story from '../fixtures/jira-write/transitions-story.json';
 const currentUser = vi.fn();
 vi.mock('@/lib/auth/currentUser', () => ({ getCurrentUser: () => currentUser() }));
 
-import { GET, POST } from '@/app/api/pulls/jira-sync/route';
+import { GET } from '@/app/api/pulls/jira-sync/route';
 import { saveConnection, setModuleEnabled } from '@/lib/vault/connections';
 
 let dir: string;
@@ -22,29 +22,19 @@ function get(query: string): NextRequest {
   return new NextRequest(`http://localhost/api/pulls/jira-sync?${query}`);
 }
 
-function post(body: unknown): NextRequest {
-  return new NextRequest('http://localhost/api/pulls/jira-sync', {
-    method: 'POST',
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-  });
-}
-
 function connect() {
   saveConnection(ME.id, 'jira', 'Jira', { cloud: 'acme', email: 'eu@acme', token: 'x' });
   setModuleEnabled(ME.id, 'jira', true);
 }
 
-function stubJira({ write = { ok: true, status: 204, json: async () => null }, transitions = story as unknown } = {}) {
-  const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
-    if (init.method === 'POST') return write;
+function stubJira({ transitions = story as unknown } = {}) {
+  const fetchMock = vi.fn(async (url: string) => {
     const body = url.includes('/transitions') ? transitions : BACKLOG;
     return { ok: true, status: 200, json: async () => body };
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
-
-const posted = (fetchMock: ReturnType<typeof stubJira>) => fetchMock.mock.calls.find(([, init]) => init.method === 'POST');
 
 beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'daily-web-pull-jira-sync-'));
@@ -62,6 +52,11 @@ afterEach(() => {
 });
 
 describe('GET /api/pulls/jira-sync', () => {
+  it('is the only method: the write goes through the Jira transitions route', async () => {
+    const route = await import('@/app/api/pulls/jira-sync/route');
+    expect('POST' in route).toBe(false);
+  });
+
   it('401 without a session', async () => {
     currentUser.mockResolvedValue(null);
     expect((await GET(get('key=TT-5019&intent=review'))).status).toBe(401);
@@ -118,55 +113,5 @@ describe('GET /api/pulls/jira-sync', () => {
     const res = await GET(get('key=TT-5019&intent=review'));
     expect(res.status).toBe(502);
     expect((await res.json()).error).toContain('Jira fora do ar');
-  });
-});
-
-describe('POST /api/pulls/jira-sync', () => {
-  it('401 without a session', async () => {
-    currentUser.mockResolvedValue(null);
-    expect((await POST(post({ key: 'TT-5019', transitionId: '7' }))).status).toBe(401);
-  });
-
-  it.each([
-    [{ key: 'TT_5019', transitionId: '7' }],
-    [{ transitionId: '7' }],
-    [{ key: 'TT-5019' }],
-    [{ key: 'TT-5019', transitionId: 7 }],
-    [{ key: 'TT-5019', transitionId: '7a' }],
-    ['not json'],
-  ])('400 with an invalid body %j, without calling Jira', async (body) => {
-    connect();
-    const fetchMock = stubJira();
-    expect((await POST(post(body))).status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('409 when the transition is no longer available, without writing', async () => {
-    connect();
-    const fetchMock = stubJira();
-    const res = await POST(post({ key: 'TT-5019', transitionId: '999' }));
-    expect(res.status).toBe(409);
-    expect(posted(fetchMock)).toBeUndefined();
-  });
-
-  it("502 with Jira's message when Jira refuses the transition", async () => {
-    connect();
-    stubJira({
-      write: { ok: false, status: 400, text: async () => JSON.stringify({ errorMessages: ['Sem permissão'] }) } as never,
-    });
-    const res = await POST(post({ key: 'TT-5019', transitionId: '7' }));
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).toContain('Sem permissão');
-  });
-
-  it('posts the transition to Jira and answers ok', async () => {
-    connect();
-    const fetchMock = stubJira();
-    const res = await POST(post({ key: 'tt-5019', transitionId: '7' }));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
-    const call = posted(fetchMock);
-    expect(call?.[0]).toBe('https://acme.atlassian.net/rest/api/3/issue/TT-5019/transitions');
-    expect(JSON.parse(String(call?.[1].body))).toEqual({ transition: { id: '7' } });
   });
 });

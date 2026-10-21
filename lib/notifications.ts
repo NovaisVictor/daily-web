@@ -88,6 +88,10 @@ export function parseNotificationId(
   return { source: source as NotificationSource, externalId };
 }
 
+function pullKey(item: PullRequestItem): string {
+  return `${item.repo}#${item.number}`;
+}
+
 /** Um aviso por pull request aberto. Issue fica de fora: o painel traz as
  *  duas coisas na mesma lista, mas quem pediu aviso pediu de PR. */
 export function pullNotifications(userId: string, items: PullRequestItem[]): NotificationItem[] {
@@ -96,7 +100,7 @@ export function pullNotifications(userId: string, items: PullRequestItem[]): Not
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, PER_SOURCE_LIMIT)
     .map((item) => {
-      const externalId = `${item.repo}#${item.number}`;
+      const externalId = pullKey(item);
       return {
         id: notificationId('pull_request', externalId),
         source: 'pull_request' as const,
@@ -108,27 +112,37 @@ export function pullNotifications(userId: string, items: PullRequestItem[]): Not
     });
 }
 
-/** Review requests waiting longer than a day. The search does not say when the
- *  review was requested, so the clock starts at the PR's creation. */
+/** Its own read key: dismissing the plain "PR open" notice must not hide the
+ *  stale-review one that comes later for the same PR. */
+export function staleReviewExternalId(item: PullRequestItem): string {
+  return `${pullKey(item)}:stale-review`;
+}
+
+/** Review requests waiting longer than a day, counted from the latest request
+ *  or, when GitHub did not say, from the PR's creation. */
+function staleReviews(items: PullRequestItem[], now: Date): { item: PullRequestItem; waiting: number }[] {
+  return items
+    .filter((item) => item.isPullRequest && item.awaitingYou)
+    .flatMap((item) => {
+      const waiting = elapsedMs(item.reviewRequestedAt ?? item.createdAt, now);
+      return waiting !== null && waiting > STALE_REVIEW_MS ? [{ item, waiting }] : [];
+    })
+    .sort((a, b) => b.waiting - a.waiting);
+}
+
 export function staleReviewNotifications(
   userId: string,
   items: PullRequestItem[],
   now: Date = new Date(),
 ): NotificationItem[] {
-  return items
-    .filter((item) => item.isPullRequest && item.awaitingYou)
-    .flatMap((item) => {
-      const waiting = elapsedMs(item.createdAt, now);
-      return waiting !== null && waiting > STALE_REVIEW_MS ? [{ item, waiting }] : [];
-    })
-    .sort((a, b) => b.waiting - a.waiting)
+  return staleReviews(items, now)
     .slice(0, PER_SOURCE_LIMIT)
     .map(({ item, waiting }) => {
-      const externalId = `${item.repo}#${item.number}`;
+      const externalId = staleReviewExternalId(item);
       return {
         id: notificationId('pull_request', externalId),
         source: 'pull_request' as const,
-        title: `revisão parada há ${formatDays(waiting)} — ${externalId} ${item.title}`,
+        title: `revisão parada há ${formatDays(waiting)} — ${pullKey(item)} ${item.title}`,
         url: item.url,
         read: isRead(userId, 'pull_request', externalId),
         date: item.updatedAt,
@@ -136,15 +150,20 @@ export function staleReviewNotifications(
     });
 }
 
-/** The stale review says more than the plain "PR open" entry for the same PR. */
+/** The stale review says more than the plain "PR open" entry for the same PR,
+ *  and both lists share the one pull_request cap. */
 function pullAndStaleReviews(
   userId: string,
   pulls: PullRequestItem[],
   reviewRequests: PullRequestItem[],
+  now: Date = new Date(),
 ): NotificationItem[] {
-  const stale = staleReviewNotifications(userId, reviewRequests);
-  const staleIds = new Set(stale.map((item) => item.id));
-  return [...stale, ...pullNotifications(userId, pulls).filter((item) => !staleIds.has(item.id))];
+  const staleKeys = new Set(staleReviews(reviewRequests, now).map(({ item }) => pullKey(item)));
+  const open = pulls.filter((item) => !staleKeys.has(pullKey(item)));
+  return [...staleReviewNotifications(userId, reviewRequests, now), ...pullNotifications(userId, open)].slice(
+    0,
+    PER_SOURCE_LIMIT,
+  );
 }
 
 /** Um aviso por e-mail que chegou e ainda não foi lido. Marcar o aviso como

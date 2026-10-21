@@ -20,6 +20,8 @@ const PR: PullRequestItem = {
   failedChecks: [],
   review: 'pending',
   pendingReviewers: [],
+  reviewers: [],
+  reviewRequestedAt: null,
   merge: 'clean',
   size: null,
   headRef: 'feature/TT-5019-branch-1',
@@ -99,9 +101,9 @@ describe('pickTransition', () => {
     expect(pickTransition([t('3', 'In Progress', 'indeterminate')], 'in-progress')?.id).toBe('3');
   });
 
-  it('falls back to the first indeterminate target when no name matches', () => {
+  it('suggests nothing when no target status name matches, even with other in-progress targets', () => {
     const transitions = [t('2', 'Discovery', 'new'), t('9', 'Aguardando Dependência', 'indeterminate'), t('8', 'Doing', 'indeterminate')];
-    expect(pickTransition(transitions, 'review')?.id).toBe('9');
+    expect(pickTransition(transitions, 'review')).toBeNull();
   });
 
   it('finds nothing when no target is in progress or matches', () => {

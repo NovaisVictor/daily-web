@@ -7,6 +7,7 @@ import { IconAction } from '@/components/data/IconAction';
 import type {
   PanelResult,
   PullsDigest,
+  PullsTruncation,
   MyPullsDigest,
   ReviewRequestsDigest,
 } from '@/lib/types';
@@ -24,10 +25,27 @@ import { MyPullsPanel } from './pulls/MyPullsPanel';
 import { PullFilters } from './pulls/PullFilters';
 import { DefaultBranchAlert } from './pulls/DefaultBranchAlert';
 import { PullsActionsProvider } from './pulls/context';
-import { matchesPullFilters, parsePullFilters } from '@/lib/pullFilters';
+import { hasPullFilters, matchesPullFilters, parsePullFilters } from '@/lib/pullFilters';
 
-function RepoBlock({ group }: { group: RepoGroup }) {
+const NO_FILTER_MATCH = 'Nenhum resultado para os filtros.';
+
+const TRUNCATION_NOUN: Record<PullsTruncation['kind'], string> = {
+  pulls: 'pull requests',
+  issues: 'issues',
+};
+
+function TruncationNote({ truncation }: { truncation: PullsTruncation | undefined }) {
+  if (!truncation) return null;
+  return (
+    <p className={`type-caption mt-1 text-ink-dim ${tabular}`}>
+      Mostrando {truncation.shown} de {truncation.total} {TRUNCATION_NOUN[truncation.kind]}
+    </p>
+  );
+}
+
+function RepoBlock({ group, truncated }: { group: RepoGroup; truncated: PullsTruncation[] }) {
   const url = repoUrl(group.repo);
+  const cut = (kind: PullsTruncation['kind']) => truncated.find((t) => t.repo === group.repo && t.kind === kind);
   return (
     <div className="mb-6 last:mb-0">
       <h3 className="type-subhead mb-2 border-b border-line pb-2 [&_a:hover]:underline">
@@ -51,6 +69,7 @@ function RepoBlock({ group }: { group: RepoGroup }) {
               <PullRow key={item.number} item={item} />
             ))}
           </ul>
+          <TruncationNote truncation={cut('issues')} />
         </div>
       )}
 
@@ -65,6 +84,7 @@ function RepoBlock({ group }: { group: RepoGroup }) {
               <PullRow key={item.number} item={item} />
             ))}
           </ul>
+          <TruncationNote truncation={cut('pulls')} />
         </div>
       )}
     </div>
@@ -167,6 +187,7 @@ export function PullsPanel({
   };
 
   const filtros = parsePullFilters(new URLSearchParams(searchParams.toString()));
+  const filtrando = hasPullFilters(filtros);
   const allItems = pulls.data?.items ?? [];
   const items = allItems.filter((item) => matchesPullFilters(item, filtros));
   const grupos = groupByRepo(items);
@@ -188,11 +209,13 @@ export function PullsPanel({
       {loading && items.length === 0 && <SkeletonRows count={4} />}
 
       {!loading && items.length === 0 && !pulls.error && (
-        <EmptyState title="Nada aberto nos repositórios acompanhados." />
+        <EmptyState
+          title={filtrando && allItems.length > 0 ? NO_FILTER_MATCH : 'Nada aberto nos repositórios acompanhados.'}
+        />
       )}
 
       {grupos.map((group) => (
-        <RepoBlock key={group.repo} group={group} />
+        <RepoBlock key={group.repo} group={group} truncated={pulls.data?.truncated ?? []} />
       ))}
     </div>
   );
@@ -201,15 +224,19 @@ export function PullsPanel({
   const revisoesPanel = (
     <div id="pulls-panel-revisoes" role="tabpanel" aria-labelledby="pulls-tab-revisoes">
       {reviewRequests.error && <PanelError>{reviewRequests.error}</PanelError>}
+      {(digest?.errors ?? []).length > 0 && <PanelError>{digest?.errors?.join('; ')}</PanelError>}
 
       {loading && revisoes.length === 0 && !reviewRequests.error && <SkeletonRows count={4} />}
 
       {/* Lista vazia e lista que o token não alcança são coisas diferentes, e
           a segunda tem conserto: o aviso diz qual das duas é. */}
-      {!loading && revisoes.length === 0 && !reviewRequests.error && digest?.scopeNote && (
+      {!loading && revisoes.length === 0 && !reviewRequests.error && filtrando && allRevisoes.length > 0 && (
+        <EmptyState title={NO_FILTER_MATCH} />
+      )}
+      {!loading && allRevisoes.length === 0 && !reviewRequests.error && digest?.scopeNote && (
         <EmptyState title="Nenhuma revisão pedida a você." description={digest.scopeNote} />
       )}
-      {!loading && revisoes.length === 0 && !reviewRequests.error && !digest?.scopeNote && (
+      {!loading && allRevisoes.length === 0 && !reviewRequests.error && !digest?.scopeNote && (
         <EmptyState title="Nenhuma revisão pedida a você." />
       )}
 
@@ -278,7 +305,12 @@ export function PullsPanel({
           {aba === 'revisoes' ? (
             revisoesPanel
           ) : aba === 'meus' ? (
-            <MyPullsPanel myPulls={myPulls} items={meus} loading={loading} />
+            <MyPullsPanel
+              myPulls={myPulls}
+              items={meus}
+              loading={loading}
+              filteredOut={filtrando && allMeus.length > 0}
+            />
           ) : (
             acompanhados
           )}

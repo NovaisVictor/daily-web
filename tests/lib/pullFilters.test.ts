@@ -8,6 +8,7 @@ import {
   type PullFilterState,
 } from '@/lib/pullFilters';
 import type { PullRequestItem } from '@/lib/types';
+import { pullAge } from '@/lib/pullAge';
 
 const NOW = new Date('2026-10-21T12:00:00Z');
 
@@ -29,6 +30,8 @@ function pull(over: Partial<PullRequestItem> = {}): PullRequestItem {
     failedChecks: [],
     review: 'pending',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'clean',
     size: { additions: 1, deletions: 1, files: 1 },
     headRef: 'feature/x',
@@ -77,8 +80,8 @@ describe('parsePullFilters', () => {
     expect(parse('pr_state=draft,draft&pr_state=draft').state).toEqual(['draft']);
   });
 
-  it('ignores a search longer than 200 characters', () => {
-    expect(parse(`pr_q=${'a'.repeat(201)}`).query).toBe('');
+  it('cuts a search longer than 200 characters down to 200', () => {
+    expect(parse(`pr_q=${'a'.repeat(201)}`).query).toBe('a'.repeat(200));
   });
 
   it('reads the exclude mode only when it is exactly exclude', () => {
@@ -182,7 +185,7 @@ describe('matchesPullFilters', () => {
     ['conflict', { merge: 'conflict' }],
     ['draft', { draft: true }],
     ['awaiting-you', { awaitingYou: true }],
-    ['stale', { updatedAt: '2026-10-18T12:00:00Z' }],
+    ['stale', { updatedAt: '2026-10-18T11:59:59Z' }],
   ] as const)('matches state %s', (state, over) => {
     expect(matchesPullFilters(pull(over), filters({ state: [state] }), NOW)).toBe(true);
   });
@@ -194,10 +197,18 @@ describe('matchesPullFilters', () => {
     ['conflict', { merge: 'unknown' }],
     ['draft', { draft: false }],
     ['awaiting-you', { awaitingYou: false }],
-    ['stale', { updatedAt: '2026-10-18T12:00:01Z' }],
+    ['stale', { updatedAt: '2026-10-18T12:00:00Z' }],
   ] as const)('does not match state %s', (state, over) => {
     expect(matchesPullFilters(pull(over), filters({ state: [state] }), NOW)).toBe(false);
   });
+
+  it.each(['2026-10-18T12:00:00Z', '2026-10-18T11:59:59Z'])(
+    'agrees with the row badge on whether an update at %s is stale',
+    (updatedAt) => {
+      const item = pull({ updatedAt });
+      expect(matchesPullFilters(item, filters({ state: ['stale'] }), NOW)).toBe(pullAge(item, NOW)?.stalled != null);
+    },
+  );
 
   it('does not treat an unparseable update date as stale', () => {
     const item = pull({ updatedAt: '' });

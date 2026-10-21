@@ -1421,6 +1421,8 @@ describe('PRs sob a issue', () => {
     failedChecks: [],
     review: 'none',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'unknown',
     size: { additions: 1, deletions: 1, files: 1 },
     headRef: 'feature/x',

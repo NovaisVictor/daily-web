@@ -296,24 +296,69 @@ describe('POST .../rerun', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('re-runs the failed runs of the head commit and returns how many', async () => {
+  it('re-reads the pull request, then re-runs the failed runs of the head commit and returns how many', async () => {
     const { total_count, workflow_runs } = runsFixture['acme/repo-4'];
     const fetchMock = stubFetch(
+      reply(200, openPull()),
       reply(200, { total_count, workflow_runs }),
       ...workflow_runs.map(() => reply(201, {})),
     );
     const res = await post(rerun, { headSha: SHA });
-    expect(await res.json()).toEqual({ ok: true, rerun: 5 });
-    expect(call(fetchMock, 0)).toMatchObject({ url: `${API}/actions/runs?head_sha=${SHA}&per_page=20`, method: 'GET' });
-    expect(call(fetchMock, 1)).toMatchObject({
+    expect(await res.json()).toEqual({ ok: true, rerun: 5, failed: [] });
+    expect(call(fetchMock, 0)).toMatchObject({ url: `${API}/pulls/42`, method: 'GET' });
+    expect(call(fetchMock, 1)).toMatchObject({ url: `${API}/actions/runs?head_sha=${SHA}&per_page=20`, method: 'GET' });
+    expect(call(fetchMock, 2)).toMatchObject({
       url: `${API}/actions/runs/${workflow_runs[0].id}/rerun-failed-jobs`,
       method: 'POST',
     });
   });
 
+  it('409 without re-running when the pull request got new commits since the user looked', async () => {
+    const fetchMock = stubFetch(reply(200, openPull({ head: { sha: OTHER_SHA } })));
+    const res = await post(rerun, { headSha: SHA });
+    expect(res.status).toBe(409);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('returns 0 when no Actions run failed on the commit', async () => {
     const { total_count, workflow_runs } = runsFixture['acme/repo-1'];
-    stubFetch(reply(200, { total_count, workflow_runs }));
-    expect(await (await post(rerun, { headSha: SHA })).json()).toEqual({ ok: true, rerun: 0 });
+    stubFetch(reply(200, openPull()), reply(200, { total_count, workflow_runs }));
+    expect(await (await post(rerun, { headSha: SHA })).json()).toEqual({ ok: true, rerun: 0, failed: [] });
+  });
+
+  it.each(['cancelled', 'startup_failure', 'action_required', 'timed_out', 'failure'])(
+    're-runs a run that ended %s',
+    async (conclusion) => {
+      const run = { ...runsFixture['acme/repo-4'].workflow_runs[0], conclusion };
+      stubFetch(reply(200, openPull()), reply(200, { total_count: 1, workflow_runs: [run] }), reply(201, {}));
+      expect(await (await post(rerun, { headSha: SHA })).json()).toMatchObject({ rerun: 1 });
+    },
+  );
+
+  it('200 with each refused run when at least one re-ran, and invalidates the dashboard', async () => {
+    const [first, second] = runsFixture['acme/repo-4'].workflow_runs;
+    stubFetch(
+      reply(200, openPull()),
+      reply(200, { total_count: 2, workflow_runs: [first, second] }),
+      reply(201, {}),
+      reply(403, { message: 'run is too old' }),
+    );
+    const res = await post(rerun, { headSha: SHA });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      rerun: 1,
+      failed: [{ id: second.id, error: 'o token não tem permissão: run is too old' }],
+    });
+    expect(invalidate).toHaveBeenCalledWith(ME.id);
+  });
+
+  it('502 without invalidating when GitHub refused every run', async () => {
+    const [first] = runsFixture['acme/repo-4'].workflow_runs;
+    stubFetch(reply(200, openPull()), reply(200, { total_count: 1, workflow_runs: [first] }), reply(422, { message: 'nope' }));
+    const res = await post(rerun, { headSha: SHA });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe('GitHub respondeu 422: nope');
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

@@ -31,11 +31,9 @@ const TARGET_NAME: Record<SyncIntent, RegExp> = {
   'in-progress': /andamento|in progress/i,
 };
 
-/** Transition names and status names differ in Jira, so the match is on the target status. */
+/** Transition names and status names differ in Jira, so the match is on the
+ *  target status. No match is no suggestion: guessing another "in progress"
+ *  status would move the card somewhere the user did not ask for. */
 export function pickTransition(transitions: JiraTransition[], intent: SyncIntent): JiraTransition | null {
-  return (
-    transitions.find((t) => TARGET_NAME[intent].test(t.to.name)) ??
-    transitions.find((t) => t.to.category === 'indeterminate') ??
-    null
-  );
+  return transitions.find((t) => TARGET_NAME[intent].test(t.to.name)) ?? null;
 }

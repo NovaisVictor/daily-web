@@ -29,6 +29,8 @@ const PR: PullRequestItem = {
   failedChecks: [],
   review: 'pending',
   pendingReviewers: [],
+  reviewers: [],
+  reviewRequestedAt: null,
   merge: 'clean',
   size: null,
   headRef: 'feature/TT-5019-branch-1',
@@ -114,15 +116,15 @@ describe('PullJiraSync', () => {
     expect(posts(fetchMock)).toHaveLength(0);
   });
 
-  it('posts the chosen transition and refreshes on confirmation', async () => {
+  it('posts the chosen transition to the Jira transitions route and refreshes on confirmation', async () => {
     const fetchMock = stubServer();
     const onChanged = renderSync();
     openMove();
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     const [url, init] = posts(fetchMock)[0];
-    expect(url).toBe('/api/pulls/jira-sync');
-    expect(JSON.parse(String(init?.body))).toEqual({ key: 'TT-5019', transitionId: '7' });
+    expect(url).toBe('/api/jira/issues/TT-5019/transitions');
+    expect(JSON.parse(String(init?.body))).toEqual({ transitionId: '7' });
   });
 
   it('disables the buttons while the move is pending', async () => {

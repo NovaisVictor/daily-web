@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api/context';
 import { isValidRepo } from '@/lib/api/validation';
 import { listConnections, saveConnection } from '@/lib/vault/connections';
-import { parseRepoList, serializeRepoList } from '@/lib/integrations/githubApi';
+import { parseRepoList, serializeRepoList, TRACKED_REPOS_MAX } from '@/lib/integrations/githubApi';
 import { dropCache } from '@/lib/refresher';
 import type { Connection } from '@/lib/vault/connections';
 
@@ -53,7 +53,14 @@ export async function POST(request: NextRequest) {
   if (!conn) return noConnection();
 
   const repos = parseRepoList(conn.values.repos ?? '');
-  if (!repos.includes(body.repo)) repos.push(body.repo);
+  if (repos.includes(body.repo)) return persist(auth.value.id, conn, repos);
+  if (repos.length >= TRACKED_REPOS_MAX) {
+    return NextResponse.json(
+      { error: `limite de ${TRACKED_REPOS_MAX} repositórios acompanhados — remova um antes de adicionar outro` },
+      { status: 400 },
+    );
+  }
+  repos.push(body.repo);
   return persist(auth.value.id, conn, repos);
 }
 

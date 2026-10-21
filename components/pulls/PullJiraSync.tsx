@@ -86,7 +86,11 @@ function MoveCard({ jira, intent }: { jira: PullJiraRef; intent: SyncIntent }) {
     if (view.kind !== 'confirming' || view.sending === 'sending') return;
     const pending = { ...view, sending: 'sending' as const, refusal: null };
     setView(pending);
-    const result = await sendJiraWrite(SYNC_URL, 'POST', { key: jira.key, transitionId: view.transition.id });
+    const result = await sendJiraWrite(
+      `/api/jira/issues/${encodeURIComponent(jira.key)}/transitions`,
+      'POST',
+      { transitionId: view.transition.id },
+    );
     if (!result.ok) {
       setView({ ...pending, sending: 'idle', refusal: result.error });
       return;

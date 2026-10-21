@@ -29,6 +29,16 @@ describe('POST /api/notifications/read', () => {
     expect(isRead('u-1', 'jira_mention', 'joao/repo#7')).toBe(false);
   });
 
+  it('grava a revisão parada na sua própria chave, sem marcar o aviso do PR', async () => {
+    const { POST } = await import('@/app/api/notifications/read/route');
+    const { isRead } = await import('@/lib/notifications');
+
+    const res = await POST(req('pull_request:joao/repo#7:stale-review'));
+    expect(res.status).toBe(200);
+    expect(isRead('u-1', 'pull_request', 'joao/repo#7:stale-review')).toBe(true);
+    expect(isRead('u-1', 'pull_request', 'joao/repo#7')).toBe(false);
+  });
+
   it('grava o aviso de e-mail na fonte email, com o id externo inteiro', async () => {
     const { POST } = await import('@/app/api/notifications/read/route');
     const { isRead } = await import('@/lib/notifications');

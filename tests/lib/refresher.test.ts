@@ -514,6 +514,8 @@ describe('cards do Jira nos PRs', () => {
     failedChecks: [],
     review: 'none' as const,
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'unknown' as const,
     size: { additions: 1, deletions: 1, files: 1 },
     headRef: 'feature/x',

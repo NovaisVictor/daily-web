@@ -36,18 +36,24 @@ export function MyPullsPanel({
   myPulls,
   items,
   loading,
+  filteredOut = false,
 }: {
   myPulls: PanelResult<MyPullsDigest>;
   /** Already filtered by the panel's filters. */
   items: PullRequestItem[];
   loading: boolean;
+  /** The user has PRs, but the panel's filters hide them all. */
+  filteredOut?: boolean;
 }) {
   const digest = myPulls.data;
   return (
     <div id="pulls-panel-meus" role="tabpanel" aria-labelledby="pulls-tab-meus">
       {myPulls.error && <PanelError>{myPulls.error}</PanelError>}
+      {(digest?.errors ?? []).length > 0 && <PanelError>{digest?.errors?.join('; ')}</PanelError>}
       {loading && items.length === 0 && !myPulls.error && <SkeletonRows count={4} />}
-      {!loading && items.length === 0 && !myPulls.error && <EmptyState title="Nenhum PR seu aberto." />}
+      {!loading && items.length === 0 && !myPulls.error && (
+        <EmptyState title={filteredOut ? 'Nenhum resultado para os filtros.' : 'Nenhum PR seu aberto.'} />
+      )}
 
       {groupMyPulls(items).map(({ group, items: groupItems }) => {
         const headingId = `pulls-meus-${group}`;

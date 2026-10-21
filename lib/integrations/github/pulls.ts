@@ -5,6 +5,8 @@ import type {
   PullMerge,
   PullRequestItem,
   PullReview,
+  PullReviewer,
+  PullReviewerState,
   PullsTruncation,
 } from '@/lib/types';
 import { isRecord, unexpected, type GraphqlError } from './client';
@@ -12,11 +14,19 @@ import { isRecord, unexpected, type GraphqlError } from './client';
 export const PER_REPO_LIMIT = 50;
 export const SEARCH_LIMIT = 50;
 export const FAILED_CHECKS_LIMIT = 5;
+/** Repos per GraphQL request: one query for dozens of repos gets slow and
+ *  costly, and a failure there would take every repo down at once. */
+export const REPOS_PER_QUERY = 10;
 
 export const REVIEW_REQUESTS_QUERY = 'is:open is:pr review-requested:@me';
 export const MY_PULLS_QUERY = 'is:open is:pr author:@me';
 
-const PULL_FIELDS = `
+function pullFields(withRequestedAt: boolean): string {
+  const requestedAt = withRequestedAt
+    ? `
+  timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 1) { nodes { ... on ReviewRequestedEvent { createdAt } } }`
+    : '';
+  return `
 fragment PullFields on PullRequest {
   id number title url isDraft createdAt updatedAt
   author { login }
@@ -26,6 +36,7 @@ fragment PullFields on PullRequest {
   reviewRequests(first: 20) {
     nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug } } }
   }
+  latestReviews(first: 20) { nodes { author { __typename login } state } }${requestedAt}
   commits(last: 1) {
     nodes { commit { oid statusCheckRollup { state contexts(first: 50) { nodes {
       __typename
@@ -34,6 +45,7 @@ fragment PullFields on PullRequest {
     } } } } }
   }
 }`;
+}
 
 const REPO_FIELDS = `
 fragment RepoFields on Repository {
@@ -67,17 +79,24 @@ export function reposQuery(repos: string[]): { query: string; variables: Record<
     selections.push(`${repoAlias(index)}: repository(owner: $owner${index}, name: $name${index}) { ...RepoFields }`);
   });
   const args = declarations.length > 0 ? `(${declarations.join(', ')})` : '';
-  const query = `query TrackedRepos${args} {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${REPO_FIELDS}\n${PULL_FIELDS}`;
+  const query = `query TrackedRepos${args} {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${REPO_FIELDS}\n${pullFields(false)}`;
   return { query, variables };
 }
 
-export const SEARCH_PULLS_QUERY = `query SearchPulls($q: String!) {
+function searchPullsQuery(withRequestedAt: boolean): string {
+  return `query SearchPulls($q: String!) {
   search(query: $q, type: ISSUE, first: ${SEARCH_LIMIT}) {
     issueCount
     nodes { ... on PullRequest { ...PullFields repository { nameWithOwner } } }
   }
 }
-${PULL_FIELDS}`;
+${pullFields(withRequestedAt)}`;
+}
+
+/** Only this search asks when the review was requested: the timeline is
+ *  costly, and the stale-review notice is the one place that needs it. */
+export const REVIEW_REQUESTS_SEARCH = searchPullsQuery(true);
+export const MY_PULLS_SEARCH = searchPullsQuery(false);
 
 // --- Enum mappings: an unknown value is `unknown`, never a thrown error -----
 
@@ -122,11 +141,13 @@ export function mergeFromState(mergeable: unknown, mergeStateStatus: unknown): P
   return 'unknown';
 }
 
+const FAILED_CONCLUSIONS = new Set<unknown>(['FAILURE', 'TIMED_OUT', 'CANCELLED', 'STARTUP_FAILURE', 'ACTION_REQUIRED']);
+
 export function failedChecksOf(contexts: unknown[]): PullFailedCheck[] {
   const failed: PullFailedCheck[] = [];
   for (const context of contexts) {
     if (!isRecord(context)) continue;
-    if (context.__typename === 'CheckRun' && (context.conclusion === 'FAILURE' || context.conclusion === 'TIMED_OUT')) {
+    if (context.__typename === 'CheckRun' && FAILED_CONCLUSIONS.has(context.conclusion)) {
       failed.push({ name: textOr(context.name, 'check'), url: textOrNull(context.detailsUrl) });
     } else if (context.__typename === 'StatusContext' && (context.state === 'FAILURE' || context.state === 'ERROR')) {
       failed.push({ name: textOr(context.context, 'status'), url: textOrNull(context.targetUrl) });
@@ -144,6 +165,42 @@ export function pendingReviewersOf(requests: unknown[]): string[] {
     else if (typeof reviewer.login === 'string' && reviewer.login !== '') reviewers.push(reviewer.login);
   }
   return reviewers;
+}
+
+export function reviewerStateOf(state: unknown): PullReviewerState {
+  switch (state) {
+    case 'APPROVED':
+      return 'approved';
+    case 'CHANGES_REQUESTED':
+      return 'changes-requested';
+    case 'COMMENTED':
+      return 'commented';
+    case 'DISMISSED':
+      return 'dismissed';
+    case 'PENDING':
+      return 'pending';
+    default:
+      return 'unknown';
+  }
+}
+
+/** Who reviewed and how, for asking them again: a deleted author has no login
+ *  and a bot (an app) cannot be requested, so both are skipped. */
+export function reviewersOf(reviews: unknown[]): PullReviewer[] {
+  const reviewers: PullReviewer[] = [];
+  for (const review of reviews) {
+    if (!isRecord(review) || !isRecord(review.author) || review.author.__typename === 'Bot') continue;
+    const login = review.author.login;
+    if (typeof login !== 'string' || login === '') continue;
+    reviewers.push({ login, state: reviewerStateOf(review.state) });
+  }
+  return reviewers;
+}
+
+function requestedAtOf(timeline: unknown): string | null {
+  if (!isRecord(timeline) || !Array.isArray(timeline.nodes)) return null;
+  const last = timeline.nodes.at(-1);
+  return isRecord(last) ? textOrNull(last.createdAt) : null;
 }
 
 // --- Shape readers: a missing structural field fails visibly ---------------
@@ -212,6 +269,7 @@ export function parsePullNode(raw: unknown, repo: string, login: string): PullRe
     .at(-1);
   const rollup = commit && isRecord(commit.statusCheckRollup) ? commit.statusCheckRollup : null;
   const contexts = rollup && isRecord(rollup.contexts) && Array.isArray(rollup.contexts.nodes) ? rollup.contexts.nodes : [];
+  const reviews = isRecord(node.latestReviews) && Array.isArray(node.latestReviews.nodes) ? node.latestReviews.nodes : [];
 
   return {
     ...fields,
@@ -231,6 +289,8 @@ export function parsePullNode(raw: unknown, repo: string, login: string): PullRe
     failedChecks: failedChecksOf(contexts),
     review: reviewFromDecision(node.reviewDecision),
     pendingReviewers: pendingReviewersOf(requests),
+    reviewers: reviewersOf(reviews),
+    reviewRequestedAt: requestedAtOf(node.timelineItems),
     merge: mergeFromState(node.mergeable, node.mergeStateStatus),
     size: {
       additions: count(node, 'additions', where),
@@ -255,6 +315,8 @@ export function parseIssueNode(raw: unknown, repo: string, login: string): PullR
     failedChecks: [],
     review: 'none',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'none',
     size: null,
     headRef: null,
@@ -282,6 +344,7 @@ function parseRepo(raw: unknown, repo: string, login: string): Omit<ParsedRepos,
   const issues = record(node.issues, where, 'issues');
   const pullNodes = nodesOf(pulls, where, 'pullRequests');
   const issueNodes = nodesOf(issues, where, 'issues');
+  const answered = (node: unknown) => node !== null;
 
   const truncated: PullsTruncation[] = [];
   const pullTotal = count(pulls, 'totalCount', where);
@@ -302,16 +365,25 @@ function parseRepo(raw: unknown, repo: string, login: string): Omit<ParsedRepos,
 
   return {
     items: [
-      ...pullNodes.map((pull) => parsePullNode(pull, repo, login)),
-      ...issueNodes.map((issue) => parseIssueNode(issue, repo, login)),
+      ...pullNodes.filter(answered).map((pull) => parsePullNode(pull, repo, login)),
+      ...issueNodes.filter(answered).map((issue) => parseIssueNode(issue, repo, login)),
     ],
     defaultBranches,
     truncated,
   };
 }
 
+/** One note per place for errors GitHub raised inside the data (a field it
+ *  refused, a node it nulled): the rest of what it returned still counts. */
+export function partialNote(subject: string, errors: GraphqlError[]): string | null {
+  if (errors.length === 0) return null;
+  const kinds = [...new Set(errors.map((error) => error.type ?? error.message))];
+  return `${subject}: parte dos dados não veio (${kinds.join(', ')})`;
+}
+
 /** `repos[i]` answered under alias `repo{i}`. A repo that failed alone (renamed,
- *  no access, odd shape) lands in `errors` and the others still load. */
+ *  no access, odd shape) lands in `errors` and the others still load. Only an
+ *  error on the alias itself fails the repo; a nested one keeps its data. */
 export function parseReposData(
   data: Record<string, unknown>,
   repos: string[],
@@ -321,7 +393,8 @@ export function parseReposData(
   const result: ParsedRepos = { items: [], errors: [], defaultBranches: [], truncated: [] };
   repos.forEach((repo, index) => {
     const alias = repoAlias(index);
-    const failure = graphqlErrors.find((error) => error.path[0] === alias);
+    const own = graphqlErrors.filter((error) => error.path[0] === alias);
+    const failure = own.find((error) => error.path.length === 1);
     if (failure) {
       result.errors.push(`${repo}: ${failure.message}`);
       return;
@@ -335,6 +408,8 @@ export function parseReposData(
       result.items.push(...parsed.items);
       result.defaultBranches.push(...parsed.defaultBranches);
       result.truncated.push(...parsed.truncated);
+      const note = partialNote(repo, own);
+      if (note) result.errors.push(note);
     } catch (error) {
       result.errors.push(`${repo}: ${error instanceof Error ? error.message : String(error)}`);
     }

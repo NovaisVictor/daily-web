@@ -160,22 +160,50 @@ describe('mergePull', () => {
 });
 
 describe('rerunFailedRuns', () => {
-  it('lists the Actions runs of the head commit', async () => {
-    const fetchMock = stubFetch(reply(200, runsOf('acme/repo-1')));
+  const PULL = () => reply(200, openPull());
+
+  it('re-reads the pull request before anything else', async () => {
+    const fetchMock = stubFetch(PULL(), reply(200, runsOf('acme/repo-1')));
     await rerunFailedRuns('t', REF, SHA);
-    expect(call(fetchMock, 0).url).toBe(
+    expect(call(fetchMock, 0)).toMatchObject({ url: 'https://api.github.com/repos/acme/repo-4/pulls/42', method: 'GET' });
+  });
+
+  it('refuses without listing runs when the head moved since the user looked', async () => {
+    const fetchMock = stubFetch(reply(200, openPull({ head: { sha: OTHER_SHA } })));
+    await expect(rerunFailedRuns('t', REF, SHA)).rejects.toBeInstanceOf(PullStateRefusal);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the Actions runs of the head commit', async () => {
+    const fetchMock = stubFetch(PULL(), reply(200, runsOf('acme/repo-1')));
+    await rerunFailedRuns('t', REF, SHA);
+    expect(call(fetchMock, 1).url).toBe(
       `https://api.github.com/repos/acme/repo-4/actions/runs?head_sha=${SHA}&per_page=20`,
     );
   });
 
   it('re-runs the failed jobs of each failed run', async () => {
     const runs = runsOf('acme/repo-4');
-    const fetchMock = stubFetch(reply(200, runs), ...runs.workflow_runs.map(() => reply(201, {})));
-    expect(await rerunFailedRuns('t', REF, SHA)).toBe(5);
-    expect(call(fetchMock, 1)).toEqual({
+    const fetchMock = stubFetch(PULL(), reply(200, runs), ...runs.workflow_runs.map(() => reply(201, {})));
+    expect(await rerunFailedRuns('t', REF, SHA)).toEqual({ rerun: 5, failed: [] });
+    expect(call(fetchMock, 2)).toEqual({
       url: `https://api.github.com/repos/acme/repo-4/actions/runs/${runs.workflow_runs[0].id}/rerun-failed-jobs`,
       method: 'POST',
       body: undefined,
+    });
+  });
+
+  it('reports each run GitHub refused and keeps the ones it accepted', async () => {
+    const runs = runsOf('acme/repo-4');
+    stubFetch(
+      PULL(),
+      reply(200, { ...runs, workflow_runs: runs.workflow_runs.slice(0, 2) }),
+      reply(422, { message: 'nope' }),
+      reply(201, {}),
+    );
+    expect(await rerunFailedRuns('t', REF, SHA)).toEqual({
+      rerun: 1,
+      failed: [{ id: runs.workflow_runs[0].id, error: 'GitHub respondeu 422: nope' }],
     });
   });
 
@@ -183,28 +211,35 @@ describe('rerunFailedRuns', () => {
     const runs = runsOf('acme/repo-4');
     const extra = { ...runs.workflow_runs[0], id: 1, conclusion: 'timed_out' };
     const fetchMock = stubFetch(
+      PULL(),
       reply(200, { ...runs, workflow_runs: [...runs.workflow_runs, extra] }),
       ...Array.from({ length: 6 }, () => reply(201, {})),
     );
-    expect(await rerunFailedRuns('t', REF, SHA)).toBe(5);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect((await rerunFailedRuns('t', REF, SHA)).rerun).toBe(5);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it('returns 0 when no Actions run failed on the commit', async () => {
-    const fetchMock = stubFetch(reply(200, runsOf('acme/repo-1')));
-    expect(await rerunFailedRuns('t', REF, SHA)).toBe(0);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const fetchMock = stubFetch(PULL(), reply(200, runsOf('acme/repo-1')));
+    expect(await rerunFailedRuns('t', REF, SHA)).toEqual({ rerun: 0, failed: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('skips runs still in progress', async () => {
     const runs = runsOf('acme/repo-4');
-    stubFetch(reply(200, { ...runs, workflow_runs: [{ ...runs.workflow_runs[0], conclusion: null }] }));
-    expect(await rerunFailedRuns('t', REF, SHA)).toBe(0);
+    stubFetch(PULL(), reply(200, { ...runs, workflow_runs: [{ ...runs.workflow_runs[0], conclusion: null }] }));
+    expect((await rerunFailedRuns('t', REF, SHA)).rerun).toBe(0);
+  });
+
+  it.each(['cancelled', 'startup_failure', 'action_required'])('re-runs a run that ended %s', async (conclusion) => {
+    const runs = runsOf('acme/repo-4');
+    stubFetch(PULL(), reply(200, { ...runs, workflow_runs: [{ ...runs.workflow_runs[0], conclusion }] }), reply(201, {}));
+    expect((await rerunFailedRuns('t', REF, SHA)).rerun).toBe(1);
   });
 
   it('fails visibly on a run conclusion it does not know', async () => {
     const runs = runsOf('acme/repo-4');
-    stubFetch(reply(200, { ...runs, workflow_runs: [{ ...runs.workflow_runs[0], conclusion: 'exploded' }] }));
+    stubFetch(PULL(), reply(200, { ...runs, workflow_runs: [{ ...runs.workflow_runs[0], conclusion: 'exploded' }] }));
     await expect(rerunFailedRuns('t', REF, SHA)).rejects.toThrow(/conclusão desconhecida "exploded"/);
   });
 });

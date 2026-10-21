@@ -26,6 +26,8 @@ function pull(over: Partial<PullRequestItem> = {}): PullRequestItem {
     failedChecks: [],
     review: 'pending',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'unknown',
     size: { additions: 1, deletions: 1, files: 1 },
     headRef: 'feature/TT-1-branch-1',
@@ -230,6 +232,27 @@ describe('re-request review dialog', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('"user_3!" não é um login do GitHub');
   });
 
+  it('offers everyone who already reviewed, besides the pending ones, without the author or repeats', async () => {
+    const reviewed = pull({
+      mine: true,
+      author: 'user-1',
+      review: 'changes-requested',
+      pendingReviewers: ['user-2'],
+      reviewers: [
+        { login: 'User-2', state: 'commented' },
+        { login: 'user-4', state: 'changes-requested' },
+        { login: 'user-1', state: 'commented' },
+        { login: 'dependabot[bot]', state: 'commented' },
+      ],
+    });
+    await openDialog(reviewed, 'Pedir revisão de novo', 'Pedir revisão de novo em acme/repo-4#42');
+    const group = screen.getByRole('group', { name: 'revisores' });
+    expect(within(group).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
+      'user-2',
+      'user-4',
+    ]);
+  });
+
   it('keeps the confirm disabled with nobody chosen', async () => {
     await openDialog(mine, 'Pedir revisão de novo', 'Pedir revisão de novo em acme/repo-4#42');
     expect(screen.getByRole('button', { name: 'Pedir revisão' })).toBeDisabled();
@@ -292,19 +315,59 @@ describe('re-run CI dialog', () => {
   });
 
   it('sends the head sha and says how many workflows re-ran', async () => {
-    const fetchMock = stubFetch(json(200, { ok: true, rerun: 2 }));
+    const fetchMock = stubFetch(json(200, { ok: true, rerun: 2, failed: [] }));
     await openDialog(failing, 'Rodar CI de novo', 'Rodar CI de novo em acme/repo-4#42');
     fireEvent.click(screen.getByRole('button', { name: 'Rodar de novo' }));
     expect(await screen.findByRole('status')).toHaveTextContent('2 workflow(s) rodando de novo');
     expect(sent(fetchMock)).toEqual({ url: `${BASE_URL}/rerun`, method: 'POST', body: { headSha: SHA } });
   });
 
+  it('says how many workflows re-ran and how many GitHub refused', async () => {
+    stubFetch(json(200, { ok: true, rerun: 1, failed: [{ id: 7, error: 'GitHub respondeu 403: run is too old' }] }));
+    await openDialog(failing, 'Rodar CI de novo', 'Rodar CI de novo em acme/repo-4#42');
+    fireEvent.click(screen.getByRole('button', { name: 'Rodar de novo' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '1 workflow(s) rodando de novo; 1 recusado(s) pelo GitHub: GitHub respondeu 403: run is too old',
+    );
+  });
+
   it('explains when no Actions workflow failed on the commit', async () => {
-    stubFetch(json(200, { ok: true, rerun: 0 }));
+    stubFetch(json(200, { ok: true, rerun: 0, failed: [] }));
     await openDialog(failing, 'Rodar CI de novo', 'Rodar CI de novo em acme/repo-4#42');
     fireEvent.click(screen.getByRole('button', { name: 'Rodar de novo' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
       'nenhum workflow do GitHub Actions falhou neste commit (o check pode ser de outro serviço)',
     );
+  });
+});
+
+describe('an open dialog', () => {
+  it('stays open with its result after the write changes the item so the menu no longer offers it', async () => {
+    stubFetch(json(200, { ok: true, sha: 'x' }));
+    const onChanged = vi.fn();
+    const { rerender } = render(
+      <PullsActionsProvider value={{ onChanged }}>
+        <PullActions item={pull({ merge: 'clean' })} />
+      </PullsActionsProvider>,
+    );
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Fazer merge' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Fazer merge' }));
+    await screen.findByRole('status');
+    rerender(
+      <PullsActionsProvider value={{ onChanged }}>
+        <PullActions item={pull({ merge: 'unknown' })} />
+      </PullsActionsProvider>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Fazer merge de acme/repo-4#42' })).toHaveTextContent('merge feito em main');
+  });
+
+  it('does not close on Escape while the write is pending', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const dialog = await openDialog(pull({ merge: 'clean' }), 'Fazer merge', 'Fazer merge de acme/repo-4#42');
+    fireEvent.click(screen.getByRole('button', { name: 'Fazer merge' }));
+    await screen.findByRole('button', { name: 'Fazendo merge…' });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Fazer merge de acme/repo-4#42' })).toBeInTheDocument();
   });
 });

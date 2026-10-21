@@ -1,4 +1,6 @@
 import { isValidRepo } from '@/lib/api/validation';
+import { isGithubLogin } from '@/lib/githubLogin';
+import { isStaleUpdate } from '@/lib/pullAge';
 import { matchesQuery } from '@/lib/filters';
 import type { FilterMode, JiraFilterGroup } from '@/lib/jiraFilters';
 import type { PullRequestItem } from '@/lib/types';
@@ -32,8 +34,6 @@ export const PULL_STATE_LABEL: Record<PullState, string> = {
   stale: 'Parado há 3+ dias',
 };
 
-export const STALE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-
 export type PullFilterGroup = JiraFilterGroup<string>;
 
 export interface PullFilterState {
@@ -60,7 +60,6 @@ const PARAMS = {
 } as const;
 
 const MAX_TEXT = 200;
-const LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/;
 
 function tokens(params: URLSearchParams, name: string): string[] {
   return params
@@ -106,9 +105,9 @@ function parseState(raw: string): PullState | null {
 export function parsePullFilters(params: URLSearchParams): PullFilterState {
   const query = params.get(PARAMS.query) ?? '';
   return {
-    query: query.length > MAX_TEXT ? '' : query,
+    query: query.slice(0, MAX_TEXT),
     repo: parseGroup(params, PARAMS.repo, PARAMS.repoMode, isValidRepo),
-    author: parseGroup(params, PARAMS.author, PARAMS.authorMode, (raw) => LOGIN_PATTERN.test(raw)),
+    author: parseGroup(params, PARAMS.author, PARAMS.authorMode, isGithubLogin),
     state: distinct(tokens(params, PARAMS.state).map(parseState), (state) => state),
   };
 }
@@ -135,8 +134,7 @@ export function pullFiltersToParams(
 }
 
 export function isStale(item: PullRequestItem, now: Date): boolean {
-  const updated = Date.parse(item.updatedAt);
-  return !Number.isNaN(updated) && now.getTime() - updated >= STALE_AFTER_MS;
+  return isStaleUpdate(item.updatedAt, now);
 }
 
 export function hasPullState(item: PullRequestItem, state: PullState, now: Date): boolean {

@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { badRequest, invalidPull, jsonObject, pullParams, pullsWriteDone, requirePulls } from '@/lib/api/pulls';
 import { githubToken } from '@/lib/integrations/githubApi';
-import { isLogin, requestReviewers, REVIEWERS_MAX, teamSlug } from '@/lib/integrations/github/actions';
+import { requestReviewers, REVIEWERS_MAX, teamSlug } from '@/lib/integrations/github/actions';
+import { isRequestableLogin } from '@/lib/githubLogin';
 
 type Params = { params: Promise<{ owner: string; repo: string; number: string }> };
 
@@ -18,7 +19,7 @@ function splitReviewers(value: unknown): Split | null {
   for (const entry of value) {
     const slug = teamSlug(entry);
     if (slug !== null) split.teams.push(slug);
-    else if (isLogin(entry)) split.users.push(entry);
+    else if (isRequestableLogin(entry)) split.users.push(entry);
     else return null;
   }
   return { users: [...new Set(split.users)], teams: [...new Set(split.teams)] };

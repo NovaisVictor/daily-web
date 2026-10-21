@@ -19,7 +19,6 @@ import { sendJiraWrite } from '@/components/jira/actions/context';
 import { cn } from '@/lib/utils';
 import { focusRing } from '@/lib/theme';
 import {
-  isLogin,
   MERGE_METHODS,
   REVIEWERS_MAX,
   teamSlug,
@@ -27,6 +26,7 @@ import {
   type MergeMethod,
   type ReviewEvent,
 } from '@/lib/integrations/github/actions';
+import { isRequestableLogin } from '@/lib/githubLogin';
 import { usePullsActions } from './context';
 
 /** Which dialog an item of the row menu opened. The dialog lives outside the
@@ -56,7 +56,22 @@ function actionUrl(item: PullRequestItem, action: string): string {
 
 /** Entries the server accepts: a re-request of anything else would be refused. */
 function requestable(reviewer: string): boolean {
-  return isLogin(reviewer) || teamSlug(reviewer) !== null;
+  return isRequestableLogin(reviewer) || teamSlug(reviewer) !== null;
+}
+
+/** Who can be asked again: the pending requests plus everyone who already
+ *  reviewed (GitHub drops a request once its review arrives), minus the author. */
+function rerequestCandidates(item: PullRequestItem): string[] {
+  const author = item.author.toLowerCase();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const reviewer of [...item.pendingReviewers, ...item.reviewers.map((r) => r.login)]) {
+    const key = reviewer.toLowerCase();
+    if (key === author || seen.has(key) || !requestable(reviewer)) continue;
+    seen.add(key);
+    out.push(reviewer);
+  }
+  return out;
 }
 
 function typedLogins(text: string): string[] {
@@ -89,15 +104,18 @@ function useWrite(item: PullRequestItem, action: string) {
 interface ShellProps {
   item: PullRequestItem;
   open: boolean;
+  sending: Sending;
   title: string;
   onClose: () => void;
   outcome: Outcome;
   children: ReactNode;
 }
 
-function DialogShell({ item, open, title, onClose, outcome, children }: ShellProps) {
+function DialogShell({ item, open, sending, title, onClose, outcome, children }: ShellProps) {
+  // Escape or a click outside while the write is in flight would hide the
+  // answer to a request that still lands on GitHub.
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && sending === 'idle' && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -229,6 +247,7 @@ function TextDialog({ item, open, onClose, kind }: DialogProps & { kind: TextAct
   return (
     <DialogShell
       item={item}
+      sending={write.sending}
       open={open === kind}
       title={`${spec.title} ${refOf(item)}`}
       onClose={close}
@@ -269,14 +288,14 @@ function TextDialog({ item, open, onClose, kind }: DialogProps & { kind: TextAct
 
 function RerequestDialog({ item, open, onClose }: DialogProps) {
   const write = useWrite(item, 'reviewers');
-  const listed = item.pendingReviewers.filter(requestable);
+  const listed = rerequestCandidates(item);
   const [chosen, setChosen] = useState<string[]>([]);
   const [typed, setTyped] = useState('');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'editing' });
   const errorId = useId();
 
   const extra = typedLogins(typed);
-  const badLogin = extra.find((login) => !isLogin(login)) ?? null;
+  const badLogin = extra.find((login) => !isRequestableLogin(login)) ?? null;
   const reviewers = [...new Set([...chosen, ...extra])];
   const tooMany = reviewers.length > REVIEWERS_MAX;
   const ready = reviewers.length > 0 && !badLogin && !tooMany;
@@ -307,6 +326,7 @@ function RerequestDialog({ item, open, onClose }: DialogProps) {
   return (
     <DialogShell
       item={item}
+      sending={write.sending}
       open={open === 'rerequest'}
       title={`Pedir revisão de novo em ${refOf(item)}`}
       onClose={close}
@@ -321,7 +341,7 @@ function RerequestDialog({ item, open, onClose }: DialogProps) {
       >
         {listed.length > 0 && (
           <fieldset className="flex flex-col gap-1" disabled={write.sending === 'sending'}>
-            <legend className="type-caption text-ink-dim">revisores pendentes</legend>
+            <legend className="type-caption text-ink-dim">revisores</legend>
             {listed.map((reviewer) => (
               <label key={reviewer} className="flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={chosen.includes(reviewer)} onChange={() => toggle(reviewer)} />
@@ -376,6 +396,7 @@ function MergeDialog({ item, open, onClose }: DialogProps) {
   return (
     <DialogShell
       item={item}
+      sending={write.sending}
       open={open === 'merge'}
       title={`Fazer merge de ${refOf(item)}`}
       onClose={close}
@@ -423,6 +444,22 @@ function MergeDialog({ item, open, onClose }: DialogProps) {
   );
 }
 
+function rerunFailures(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const errors = value.map((entry) =>
+    typeof entry === 'object' && entry !== null && typeof (entry as { error?: unknown }).error === 'string'
+      ? (entry as { error: string }).error
+      : null,
+  );
+  return errors.every((error) => error !== null) ? (errors as string[]) : null;
+}
+
+function rerunMessage(rerun: number, failed: string[]): string {
+  if (rerun === 0 && failed.length === 0) return NO_ACTIONS_RUN;
+  const ran = `${rerun} workflow(s) rodando de novo`;
+  return failed.length === 0 ? ran : `${ran}; ${failed.length} recusado(s) pelo GitHub: ${failed.join('; ')}`;
+}
+
 function RerunDialog({ item, open, onClose }: DialogProps) {
   const write = useWrite(item, 'rerun');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'editing' });
@@ -438,19 +475,18 @@ function RerunDialog({ item, open, onClose }: DialogProps) {
     if (write.sending === 'sending') return;
     const data = await write.send({ headSha: item.headSha });
     if (!data) return;
-    if (typeof data.rerun !== 'number') {
+    const failed = rerunFailures(data.failed);
+    if (typeof data.rerun !== 'number' || failed === null) {
       write.setRefusal('resposta inesperada do servidor');
       return;
     }
-    setOutcome({
-      kind: 'done',
-      message: data.rerun === 0 ? NO_ACTIONS_RUN : `${data.rerun} workflow(s) rodando de novo`,
-    });
+    setOutcome({ kind: 'done', message: rerunMessage(data.rerun, failed) });
   };
 
   return (
     <DialogShell
       item={item}
+      sending={write.sending}
       open={open === 'rerun'}
       title={`Rodar CI de novo em ${refOf(item)}`}
       onClose={close}
@@ -516,7 +552,10 @@ export function PullActions({ item }: { item: PullRequestItem }) {
   const [open, setOpen] = useState<PullDialog | null>(null);
   const onClose = () => setOpen(null);
   const entries = menuEntries(item);
-  const dialogs = new Set(entries.map((entry) => entry.dialog));
+  const offered = new Set(entries.map((entry) => entry.dialog));
+  // The write changes the item (approved, merged, CI re-running), which can
+  // drop its menu entry; the open dialog stays until the user closes it.
+  const mounted = (dialog: PullDialog) => offered.has(dialog) || open === dialog;
 
   return (
     <>
@@ -542,14 +581,14 @@ export function PullActions({ item }: { item: PullRequestItem }) {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {dialogs.has('approve') && <TextDialog item={item} open={open} onClose={onClose} kind="approve" />}
-      {dialogs.has('request-changes') && (
+      {mounted('approve') && <TextDialog item={item} open={open} onClose={onClose} kind="approve" />}
+      {mounted('request-changes') && (
         <TextDialog item={item} open={open} onClose={onClose} kind="request-changes" />
       )}
       <TextDialog item={item} open={open} onClose={onClose} kind="comment" />
-      {dialogs.has('rerequest') && <RerequestDialog item={item} open={open} onClose={onClose} />}
-      {dialogs.has('merge') && <MergeDialog item={item} open={open} onClose={onClose} />}
-      {dialogs.has('rerun') && <RerunDialog item={item} open={open} onClose={onClose} />}
+      {mounted('rerequest') && <RerequestDialog item={item} open={open} onClose={onClose} />}
+      {mounted('merge') && <MergeDialog item={item} open={open} onClose={onClose} />}
+      {mounted('rerun') && <RerunDialog item={item} open={open} onClose={onClose} />}
     </>
   );
 }

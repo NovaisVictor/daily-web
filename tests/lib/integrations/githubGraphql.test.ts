@@ -16,8 +16,11 @@ import {
   parseReposData,
   parseSearchData,
   pendingReviewersOf,
+  reviewersOf,
+  reviewerStateOf,
   reviewFromDecision,
 } from '@/lib/integrations/githubApi';
+import { reposQuery } from '@/lib/integrations/github/pulls';
 import type { Connection } from '@/lib/vault/connections';
 import type { PullRequestItem } from '@/lib/types';
 
@@ -144,7 +147,7 @@ describe('failedChecksOf', () => {
     detailsUrl: `https://ci/${name}`,
   });
 
-  it('counts failed and timed-out check runs only', () => {
+  it('counts failed, timed-out, cancelled, startup-failed and action-required check runs only', () => {
     const failed = failedChecksOf([
       run('a', 'FAILURE'),
       run('b', 'TIMED_OUT'),
@@ -152,8 +155,11 @@ describe('failedChecksOf', () => {
       run('d', 'SKIPPED'),
       run('e', 'SUCCESS'),
       run('f', null),
+      run('g', 'STARTUP_FAILURE'),
+      run('h', 'ACTION_REQUIRED'),
+      run('i', 'NEUTRAL'),
     ]);
-    expect(failed.map((c) => c.name)).toEqual(['a', 'b']);
+    expect(failed.map((c) => c.name)).toEqual(['a', 'b', 'c', 'g', 'h']);
   });
 
   it('counts failed and errored status contexts, keeping a null url', () => {
@@ -183,6 +189,33 @@ describe('pendingReviewersOf', () => {
         { requestedReviewer: null },
       ]),
     ).toEqual(['user-1', 'team:team-1']);
+  });
+});
+
+describe('reviewersOf', () => {
+  it('lists each latest review by login with its state', () => {
+    expect(
+      reviewersOf([
+        { author: { login: 'user-2' }, state: 'APPROVED' },
+        { author: { login: 'user-3' }, state: 'CHANGES_REQUESTED' },
+      ]),
+    ).toEqual([
+      { login: 'user-2', state: 'approved' },
+      { login: 'user-3', state: 'changes-requested' },
+    ]);
+  });
+
+  it('skips a deleted author and a bot', () => {
+    expect(
+      reviewersOf([
+        { author: null, state: 'APPROVED' },
+        { author: { __typename: 'Bot', login: 'coderabbitai' }, state: 'COMMENTED' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('maps a review state GitHub adds later to unknown', () => {
+    expect(reviewerStateOf('NEW')).toBe('unknown');
   });
 });
 
@@ -239,6 +272,8 @@ describe('parseReposData against the captured repos query', () => {
       failedChecks: [],
       review: 'none',
       pendingReviewers: [],
+      reviewers: [],
+      reviewRequestedAt: null,
       merge: 'none',
       size: null,
       headRef: null,
@@ -266,6 +301,43 @@ describe('parseReposData against the captured repos query', () => {
     expect(parsed.items.filter((i) => i.isPullRequest)).toHaveLength(16);
   });
 
+  it('reads the latest reviewers of a PR from the capture', () => {
+    const pr = find(parseReposData(reposData(), TRACKED, []).items, 'acme/repo-5', 92);
+    expect(pr.reviewers).toEqual([
+      { login: 'coderabbitai', state: 'commented' },
+      { login: 'user-2', state: 'approved' },
+    ]);
+  });
+
+  it('does not ask when the review was requested on the tracked repos', () => {
+    expect(reposQueryText()).not.toContain('timelineItems');
+  });
+
+  it('keeps a repo whose nested CI field GitHub refused, with ci none and one note', () => {
+    const data = reposData();
+    const repo6 = data.repo5 as { pullRequests: { nodes: { commits: { nodes: { commit: Record<string, unknown> }[] } }[] } };
+    repo6.pullRequests.nodes[0].commits.nodes[0].commit.statusCheckRollup = null;
+    repo6.pullRequests.nodes[1].commits.nodes[0].commit.statusCheckRollup = null;
+    const nested = (node: number) => ({
+      type: 'FORBIDDEN',
+      path: ['repo5', 'pullRequests', 'nodes', String(node), 'commits', 'nodes', '0', 'commit', 'statusCheckRollup'],
+      message: 'Resource not accessible by integration',
+    });
+    const parsed = parseReposData(data, TRACKED, [nested(0), nested(1)]);
+    expect(parsed.errors).toEqual(['acme/repo-6: parte dos dados não veio (FORBIDDEN)']);
+    expect(parsed.items.filter((i) => i.repo === 'acme/repo-6' && i.isPullRequest)).toHaveLength(11);
+    expect(parsed.items.find((i) => i.repo === 'acme/repo-6')?.ci).toBe('none');
+  });
+
+  it('skips a PR node GitHub nulled and keeps the rest of the repo', () => {
+    const data = reposData();
+    (data.repo5 as { pullRequests: { nodes: unknown[] } }).pullRequests.nodes[3] = null;
+    const parsed = parseReposData(data, TRACKED, [
+      { type: 'FORBIDDEN', path: ['repo5', 'pullRequests', 'nodes', '3'], message: 'no' },
+    ]);
+    expect(parsed.items.filter((i) => i.repo === 'acme/repo-6')).toHaveLength(10);
+  });
+
   it('fails one repo with an unexpected shape without failing the others', () => {
     const data = reposData();
     delete (data.repo4 as Record<string, unknown>).pullRequests;
@@ -274,6 +346,10 @@ describe('parseReposData against the captured repos query', () => {
     expect(parsed.items.some((i) => i.repo === 'acme/repo-6')).toBe(true);
   });
 });
+
+function reposQueryText(): string {
+  return reposQuery(TRACKED).query;
+}
 
 describe('parsePullNode', () => {
   const node = () => (reposData().repo2 as { pullRequests: { nodes: Record<string, unknown>[] } }).pullRequests.nodes[0];
@@ -319,6 +395,12 @@ describe('parseSearchData against the captured searches', () => {
     expect(find(items, 'acme/repo-13', 1).ci).toBe('none');
   });
 
+  it('skips a search node GitHub nulled and keeps the others', () => {
+    const data = dataOf(reviewCapture);
+    (data.search as { nodes: unknown[] }).nodes[7] = null;
+    expect(parseSearchData(data).items).toHaveLength(20);
+  });
+
   it('only produces known domain values from the capture', () => {
     const all = [
       ...parseReposData(reposData(), TRACKED, []).items,
@@ -339,6 +421,54 @@ describe('fetchPulls', () => {
     expect(url).toBe('https://api.github.com/graphql');
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body)).variables).toMatchObject({ owner0: 'acme', name0: 'repo-1', name7: 'repo-8' });
+    expect(digest.items).toHaveLength(19);
+  });
+
+  it('splits more than ten tracked repos into parallel queries of ten', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => `acme/many-${i + 1}`);
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const { variables } = JSON.parse(String(init.body)) as { variables: Record<string, string> };
+      const data: Record<string, unknown> = { viewer: { login: 'viewer' } };
+      Object.keys(variables)
+        .filter((key) => key.startsWith('owner'))
+        .forEach((key) => {
+          data[`repo${key.slice('owner'.length)}`] = emptyRepo(`${variables[key]}/${variables[`name${key.slice(5)}`]}`);
+        });
+      return reply({ data });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const digest = await fetchPulls(conn(many.join(', ')));
+    const sizes = fetchMock.mock.calls.map(([, init]) =>
+      Object.keys(JSON.parse(String(init.body)).variables).filter((key) => key.startsWith('owner')).length,
+    );
+    expect(sizes).toEqual([10, 10, 5]);
+    expect(digest.defaultBranches.map((b) => b.repo)).toEqual(many);
+  });
+
+  it('puts only the repos of a failed query in errors and loads the other queries', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => `acme/many-${i + 1}`);
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const { variables } = JSON.parse(String(init.body)) as { variables: Record<string, string> };
+      if (variables.name0 === 'many-1') return reply({ message: 'Server Error' }, {}, 502);
+      return reply({ data: { viewer: { login: 'viewer' }, repo0: emptyRepo('acme/many-11'), repo1: emptyRepo('acme/many-12') } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const digest = await fetchPulls(conn(many.join(', ')));
+    expect(digest.errors).toHaveLength(10);
+    expect(digest.errors[0]).toBe('acme/many-1: GitHub respondeu 502: Server Error');
+    expect(digest.defaultBranches.map((b) => b.repo)).toEqual(['acme/many-11', 'acme/many-12']);
+  });
+
+  it('keeps the data of a repo with a nested GraphQL error instead of failing it', async () => {
+    const body = withIds(reposCapture) as { data: Record<string, unknown>; errors?: unknown[] };
+    body.errors = [
+      { type: 'FORBIDDEN', path: ['repo5', 'pullRequests', 'nodes', 3, 'commits', 'nodes', 0, 'commit', 'statusCheckRollup'], message: 'no' },
+    ];
+    stubFetch(reply(body));
+    const digest = await fetchPulls(conn());
+    expect(digest.errors).toEqual(['acme/repo-6: parte dos dados não veio (FORBIDDEN)']);
     expect(digest.items).toHaveLength(19);
   });
 
@@ -388,6 +518,15 @@ describe('fetchPulls', () => {
   });
 });
 
+function emptyRepo(nameWithOwner: string) {
+  return {
+    nameWithOwner,
+    pullRequests: { totalCount: 0, nodes: [] },
+    issues: { totalCount: 0, nodes: [] },
+    defaultBranchRef: { name: 'main', target: { statusCheckRollup: { state: 'SUCCESS' } } },
+  };
+}
+
 describe('fetchReviewRequests', () => {
   it('searches review requests in one GraphQL call', async () => {
     const fetchMock = stubFetch(reply(withIds(reviewCapture)));
@@ -408,6 +547,37 @@ describe('fetchReviewRequests', () => {
     expect(await fetchReviewRequests(conn())).toMatchObject({ truncated: true, total: 250 });
   });
 
+  it('asks when each review was requested and exposes it', async () => {
+    const body = withIds(reviewCapture);
+    (body.data.search.nodes[0] as Record<string, unknown>).timelineItems = { nodes: [{ createdAt: '2026-10-20T09:00:00Z' }] };
+    const fetchMock = stubFetch(reply(body));
+    const digest = await fetchReviewRequests(conn());
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)).query).toContain(
+      'timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 1)',
+    );
+    const first = body.data.search.nodes[0] as { number: number; repository: { nameWithOwner: string } };
+    expect(find(digest.items, first.repository.nameWithOwner, first.number).reviewRequestedAt).toBe('2026-10-20T09:00:00Z');
+  });
+
+  it('keeps the other results when GitHub nulled one search node, with one note', async () => {
+    const body = withIds(reviewCapture) as { data: { search: { nodes: unknown[] } }; errors?: unknown[] };
+    body.data.search.nodes[7] = null;
+    body.data.search.nodes[9] = null;
+    body.errors = [
+      { type: 'FORBIDDEN', path: ['search', 'nodes', 7], message: 'no' },
+      { type: 'FORBIDDEN', path: ['search', 'nodes', 9], message: 'no' },
+    ];
+    stubFetch(reply(body));
+    const digest = await fetchReviewRequests(conn());
+    expect(digest.items).toHaveLength(19);
+    expect(digest.errors).toEqual(['busca do GitHub: parte dos dados não veio (FORBIDDEN)']);
+  });
+
+  it('still fails when the error is on the search itself', async () => {
+    stubFetch(reply({ data: { search: null }, errors: [{ type: 'FORBIDDEN', path: ['search'], message: 'nope' }] }));
+    await expect(fetchReviewRequests(conn())).rejects.toThrow('o GitHub recusou a consulta: nope');
+  });
+
   it('turns an empty list with a token missing `repo` into a scope note', async () => {
     stubFetch(reply({ data: { search: { issueCount: 0, nodes: [] } } }, { 'x-oauth-scopes': 'gist' }));
     expect((await fetchReviewRequests(conn())).scopeNote).toMatch(/escopo `repo`/);
@@ -424,6 +594,13 @@ describe('fetchMyPulls', () => {
     });
     expect(digest).toMatchObject({ truncated: false, total: 4 });
     expect(digest.items.every((i) => i.mine && !i.awaitingYou)).toBe(true);
+  });
+
+  it('does not ask for the review-request timeline', async () => {
+    const fetchMock = stubFetch(reply(withIds(myPrsCapture)));
+    const digest = await fetchMyPulls(conn());
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)).query).not.toContain('timelineItems');
+    expect(digest.items.every((i) => i.reviewRequestedAt === null)).toBe(true);
   });
 });
 

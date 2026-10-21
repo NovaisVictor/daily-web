@@ -13,6 +13,12 @@ export function elapsedMs(iso: string, now: Date): number | null {
   return Math.max(0, now.getTime() - time);
 }
 
+/** One rule for "parado" everywhere: the stale filter and the row badge agree. */
+export function isStaleUpdate(updatedAt: string, now: Date): boolean {
+  const idle = elapsedMs(updatedAt, now);
+  return idle !== null && idle > STALE_UPDATE_MS;
+}
+
 export function formatDays(ms: number): string {
   return count(Math.floor(ms / DAY_MS), 'dia', 'dias');
 }
@@ -31,6 +37,6 @@ export function pullAge(
   const idle = elapsedMs(item.updatedAt, now);
   return {
     opened: open < DAY_MS ? 'aberto hoje' : `aberto há ${formatDays(open)}`,
-    stalled: idle !== null && idle > STALE_UPDATE_MS ? `parado há ${formatDays(idle)}` : null,
+    stalled: idle !== null && isStaleUpdate(item.updatedAt, now) ? `parado há ${formatDays(idle)}` : null,
   };
 }

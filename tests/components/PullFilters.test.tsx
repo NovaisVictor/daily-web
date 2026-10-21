@@ -63,6 +63,8 @@ function pull(over: Partial<PullRequestItem>): PullRequestItem {
     failedChecks: [],
     review: 'pending',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'clean',
     size: null,
     headRef: null,

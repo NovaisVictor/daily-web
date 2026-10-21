@@ -78,6 +78,8 @@ function pull(over: Record<string, unknown> = {}) {
     url: 'https://github.com/joao/daily-web/pull/12', author: 'alguem',
     draft: false, awaitingYou: false, mine: false, isPullRequest: true,
     id: 'PR_test', createdAt: '', ci: 'none' as const, failedChecks: [], review: 'none' as const, pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'unknown' as const, size: { additions: 1, deletions: 1, files: 1 }, headRef: 'feature/x', baseRef: 'main', headSha: 'abc123',
     updatedAt: '2026-08-30T10:00:00Z', ...over,
   };
@@ -311,14 +313,54 @@ describe('staleReviewNotifications', () => {
     expect(staleReviewNotifications('u-1', [pull({ awaitingYou: true, createdAt: '' })], REVIEW_NOW)).toEqual([]);
   });
 
-  it('usa a mesma chave de lida do aviso do PR', async () => {
+  it('tem chave de lida própria, separada do aviso do PR', async () => {
     const { staleReviewNotifications } = await import('@/lib/notifications');
     const [aviso] = staleReviewNotifications(
       'u-1',
       [pull({ awaitingYou: true, createdAt: '2026-10-01T12:00:00Z' })],
       REVIEW_NOW,
     );
-    expect(aviso.id).toBe('pull_request:joao/daily-web#12');
+    expect(aviso.id).toBe('pull_request:joao/daily-web#12:stale-review');
+  });
+
+  it('o id do aviso parado volta inteiro pelo parse', async () => {
+    const { parseNotificationId } = await import('@/lib/notifications');
+    expect(parseNotificationId('pull_request:joao/daily-web#12:stale-review')).toEqual({
+      source: 'pull_request',
+      externalId: 'joao/daily-web#12:stale-review',
+    });
+  });
+
+  it('dispensar o aviso do PR aberto não marca a revisão parada como lida', async () => {
+    const { markRead, staleReviewNotifications } = await import('@/lib/notifications');
+    markRead('u-1', 'pull_request', 'joao/daily-web#12');
+    const [aviso] = staleReviewNotifications(
+      'u-1',
+      [pull({ awaitingYou: true, createdAt: '2026-10-01T12:00:00Z' })],
+      REVIEW_NOW,
+    );
+    expect(aviso.read).toBe(false);
+  });
+
+  it('conta desde o último pedido de revisão quando o GitHub diz quando foi', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    expect(
+      staleReviewNotifications(
+        'u-1',
+        [pull({ awaitingYou: true, createdAt: '2026-10-01T12:00:00Z', reviewRequestedAt: '2026-10-21T08:00:00Z' })],
+        REVIEW_NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it('usa a data do pedido no texto do aviso', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    const [aviso] = staleReviewNotifications(
+      'u-1',
+      [pull({ awaitingYou: true, createdAt: '2026-10-01T12:00:00Z', reviewRequestedAt: '2026-10-19T11:00:00Z' })],
+      REVIEW_NOW,
+    );
+    expect(aviso.title).toMatch(/^revisão parada há 2 dias —/);
   });
 });
 
@@ -335,7 +377,7 @@ describe('combineNotifications com pedidos de revisão', () => {
       OFF,
       { data: { items: [parado], truncated: false, total: 1, scopeNote: null }, error: null },
     );
-    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:joao/daily-web#12']);
+    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:joao/daily-web#12:stale-review']);
   });
 
   it('o aviso que fica é o da revisão parada', async () => {
@@ -357,6 +399,21 @@ describe('combineNotifications com pedidos de revisão', () => {
       data: { items: [pull({ ...parado, repo: 'acme/repo-9' })], truncated: false, total: 1, scopeNote: null },
       error: null,
     });
-    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:acme/repo-9#12']);
+    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:acme/repo-9#12:stale-review']);
+  });
+
+  it('aplica o teto de 20 avisos de PR à soma das duas listas', async () => {
+    const { combineNotifications } = await import('@/lib/notifications');
+    const acompanhados = Array.from({ length: 15 }, (_, i) => pull({ number: 100 + i }));
+    const pedidos = Array.from({ length: 15 }, (_, i) => pull({ ...parado, number: 200 + i }));
+    const result = combineNotifications(
+      'u-1',
+      OFF,
+      { data: { items: acompanhados, errors: [], defaultBranches: [], truncated: [] }, error: null },
+      OFF,
+      OFF,
+      { data: { items: pedidos, truncated: false, total: 15, scopeNote: null }, error: null },
+    );
+    expect(result.data?.filter((n) => n.source === 'pull_request')).toHaveLength(20);
   });
 });

@@ -88,6 +88,14 @@ export type PullReview = 'approved' | 'changes-requested' | 'pending' | 'none' |
  *  lazily), never a conflict. `none` is only used for issues. */
 export type PullMerge = 'clean' | 'conflict' | 'blocked' | 'unknown' | 'none';
 
+/** A reviewer's latest review. `unknown`: a state GitHub added later. */
+export type PullReviewerState = 'approved' | 'changes-requested' | 'commented' | 'dismissed' | 'pending' | 'unknown';
+
+export interface PullReviewer {
+  login: string;
+  state: PullReviewerState;
+}
+
 export interface PullFailedCheck {
   name: string;
   url: string | null;
@@ -127,6 +135,11 @@ export interface PullRequestItem {
   review: PullReview;
   /** User logins, and teams as `team:<slug>`. */
   pendingReviewers: string[];
+  /** Latest review of each reviewer who already reviewed, as GitHub lists them. */
+  reviewers: PullReviewer[];
+  /** When the latest review request was made. Only the review-requests search
+   *  asks for it; `null` everywhere else. */
+  reviewRequestedAt: string | null;
   merge: PullMerge;
   size: PullSize | null;
   headRef: string | null;
@@ -154,6 +167,8 @@ export interface ReviewRequestsDigest {
   total: number;
   /** Aviso de alcance do token, só quando a lista veio vazia. */
   scopeNote: string | null;
+  /** Parts of the answer GitHub left out (a field it refused), not a failed search. */
+  errors?: string[];
 }
 
 /** Open PRs authored by the user, in any repository the token sees. */
@@ -161,6 +176,8 @@ export interface MyPullsDigest {
   items: PullRequestItem[];
   truncated: boolean;
   total: number;
+  /** Parts of the answer GitHub left out (a field it refused), not a failed search. */
+  errors?: string[];
 }
 
 export interface DefaultBranchStatus {

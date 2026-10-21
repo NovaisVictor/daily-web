@@ -62,6 +62,8 @@ function pull(over: Partial<PullRequestItem>): PullRequestItem {
     failedChecks: [],
     review: 'none',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'unknown',
     size: { additions: 1, deletions: 1, files: 1 },
     headRef: 'feature/x',
@@ -406,5 +408,102 @@ describe('cards do Jira no PR', () => {
   it('PR sem card não ganha selo', () => {
     render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     expect(screen.queryByTitle(/no Jira$/)).toBeNull();
+  });
+});
+
+describe('filtros sem resultado', () => {
+  const digest = { items: [pull({})], errors: [], defaultBranches: [], truncated: [] };
+  const semNada = { items: [], truncated: false, total: 0, scopeNote: null };
+
+  it('Acompanhados diz que os filtros não acharam nada, não que não há PR aberto', () => {
+    nav.search = 'pr_q=inexistente';
+    render(<PullsPanel pulls={{ data: digest, error: null }} />);
+    expect(screen.getByText('Nenhum resultado para os filtros.')).toBeInTheDocument();
+  });
+
+  it('Revisões diz que os filtros não acharam nada', () => {
+    nav.search = 'pulls=revisoes&pr_q=inexistente';
+    render(
+      <PullsPanel
+        pulls={{ data: digest, error: null }}
+        reviewRequests={{ data: { ...semNada, items: [pull({ awaitingYou: true, mine: false })], total: 1 }, error: null }}
+      />,
+    );
+    expect(screen.getByText('Nenhum resultado para os filtros.')).toBeInTheDocument();
+  });
+
+  it('Meus PRs diz que os filtros não acharam nada', () => {
+    nav.search = 'pulls=meus&pr_q=inexistente';
+    render(
+      <PullsPanel
+        pulls={{ data: digest, error: null }}
+        myPulls={{ data: { items: [pull({})], truncated: false, total: 1 }, error: null }}
+      />,
+    );
+    expect(screen.getByText('Nenhum resultado para os filtros.')).toBeInTheDocument();
+  });
+
+  it('sem filtro, a lista vazia continua dizendo que não há nada aberto', () => {
+    render(<PullsPanel pulls={{ data: { ...digest, items: [] }, error: null }} />);
+    expect(screen.getByText('Nada aberto nos repositórios acompanhados.')).toBeInTheDocument();
+  });
+});
+
+describe('repositório com mais do que cabe numa página', () => {
+  it('diz quantos pull requests vieram de quantos existem', () => {
+    render(
+      <PullsPanel
+        pulls={{
+          data: {
+            items: [pull({})],
+            errors: [],
+            defaultBranches: [],
+            truncated: [{ repo: 'joao/daily-web', kind: 'pulls', shown: 50, total: 80 }],
+          },
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText('Mostrando 50 de 80 pull requests')).toBeInTheDocument();
+  });
+
+  it('diz quantas issues vieram de quantas existem', () => {
+    render(
+      <PullsPanel
+        pulls={{
+          data: {
+            items: [pull({ isPullRequest: false, number: 9 })],
+            errors: [],
+            defaultBranches: [],
+            truncated: [{ repo: 'joao/daily-web', kind: 'issues', shown: 50, total: 61 }],
+          },
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText('Mostrando 50 de 61 issues')).toBeInTheDocument();
+  });
+});
+
+describe('busca com parte dos dados recusada', () => {
+  it('mostra o aviso junto da lista de revisões que veio', () => {
+    nav.search = 'pulls=revisoes';
+    render(
+      <PullsPanel
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
+        reviewRequests={{
+          data: {
+            items: [pull({ awaitingYou: true, mine: false })],
+            truncated: false,
+            total: 1,
+            scopeNote: null,
+            errors: ['busca do GitHub: parte dos dados não veio (FORBIDDEN)'],
+          },
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText('busca do GitHub: parte dos dados não veio (FORBIDDEN)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Arrumar o build' })).toBeInTheDocument();
   });
 });

@@ -26,6 +26,8 @@ function pull(over: Partial<PullRequestItem> = {}): PullRequestItem {
     failedChecks: [],
     review: 'none',
     pendingReviewers: [],
+    reviewers: [],
+    reviewRequestedAt: null,
     merge: 'clean',
     size: null,
     headRef: 'feature/TT-1-branch-1',

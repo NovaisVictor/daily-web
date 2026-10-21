@@ -16,13 +16,8 @@ export const RERUN_LIMIT = 5;
 export const TEXT_MAX = 10_000;
 export const REVIEWERS_MAX = 15;
 
-const LOGIN_PATTERN = /^[A-Za-z0-9-]{1,39}$/;
 const TEAM_PATTERN = /^team:([A-Za-z0-9][A-Za-z0-9_-]{0,99})$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
-
-export function isLogin(value: unknown): value is string {
-  return typeof value === 'string' && LOGIN_PATTERN.test(value);
-}
 
 /** The team slug of a `team:<slug>` entry, or `null`. */
 export function teamSlug(value: unknown): string | null {
@@ -50,7 +45,7 @@ const RUN_CONCLUSIONS = [
   'startup_failure',
 ] as const;
 type RunConclusion = (typeof RUN_CONCLUSIONS)[number];
-const RERUNNABLE: readonly RunConclusion[] = ['failure', 'timed_out'];
+const RERUNNABLE: readonly RunConclusion[] = ['failure', 'timed_out', 'cancelled', 'startup_failure', 'action_required'];
 
 /** GitHub said no for a reason the app checked itself before writing (the PR
  *  changed since the user looked). The route answers 409, not 502. */
@@ -161,9 +156,11 @@ function parsePullSnapshot(data: unknown): PullSnapshot {
   return { state: data.state, mergeable: data.mergeable, headSha: requiredString(data.head.sha, where, 'head.sha') };
 }
 
+const HEAD_MOVED = 'o PR recebeu commits novos desde que você olhou — atualize o painel e confira';
+
 function refusalOf(pull: PullSnapshot, headSha: string): string | null {
   if (pull.state !== 'open') return 'o PR não está mais aberto';
-  if (pull.headSha !== headSha) return 'o PR recebeu commits novos desde que você olhou — atualize o painel e confira';
+  if (pull.headSha !== headSha) return HEAD_MOVED;
   if (pull.mergeable === null) return 'o GitHub ainda está calculando se o PR pode entrar — tente de novo em instantes';
   if (!pull.mergeable) return 'o GitHub diz que o PR não pode entrar (conflito ou regra da branch)';
   return null;
@@ -202,16 +199,36 @@ function failedRunIds(data: unknown): number[] {
   });
 }
 
-/** Re-runs the failed jobs of the GitHub Actions runs on that commit. Returns
- *  how many runs were re-run: 0 means the failing check is not from Actions. */
-export async function rerunFailedRuns(token: string, ref: PullRef, headSha: string): Promise<number> {
+export interface RerunFailure {
+  id: number;
+  error: string;
+}
+
+export interface RerunOutcome {
+  /** Runs GitHub accepted to re-run: 0 with no failures means the failing
+   *  check is not from Actions. */
+  rerun: number;
+  failed: RerunFailure[];
+}
+
+/** Re-reads the PR first so only the commit the user saw is re-run, then asks
+ *  each failed GitHub Actions run of that commit to re-run its failed jobs. */
+export async function rerunFailedRuns(token: string, ref: PullRef, headSha: string): Promise<RerunOutcome> {
+  const pull = parsePullSnapshot(await githubRequest(token, pullPath(ref)));
+  if (pull.headSha !== headSha) throw new PullStateRefusal(HEAD_MOVED);
+
   const runs = await githubRequest(
     token,
     `${repoPath(ref)}/actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=${RUNS_PAGE}`,
   );
   const ids = failedRunIds(runs).slice(0, RERUN_LIMIT);
-  for (const id of ids) {
-    await githubRequest(token, `${repoPath(ref)}/actions/runs/${id}/rerun-failed-jobs`, { method: 'POST' });
-  }
-  return ids.length;
+  const settled = await Promise.allSettled(
+    ids.map((id) => githubRequest(token, `${repoPath(ref)}/actions/runs/${id}/rerun-failed-jobs`, { method: 'POST' })),
+  );
+  const failed = settled.flatMap((outcome, index) =>
+    outcome.status === 'rejected'
+      ? [{ id: ids[index], error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason) }]
+      : [],
+  );
+  return { rerun: ids.length - failed.length, failed };
 }
