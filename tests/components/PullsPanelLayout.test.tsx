@@ -110,4 +110,14 @@ describe('o corpo do painel do GitHub rola por dentro', () => {
 
     expect(container.firstElementChild?.tagName).toBe('SECTION');
   });
+
+  it('keeps the title on its own line and puts the status underneath', () => {
+    montar([{ ...pull(7), ci: 'failing', review: 'changes-requested' }]);
+
+    const titleLine = screen.getByRole('link', { name: 'PR 7' }).parentElement!;
+    const status = screen.getByText('pediram mudanças');
+
+    expect(titleLine).not.toContainElement(status);
+    expect(titleLine.nextElementSibling).toContainElement(status);
+  });
 });
