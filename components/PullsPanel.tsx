@@ -2,120 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { CalendarPlus, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import type {
   PanelResult,
-  PullRequestItem,
   PullsDigest,
   MyPullsDigest,
   ReviewRequestsDigest,
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
-import { JiraStatus } from '@/components/data/JiraStatus';
 import { groupByRepo, repoUrl, type RepoGroup } from '@/lib/integrations/githubApi';
 import { Section } from './ui/Section';
 import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/data/EmptyState';
 import { SkeletonRows } from './ui/legacy-skeleton';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { EM_DASH, formatRelative } from '@/lib/format';
 import { Tabs } from './ui/legacy-tabs';
 import { focusRing, tabular } from '@/lib/theme';
-import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
-import { useFocusBlock } from '@/components/FocusBlockProvider';
-
-// Os PRs vinham como linhas de texto de uma CLI, então a única coisa a fazer
-// era achar a URL no meio da frase. Agora chegam estruturados da API do
-// GitHub, agrupados pelo repositório de onde vêm.
-function ItemRow({ item, withRepo = false }: { item: PullRequestItem; withRepo?: boolean }) {
-  const focus = useFocusBlock();
-  const repo = withRepo ? repoUrl(item.repo) : null;
-  const source: FocusSource = {
-    kind: 'pull',
-    ref: `${item.repo}#${item.number}`,
-    title: item.title,
-    url: item.url,
-  };
-  return (
-    <li
-      className="flex items-baseline gap-3 border-b border-line-soft px-2 py-3 transition-colors duration-100 ease-brand even:bg-muted/25 last:border-b-0 hover:bg-brand-tint motion-reduce:transition-none"
-      draggable={focus.enabled}
-      onDragStart={(event) => {
-        if (!focus.enabled) return;
-        event.dataTransfer.setData(FOCUS_DRAG_TYPE, JSON.stringify(source));
-        event.dataTransfer.effectAllowed = 'copy';
-      }}
-    >
-      {/* Na lista global o repositório é a primeira coisa a saber: sem ele,
-          "Arrumar o build" não diz de onde veio. */}
-      {withRepo &&
-        (repo ? (
-          <a
-            className="max-w-[40%] shrink-0 truncate text-ink-dim hover:underline"
-            href={repo}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {item.repo}
-          </a>
-        ) : (
-          <span className="max-w-[40%] shrink-0 truncate text-ink-dim">{item.repo}</span>
-        ))}
-      <span className={`shrink-0 text-ink-dim ${tabular}`}>#{item.number}</span>
-      <a
-        className="min-w-0 flex-1 truncate text-ink hover:underline"
-        href={item.url}
-        target="_blank"
-        rel="noreferrer"
-      >
-        {item.title || EM_DASH}
-      </a>
-      {item.jira?.map((ref) => (
-        <a
-          key={ref.key}
-          className="inline-flex shrink-0 items-baseline gap-1.5 type-caption hover:underline"
-          href={ref.url}
-          target="_blank"
-          rel="noreferrer"
-          title={`${ref.key} no Jira`}
-        >
-          <span className="font-mono text-brand">{ref.key}</span>
-          <JiraStatus issue={ref} />
-        </a>
-      ))}
-      {/* O autor só importa quando não é você: num repo próprio é o que
-          separa o seu PR do que o dependabot abriu. */}
-      {!item.mine && item.author && <span className="shrink-0 text-ink-dim">{item.author}</span>}
-      {item.draft && (
-        <Badge variant="secondary" className="shrink-0">
-          rascunho
-        </Badge>
-      )}
-      {/* A idade só aparece onde ela é a informação: há quanto tempo este
-          pedido de revisão está parado. */}
-      {withRepo && item.createdAt && (
-        <span className="shrink-0 text-ink-dim">{formatRelative(item.createdAt)}</span>
-      )}
-      {/* Na aba de revisões toda linha espera revisão: a etiqueta em todas
-          elas não separaria nada. */}
-      {item.awaitingYou && !withRepo && (
-        <Badge variant="info" className="shrink-0">
-          revisar
-        </Badge>
-      )}
-      {focus.enabled && (
-        <IconAction
-          label={`agendar foco para ${source.ref}`}
-          onClick={() => focus.schedule(source)}
-          icon={<CalendarPlus className="size-4" />}
-        />
-      )}
-    </li>
-  );
-}
+import { PullRow } from './pulls/PullRow';
+import { MyPullsPanel } from './pulls/MyPullsPanel';
+import { PullFilters } from './pulls/PullFilters';
+import { DefaultBranchAlert } from './pulls/DefaultBranchAlert';
+import { PullsActionsProvider } from './pulls/context';
+import { matchesPullFilters, parsePullFilters } from '@/lib/pullFilters';
 
 function RepoBlock({ group }: { group: RepoGroup }) {
   const url = repoUrl(group.repo);
@@ -139,7 +48,7 @@ function RepoBlock({ group }: { group: RepoGroup }) {
           </h4>
           <ul className="text-sm">
             {group.issues.map((item) => (
-              <ItemRow key={item.number} item={item} />
+              <PullRow key={item.number} item={item} />
             ))}
           </ul>
         </div>
@@ -153,7 +62,7 @@ function RepoBlock({ group }: { group: RepoGroup }) {
           </h4>
           <ul className="text-sm">
             {group.pulls.map((item) => (
-              <ItemRow key={item.number} item={item} />
+              <PullRow key={item.number} item={item} />
             ))}
           </ul>
         </div>
@@ -165,7 +74,7 @@ function RepoBlock({ group }: { group: RepoGroup }) {
 /** As duas listas do painel. "Acompanhados" é o que você escolheu seguir;
  *  "Revisões" é o que pediram a você, em qualquer repositório que o token
  *  enxergue — não são recortes da mesma coleção. */
-const ABAS = ['acompanhados', 'revisoes'] as const;
+const ABAS = ['acompanhados', 'revisoes', 'meus'] as const;
 type Aba = (typeof ABAS)[number];
 
 // A aba vive na URL para sobreviver ao recarregar e ir junto num link. A
@@ -191,6 +100,7 @@ interface Props {
 export function PullsPanel({
   pulls,
   reviewRequests = { data: null, error: null },
+  myPulls = { data: null, error: null },
   className,
   onChanged,
   loading = false,
@@ -256,18 +166,24 @@ export function PullsPanel({
     onChanged?.();
   };
 
-  const items = pulls.data?.items ?? [];
+  const filtros = parsePullFilters(new URLSearchParams(searchParams.toString()));
+  const allItems = pulls.data?.items ?? [];
+  const items = allItems.filter((item) => matchesPullFilters(item, filtros));
   const grupos = groupByRepo(items);
   // Um repositório renomeado falha sozinho; mostrar isso junto dos que deram
   // certo é mais útil do que substituir o painel inteiro por um erro.
   const repoErrors = pulls.data?.errors ?? [];
 
-  const revisoes = reviewRequests.data?.items ?? [];
+  const allRevisoes = reviewRequests.data?.items ?? [];
+  const revisoes = allRevisoes.filter((item) => matchesPullFilters(item, filtros));
+  const allMeus = myPulls.data?.items ?? [];
+  const meus = allMeus.filter((item) => matchesPullFilters(item, filtros));
 
   const acompanhados = (
     <div id="pulls-panel-acompanhados" role="tabpanel" aria-labelledby="pulls-tab-acompanhados">
       {pulls.error && <PanelError>{pulls.error}</PanelError>}
       {repoErrors.length > 0 && <PanelError>{repoErrors.join('; ')}</PanelError>}
+      <DefaultBranchAlert branches={pulls.data?.defaultBranches ?? []} />
 
       {loading && items.length === 0 && <SkeletonRows count={4} />}
 
@@ -300,7 +216,7 @@ export function PullsPanel({
       {revisoes.length > 0 && (
         <ul className="text-sm">
           {revisoes.map((item) => (
-            <ItemRow key={`${item.repo}#${item.number}`} item={item} withRepo />
+            <PullRow key={`${item.repo}#${item.number}`} item={item} withRepo />
           ))}
         </ul>
       )}
@@ -314,6 +230,7 @@ export function PullsPanel({
   );
 
   return (
+    <PullsActionsProvider value={{ onChanged: onChanged ?? (() => {}) }}>
     <Section
       className={cn('min-h-0', className)}
       eyebrow="GitHub"
@@ -322,7 +239,11 @@ export function PullsPanel({
           ? revisoes.length > 0
             ? String(revisoes.length)
             : undefined
-          : items.length > 0
+          : aba === 'meus'
+            ? meus.length > 0
+              ? String(meus.length)
+              : undefined
+            : items.length > 0
             ? String(items.length)
             : undefined
       }
@@ -342,8 +263,10 @@ export function PullsPanel({
             tabs={[
               { id: 'acompanhados', label: 'Acompanhados', count: items.length },
               { id: 'revisoes', label: 'Revisões', count: revisoes.length },
+              { id: 'meus', label: 'Meus PRs', count: meus.length },
             ]}
           />
+          <PullFilters items={[...allItems, ...allRevisoes, ...allMeus]} />
         </div>
 
         {/* A barra de rolagem tem faixa própria: sem ela, ela passa por cima
@@ -352,7 +275,13 @@ export function PullsPanel({
           data-slot="pulls-scroller"
           className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
         >
-          {aba === 'revisoes' ? revisoesPanel : acompanhados}
+          {aba === 'revisoes' ? (
+            revisoesPanel
+          ) : aba === 'meus' ? (
+            <MyPullsPanel myPulls={myPulls} items={meus} loading={loading} />
+          ) : (
+            acompanhados
+          )}
         </div>
 
         {aba === 'acompanhados' && (
@@ -409,6 +338,7 @@ export function PullsPanel({
         )}
       </div>
     </Section>
+    </PullsActionsProvider>
   );
 }
 
