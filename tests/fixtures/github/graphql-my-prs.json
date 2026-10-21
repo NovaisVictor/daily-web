@@ -1,0 +1,260 @@
+{
+  "data": {
+    "search": {
+      "issueCount": 4,
+      "nodes": [
+        {
+          "number": 1372,
+          "title": "feat: TT-4770 Change 41",
+          "url": "https://github.com/acme/repo-7/pull/1372",
+          "isDraft": true,
+          "createdAt": "2026-10-17T06:27:23Z",
+          "updatedAt": "2026-10-20T23:09:18Z",
+          "author": {
+            "login": "viewer"
+          },
+          "additions": 72057,
+          "deletions": 4675,
+          "changedFiles": 1350,
+          "mergeable": "MERGEABLE",
+          "mergeStateStatus": "BLOCKED",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "headRefName": "feature/TT-4770-branch-14",
+          "baseRefName": "develop",
+          "reviewRequests": {
+            "nodes": [
+              {
+                "requestedReviewer": {
+                  "__typename": "User",
+                  "login": "user-3"
+                }
+              }
+            ]
+          },
+          "latestReviews": {
+            "nodes": []
+          },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "oid": "a15c9ee7b52b69ec05c6ce7477f94be4494ea070",
+                  "statusCheckRollup": {
+                    "state": "SUCCESS",
+                    "contexts": {
+                      "nodes": [
+                        {
+                          "__typename": "CheckRun",
+                          "name": "jira",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-7/actions/runs/39513067832/job/118938563915"
+                        },
+                        {
+                          "__typename": "CheckRun",
+                          "name": "jira",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-7/actions/runs/39513104121/job/118938688316"
+                        },
+                        {
+                          "__typename": "StatusContext",
+                          "context": "CodeRabbit",
+                          "state": "SUCCESS",
+                          "targetUrl": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "repository": {
+            "nameWithOwner": "acme/repo-7"
+          }
+        },
+        {
+          "number": 1,
+          "title": "feat: Change 42",
+          "url": "https://github.com/acme/repo-13/pull/1",
+          "isDraft": false,
+          "createdAt": "2026-09-17T16:03:53Z",
+          "updatedAt": "2026-09-17T16:03:53Z",
+          "author": {
+            "login": "viewer"
+          },
+          "additions": 20,
+          "deletions": 9,
+          "changedFiles": 4,
+          "mergeable": "UNKNOWN",
+          "mergeStateStatus": "UNKNOWN",
+          "reviewDecision": null,
+          "headRefName": "feature/branch-31",
+          "baseRefName": "main",
+          "reviewRequests": {
+            "nodes": []
+          },
+          "latestReviews": {
+            "nodes": []
+          },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "oid": "e6ebe98ba234658e78bd82c8540105a0dc4d530d",
+                  "statusCheckRollup": null
+                }
+              }
+            ]
+          },
+          "repository": {
+            "nameWithOwner": "acme/repo-13"
+          }
+        },
+        {
+          "number": 5,
+          "title": "fix: Change 43",
+          "url": "https://github.com/acme/repo-14/pull/5",
+          "isDraft": false,
+          "createdAt": "2026-08-21T17:16:28Z",
+          "updatedAt": "2026-08-21T17:45:43Z",
+          "author": {
+            "login": "viewer"
+          },
+          "additions": 31,
+          "deletions": 3,
+          "changedFiles": 2,
+          "mergeable": "MERGEABLE",
+          "mergeStateStatus": "BLOCKED",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "headRefName": "feature/branch-32",
+          "baseRefName": "main",
+          "reviewRequests": {
+            "nodes": []
+          },
+          "latestReviews": {
+            "nodes": [
+              {
+                "author": {
+                  "login": "coderabbitai"
+                },
+                "state": "COMMENTED",
+                "submittedAt": "2026-08-21T17:45:43Z"
+              }
+            ]
+          },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "oid": "196fec19f6ec8685b41380e5b92295b82456e5ee",
+                  "statusCheckRollup": {
+                    "state": "SUCCESS",
+                    "contexts": {
+                      "nodes": [
+                        {
+                          "__typename": "StatusContext",
+                          "context": "CodeRabbit",
+                          "state": "SUCCESS",
+                          "targetUrl": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "repository": {
+            "nameWithOwner": "acme/repo-14"
+          }
+        },
+        {
+          "number": 2,
+          "title": "build: Change 44",
+          "url": "https://github.com/acme/repo-15/pull/2",
+          "isDraft": false,
+          "createdAt": "2026-08-08T23:02:40Z",
+          "updatedAt": "2026-08-09T01:41:01Z",
+          "author": {
+            "login": "viewer"
+          },
+          "additions": 9207,
+          "deletions": 2196,
+          "changedFiles": 474,
+          "mergeable": "UNKNOWN",
+          "mergeStateStatus": "UNKNOWN",
+          "reviewDecision": null,
+          "headRefName": "feature/branch-33",
+          "baseRefName": "main",
+          "reviewRequests": {
+            "nodes": []
+          },
+          "latestReviews": {
+            "nodes": []
+          },
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "oid": "eafc675f3417066f41aba89634e0e70371b01529",
+                  "statusCheckRollup": {
+                    "state": "FAILURE",
+                    "contexts": {
+                      "nodes": [
+                        {
+                          "__typename": "CheckRun",
+                          "name": "Backend",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-15/actions/runs/31288773130/job/93182271514"
+                        },
+                        {
+                          "__typename": "CheckRun",
+                          "name": "Contract",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-15/actions/runs/31288773130/job/93182271506"
+                        },
+                        {
+                          "__typename": "CheckRun",
+                          "name": "Security",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-15/actions/runs/31288773130/job/93182271496"
+                        },
+                        {
+                          "__typename": "CheckRun",
+                          "name": "Frontend",
+                          "conclusion": "SUCCESS",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-15/actions/runs/31288773130/job/93182271525"
+                        },
+                        {
+                          "__typename": "CheckRun",
+                          "name": "End to end",
+                          "conclusion": "FAILURE",
+                          "status": "COMPLETED",
+                          "detailsUrl": "https://github.com/acme/repo-15/actions/runs/31288773130/job/93183026134"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "repository": {
+            "nameWithOwner": "acme/repo-15"
+          }
+        }
+      ]
+    },
+    "rateLimit": {
+      "cost": 2,
+      "remaining": 4975,
+      "resetAt": "2026-10-21T01:16:44Z"
+    }
+  }
+}

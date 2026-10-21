@@ -1,0 +1,41 @@
+{
+  "total_count": 2,
+  "check_runs": [
+    {
+      "id": 105377952702,
+      "name": "scan",
+      "head_sha": "9fd7b84776d6e7cd1a3d25dd3b933e084d4045b4",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T20:52:14Z",
+      "completed_at": "2026-09-17T20:52:17Z",
+      "html_url": "https://github.com/acme/repo-5/actions/runs/35273383705/job/105377952702",
+      "details_url": "https://github.com/acme/repo-5/actions/runs/35273383705/job/105377952702",
+      "app": {
+        "slug": "github-actions"
+      },
+      "check_suite": {
+        "id": 95534727104
+      },
+      "output_annotations_count": 1
+    },
+    {
+      "id": 105377952651,
+      "name": "check-1",
+      "head_sha": "9fd7b84776d6e7cd1a3d25dd3b933e084d4045b4",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T20:52:14Z",
+      "completed_at": "2026-09-17T20:52:17Z",
+      "html_url": "https://github.com/acme/repo-5/actions/runs/35273383722/job/105377952651",
+      "details_url": "https://github.com/acme/repo-5/actions/runs/35273383722/job/105377952651",
+      "app": {
+        "slug": "github-actions"
+      },
+      "check_suite": {
+        "id": 95534727134
+      },
+      "output_annotations_count": 1
+    }
+  ]
+}

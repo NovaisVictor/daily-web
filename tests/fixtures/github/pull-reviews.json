@@ -1,0 +1,54 @@
+[
+  {
+    "id": 5241024067,
+    "state": "COMMENTED",
+    "submitted_at": "2026-09-17T20:20:40Z",
+    "commit_id": "99fdf712d3aa83b288917a3b34edc5c86cc24b3f",
+    "author_association": "NONE",
+    "html_url": "https://github.com/acme/repo-5/pull/92#pullrequestreview-5241024067",
+    "pull_request_url": "https://api.github.com/repos/acme/repo-5/pulls/92",
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot"
+    }
+  },
+  {
+    "id": 5241169734,
+    "state": "COMMENTED",
+    "submitted_at": "2026-09-17T20:37:07Z",
+    "commit_id": "069a5b195cfbc23a07278c9470de729056ef5759",
+    "author_association": "NONE",
+    "html_url": "https://github.com/acme/repo-5/pull/92#pullrequestreview-5241169734",
+    "pull_request_url": "https://api.github.com/repos/acme/repo-5/pulls/92",
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot"
+    }
+  },
+  {
+    "id": 5241415176,
+    "state": "COMMENTED",
+    "submitted_at": "2026-09-17T21:01:32Z",
+    "commit_id": "9fd7b84776d6e7cd1a3d25dd3b933e084d4045b4",
+    "author_association": "NONE",
+    "html_url": "https://github.com/acme/repo-5/pull/92#pullrequestreview-5241415176",
+    "pull_request_url": "https://api.github.com/repos/acme/repo-5/pulls/92",
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot"
+    }
+  },
+  {
+    "id": 5504653414,
+    "state": "APPROVED",
+    "submitted_at": "2026-10-13T13:56:24Z",
+    "commit_id": "9fd7b84776d6e7cd1a3d25dd3b933e084d4045b4",
+    "author_association": "MEMBER",
+    "html_url": "https://github.com/acme/repo-5/pull/92#pullrequestreview-5504653414",
+    "pull_request_url": "https://api.github.com/repos/acme/repo-5/pulls/92",
+    "user": {
+      "login": "user-2",
+      "type": "User"
+    }
+  }
+]

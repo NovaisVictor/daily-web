@@ -1,0 +1,498 @@
+{
+  "acme/repo-1": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 12,
+    "workflow_runs": [
+      {
+        "id": 32549264850,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-1/actions/runs/32549264850",
+        "created_at": "2026-08-22T03:32:37Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 31216792294,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-1/actions/runs/31216792294",
+        "created_at": "2026-08-07T20:39:19Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 31215845147,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-1/actions/runs/31215845147",
+        "created_at": "2026-08-07T20:26:08Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 31213789845,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-1/actions/runs/31213789845",
+        "created_at": "2026-08-07T19:58:07Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 31207349732,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-1/actions/runs/31207349732",
+        "created_at": "2026-08-07T18:31:34Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-2": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 219,
+    "workflow_runs": [
+      {
+        "id": 39520347865,
+        "name": "Deploy",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-2/actions/runs/39520347865",
+        "created_at": "2026-10-21T00:16:45Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39520347653,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-2/actions/runs/39520347653",
+        "created_at": "2026-10-21T00:16:45Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39509223709,
+        "name": "Deploy",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-2/actions/runs/39509223709",
+        "created_at": "2026-10-20T22:35:26Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39509223737,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-2/actions/runs/39509223737",
+        "created_at": "2026-10-20T22:35:26Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39501728858,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-2/actions/runs/39501728858",
+        "created_at": "2026-10-20T21:36:29Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-3": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 90,
+    "workflow_runs": [
+      {
+        "id": 39354984998,
+        "name": "npm_and_yarn in /. - Update #1638541360",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-3/actions/runs/39354984998",
+        "created_at": "2026-10-20T01:43:09Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38827904453,
+        "name": "npm_and_yarn in /. for music-metadata - Update #1630415310",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-3/actions/runs/38827904453",
+        "created_at": "2026-10-16T00:09:59Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38565496568,
+        "name": "npm_and_yarn in /. - Update #1626743575",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-3/actions/runs/38565496568",
+        "created_at": "2026-10-14T12:39:33Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38557288940,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-3/actions/runs/38557288940",
+        "created_at": "2026-10-14T11:32:29Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 37736318451,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-3/actions/runs/37736318451",
+        "created_at": "2026-10-08T06:12:09Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-4": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 198,
+    "workflow_runs": [
+      {
+        "id": 39509946011,
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-4/actions/runs/39509946011",
+        "created_at": "2026-10-20T22:41:35Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39508603617,
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-4/actions/runs/39508603617",
+        "created_at": "2026-10-20T22:30:24Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39488902849,
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-4/actions/runs/39488902849",
+        "created_at": "2026-10-20T20:04:45Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39473243562,
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-4/actions/runs/39473243562",
+        "created_at": "2026-10-20T18:16:00Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39447775596,
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-4/actions/runs/39447775596",
+        "created_at": "2026-10-20T15:22:21Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-5": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 342,
+    "workflow_runs": [
+      {
+        "id": 38411414588,
+        "name": "Grafana apply",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-5/actions/runs/38411414588",
+        "created_at": "2026-10-13T14:12:48Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38411413755,
+        "name": "gitleaks",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-5/actions/runs/38411413755",
+        "created_at": "2026-10-13T14:12:47Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38411413728,
+        "name": "Validate",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-5/actions/runs/38411413728",
+        "created_at": "2026-10-13T14:12:47Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 37638282557,
+        "name": "Validate",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-5/actions/runs/37638282557",
+        "created_at": "2026-10-07T14:37:38Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 37638282449,
+        "name": "Grafana apply",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-5/actions/runs/37638282449",
+        "created_at": "2026-10-07T14:37:38Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-6": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 108,
+    "workflow_runs": [
+      {
+        "id": 39517458143,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-6/actions/runs/39517458143",
+        "created_at": "2026-10-20T23:49:13Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39508125953,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-6/actions/runs/39508125953",
+        "created_at": "2026-10-20T22:26:31Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39500106372,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-6/actions/runs/39500106372",
+        "created_at": "2026-10-20T21:24:32Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39488056208,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-6/actions/runs/39488056208",
+        "created_at": "2026-10-20T19:58:54Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39487235661,
+        "name": "CI",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-6/actions/runs/39487235661",
+        "created_at": "2026-10-20T19:53:03Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-7": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 498,
+    "workflow_runs": [
+      {
+        "id": 39503083152,
+        "name": "Dependency Submission",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-7/actions/runs/39503083152",
+        "created_at": "2026-10-20T21:46:39Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 39460560241,
+        "name": "Dependency Submission",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-7/actions/runs/39460560241",
+        "created_at": "2026-10-20T16:47:43Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38990151177,
+        "name": "Dependency Submission",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-7/actions/runs/38990151177",
+        "created_at": "2026-10-17T01:16:32Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38980072036,
+        "name": "Dependency Submission",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-7/actions/runs/38980072036",
+        "created_at": "2026-10-16T23:11:28Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38975501099,
+        "name": "Dependency Submission",
+        "status": "completed",
+        "conclusion": "success",
+        "head_branch": "main",
+        "event": "push",
+        "html_url": "https://github.com/acme/repo-7/actions/runs/38975501099",
+        "created_at": "2026-10-16T22:23:54Z",
+        "run_attempt": 1
+      }
+    ]
+  },
+  "acme/repo-8": {
+    "status": 200,
+    "branch": "main",
+    "total_count": 64,
+    "workflow_runs": [
+      {
+        "id": 39460602938,
+        "name": "npm_and_yarn in /. for markdown-it - Update #1640073256",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-8/actions/runs/39460602938",
+        "created_at": "2026-10-20T16:48:01Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38982584251,
+        "name": "npm_and_yarn in /. for js-yaml - Update #1632370642",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-8/actions/runs/38982584251",
+        "created_at": "2026-10-16T23:39:32Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38975501612,
+        "name": "npm_and_yarn in /. for js-yaml - Update #1632286318",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-8/actions/runs/38975501612",
+        "created_at": "2026-10-16T22:23:54Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38975500286,
+        "name": "npm_and_yarn in /. for @humanfs/node - Update #1632286299",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-8/actions/runs/38975500286",
+        "created_at": "2026-10-16T22:23:53Z",
+        "run_attempt": 1
+      },
+      {
+        "id": 38773523536,
+        "name": "npm_and_yarn in /. for @humanfs/node - Update #1629842688",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_branch": "main",
+        "event": "dynamic",
+        "html_url": "https://github.com/acme/repo-8/actions/runs/38773523536",
+        "created_at": "2026-10-15T16:59:08Z",
+        "run_attempt": 1
+      }
+    ]
+  }
+}

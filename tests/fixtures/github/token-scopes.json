@@ -1,0 +1,26 @@
+{
+  "tokenType": "classic (ghp_)",
+  "userStatus": 200,
+  "headers": {
+    "x-oauth-scopes": "admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, audit_log, codespace, copilot, delete:packages, delete_repo, gist, notifications, project, repo, user, workflow, write:discussion, write:network_configurations, write:packages",
+    "x-accepted-oauth-scopes": "",
+    "github-authentication-token-expiration": null,
+    "x-ratelimit-limit": "5000",
+    "x-github-api-version-selected": "2022-11-28"
+  },
+  "repoStatus": 200,
+  "repoPermissions": {
+    "admin": true,
+    "maintain": true,
+    "push": true,
+    "triage": true,
+    "pull": true
+  },
+  "repoHeaders": {
+    "x-oauth-scopes": "admin:enterprise, admin:gpg_key, admin:org, admin:org_hook, admin:public_key, admin:repo_hook, admin:ssh_signing_key, audit_log, codespace, copilot, delete:packages, delete_repo, gist, notifications, project, repo, user, workflow, write:discussion, write:network_configurations, write:packages",
+    "x-accepted-oauth-scopes": "repo",
+    "github-authentication-token-expiration": null,
+    "x-ratelimit-limit": "5000",
+    "x-github-api-version-selected": "2022-11-28"
+  }
+}
