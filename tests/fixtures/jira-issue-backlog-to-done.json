@@ -1,0 +1,13 @@
+{
+  "key": "TT-4898",
+  "fields": {
+    "created": "2026-10-16T19:59:05.106-0300",
+    "status": {
+      "id": "10104",
+      "name": "Concluído",
+      "statusCategory": {
+        "key": "done"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
-import { CalendarPlus, Plus, X, UserPlus } from 'lucide-react';
+import { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
+import { CalendarPlus, Flag, GitPullRequest, Plus, X, UserPlus } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -13,9 +13,10 @@ import type {
   JiraPerson,
   JiraPersonView,
   JiraProblemItem,
-  JiraStatusCategory,
   PanelResult,
+  PullRequestItem,
 } from '@/lib/types';
+import { pullsByJiraKey } from '@/lib/pullJira';
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
 import { JiraMultiFilterDropdown } from './JiraMultiFilterDropdown';
@@ -37,11 +38,20 @@ import {
   groupByStatusCategory,
   isOverdue,
   issueMarker,
-  normalizeStatus,
   stalenessLabel,
 } from '@/lib/parsers/jira';
 import type { JiraNode, JiraNodeOrigin, JiraProjectGroup } from '@/lib/parsers/jira';
 import { PROBLEM_LABEL } from '@/lib/parsers/jiraProblems';
+import {
+  JIRA_ORDER_DEFAULT,
+  JIRA_ORDER_LABEL,
+  JIRA_ORDER_PARAM,
+  parseJiraOrder,
+  sortJira,
+  sortJiraTree,
+  type JiraOrder,
+} from '@/lib/jiraOrder';
+import { JiraProblemFix } from './JiraProblemFix';
 import { Section } from './ui/Section';
 import { Tabs } from './ui/legacy-tabs';
 import { FilterBar } from './ui/FilterBar';
@@ -52,7 +62,7 @@ import { EmptyState } from '@/components/data/EmptyState';
 import { SkeletonRows } from './ui/legacy-skeleton';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { GLYPH } from './data/Status';
+import { JiraStatus } from './data/JiraStatus';
 import { cn } from '@/lib/utils';
 import { focusRing, tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
@@ -83,33 +93,6 @@ const caret =
 
 const roleBadge =
   'inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 type-caption';
-
-/**
- * A situation never borrows the accent: it would change hue whenever the accent
- * changes, with nothing about the issue having changed. The glyph carries the
- * state alongside the tone so the reading survives a grayscale print.
- */
-const STATUS_TONE: Record<JiraStatusCategory, { glyph: string; tone: string }> = {
-  new: { glyph: GLYPH.idle, tone: 'text-ink-dim' },
-  indeterminate: { glyph: GLYPH.moving, tone: 'text-info' },
-  done: { glyph: GLYPH.live, tone: 'text-success' },
-};
-
-/** The legacy `jira-status-<category>` class rides along: it is what the panel's
- *  tests reach for when they check which situation a row is showing. */
-function JiraStatus({ issue }: { issue: JiraItem }) {
-  const { glyph, tone } = STATUS_TONE[issue.statusCategory];
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-      <span aria-hidden className={tone}>
-        {glyph}
-      </span>
-      <span className={cn(tone, `jira-status-${issue.statusCategory}`)}>
-        {normalizeStatus(issue.status)}
-      </span>
-    </span>
-  );
-}
 
 type Filter = 'assignee' | 'both' | 'reporter';
 
@@ -186,6 +169,40 @@ interface Props {
   refreshedAt: string | null;
   onChanged: () => void;
   loading?: boolean;
+  /** Os PRs do painel do GitHub. Os que citam uma issue aparecem sob ela. */
+  pulls?: PullRequestItem[];
+}
+
+const SEM_PRS = new Map<string, PullRequestItem[]>();
+
+// As linhas ficam três componentes abaixo do painel; o contexto evita passar
+// os PRs por cada um deles só para chegar à linha.
+const JiraPullsContext = createContext<Map<string, PullRequestItem[]>>(SEM_PRS);
+
+/** Os PRs que citam a issue, cada um com o link para o GitHub. */
+function JiraPullLinks({ issueKey }: { issueKey: string }) {
+  const pulls = useContext(JiraPullsContext).get(issueKey);
+  if (!pulls?.length) return null;
+  return (
+    <ul className="flex flex-col gap-0.5 pt-0.5" aria-label={`PRs de ${issueKey}`}>
+      {pulls.map((pr) => (
+        <li key={pr.url} className="min-w-0">
+          <a
+            className={cn('flex min-w-0 items-center gap-1.5 type-caption text-ink-dim hover:text-ink hover:underline', focusRing)}
+            href={pr.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GitPullRequest className="size-3.5 shrink-0" aria-hidden />
+            <span className={cn('shrink-0', tabular)}>
+              {pr.repo}#{pr.number}
+            </span>
+            <span className="min-w-0 truncate">{pr.title}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function JiraPanel({
@@ -199,7 +216,9 @@ export function JiraPanel({
   refreshedAt,
   onChanged,
   loading: meLoading = false,
+  pulls,
 }: Props) {
+  const prsPorChave = useMemo(() => (pulls ? pullsByJiraKey(pulls) : SEM_PRS), [pulls]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -413,6 +432,13 @@ export function JiraPanel({
     else params.set(PAPEL_PARAM, next);
     trocarUrl(params);
   };
+  const ordem = parseJiraOrder(searchParams.get(JIRA_ORDER_PARAM));
+  const setOrdem = (next: JiraOrder) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === JIRA_ORDER_DEFAULT) params.delete(JIRA_ORDER_PARAM);
+    else params.set(JIRA_ORDER_PARAM, next);
+    trocarUrl(params);
+  };
   const [grouped, setGrouped] = useState(false);
 
   const all = useMemo(() => jira.data ?? [], [jira.data]);
@@ -461,8 +487,11 @@ export function JiraPanel({
     [all, recortar, filter],
   );
 
-  const projects = useMemo(() => buildJiraTree(visible, caminho), [visible, caminho]);
-  const situations = useMemo(() => groupByStatusCategory(visible), [visible]);
+  const projects = useMemo(
+    () => sortJiraTree(buildJiraTree(visible, caminho), ordem),
+    [visible, caminho, ordem],
+  );
+  const situations = useMemo(() => groupByStatusCategory(sortJira(visible, ordem)), [visible, ordem]);
 
   // Entregues e Aprovados repetem a estrutura de "Em aberto": hierarquia,
   // separada por projeto, para DAD e PDS não se misturarem só porque saíram no
@@ -479,8 +508,8 @@ export function JiraPanel({
   );
   const entregues = useMemo(() => recortar(noPeriodoEntregues), [noPeriodoEntregues, recortar]);
   const entreguesProjects = useMemo(
-    () => buildJiraTree(entregues, caminho),
-    [entregues, caminho],
+    () => sortJiraTree(buildJiraTree(entregues, caminho), ordem),
+    [entregues, caminho, ordem],
   );
 
   const noPeriodoAprovados = useMemo(
@@ -489,11 +518,14 @@ export function JiraPanel({
   );
   const aprovados = useMemo(() => recortar(noPeriodoAprovados), [noPeriodoAprovados, recortar]);
   const aprovadosProjects = useMemo(
-    () => buildJiraTree(aprovados, caminho),
-    [aprovados, caminho],
+    () => sortJiraTree(buildJiraTree(aprovados, caminho), ordem),
+    [aprovados, caminho, ordem],
   );
 
-  const problemas = useMemo(() => recortar(problems.data ?? []), [problems.data, recortar]);
+  const problemas = useMemo(
+    () => sortJira(recortar(problems.data ?? []), ordem),
+    [problems.data, recortar, ordem],
+  );
 
   // As opções falam da aba aberta, antes do recorte: o seletor de status
   // mostra os status desta lista, não os de outra aba.
@@ -622,6 +654,7 @@ export function JiraPanel({
 
   return (
     <JiraActionsProvider value={{ viewer, onChanged }}>
+    <JiraPullsContext.Provider value={prsPorChave}>
     <Section
       eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
       count={
@@ -813,6 +846,18 @@ export function JiraPanel({
           formatLabel={rotuloDe}
           onChange={(story) => setFiltros({ story })}
         />
+        <select
+          aria-label="ordenar issues"
+          className={cn(selectClass, 'border-line-strong')}
+          value={ordem}
+          onChange={(event) => setOrdem(parseJiraOrder(event.target.value))}
+        >
+          {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
+            <option key={o} value={o}>
+              Ordenar: {JIRA_ORDER_LABEL[o]}
+            </option>
+          ))}
+        </select>
       </FilterBar>
 
       <ActiveFilters filters={activeFilters} onRemove={clearFilter} onClearAll={clearAll} />
@@ -903,7 +948,7 @@ export function JiraPanel({
 
           <ul>
             {problemas.map((issue) => (
-              <JiraProblemRow key={issue.key} issue={issue} />
+              <JiraProblemRow key={issue.key} issue={issue} onFixed={onChanged} />
             ))}
           </ul>
         </div>
@@ -1067,14 +1112,41 @@ export function JiraPanel({
         </div>
       )}
     </Section>
+    </JiraPullsContext.Provider>
     </JiraActionsProvider>
   );
 }
 
 
+/** A bandeira vermelha do Jira: a issue está impedida. É a marca que mais pede
+ *  atenção na linha, então fica colada à chave. */
+function JiraFlagMark({ issue }: { issue: JiraItem }) {
+  if (issue.flag !== 'impediment') return null;
+  return (
+    <span className="inline-flex shrink-0 self-center text-danger" title="impedimento">
+      <Flag className="size-3.5 fill-current" aria-hidden />
+      <span className="sr-only">impedimento</span>
+    </span>
+  );
+}
+
+// Só as duas mais altas ganham cor: pintar todas faria a "Média" de quase
+// toda issue competir com a "Crítica" que importa.
+const PRIORITY_TONE = ['text-danger', 'text-warning'];
+
+function JiraPriorityLabel({ issue }: { issue: JiraItem }) {
+  if (!issue.priority) return null;
+  const tone = issue.priority.rank === null ? undefined : PRIORITY_TONE[issue.priority.rank];
+  return (
+    <span className={cn('whitespace-nowrap', tone ?? 'text-ink-dim')} title="prioridade">
+      {issue.priority.name}
+    </span>
+  );
+}
+
 /** Uma issue da aba de problemas: o que ela é e tudo o que está faltando nela,
  *  para corrigir de uma vez ao abrir no Jira. */
-function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
+function JiraProblemRow({ issue, onFixed }: { issue: JiraProblemItem; onFixed: () => void }) {
   return (
     <li className={rowShell}>
       <span className="shrink-0 type-caption leading-6 text-ink-dim">{issueMarker(issue)}</span>
@@ -1088,6 +1160,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
           >
             {issue.key}
           </a>
+          <FlagIndicator issue={issue} />
           <span
             className={cn(
               'min-w-0 flex-1 truncate',
@@ -1101,6 +1174,7 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
           <TransitionAction issue={issue}>
             <JiraStatus issue={issue} />
           </TransitionAction>
+          <JiraPriorityLabel issue={issue} />
           <ul className="contents" aria-label={`problemas de ${issue.key}`}>
             {issue.problems.map((problem) => (
               <li
@@ -1112,6 +1186,8 @@ function JiraProblemRow({ issue }: { issue: JiraProblemItem }) {
             ))}
           </ul>
         </div>
+        <JiraPullLinks issueKey={issue.key} />
+        <JiraProblemFix issue={issue} onFixed={onFixed} />
       </div>
       <IssueActions issue={issue} />
     </li>
@@ -1298,6 +1374,7 @@ function JiraRow({
           >
             {issue.key}
           </a>
+          {origin === 'ancestor' ? <JiraFlagMark issue={issue} /> : <FlagIndicator issue={issue} />}
           <span
             className={cn(
               'min-w-0 flex-1 truncate',
@@ -1313,7 +1390,6 @@ function JiraRow({
           )}
           {/* A pending decision is the only mark that asks something of the reader,
               so it is the one that pulls more attention than the role badge. */}
-          <FlagIndicator issue={issue} />
           {issue.awaitingApproval && (
             <ApprovalBadge
               issue={issue}
@@ -1333,6 +1409,7 @@ function JiraRow({
               <JiraStatus issue={issue} />
             </TransitionAction>
           )}
+          <JiraPriorityLabel issue={issue} />
           {parado && <span className="whitespace-nowrap text-warning">{parado}</span>}
           {prazo && (
             <span
@@ -1345,6 +1422,7 @@ function JiraRow({
             </span>
           )}
         </div>
+        <JiraPullLinks issueKey={issue.key} />
       </div>
       {focus.enabled && (
         <IconAction

@@ -20,7 +20,8 @@ function issue(key: string, summary: string, problems: JiraProblem[]): JiraProbl
     kind: 'História',
     subtask: false,
     hierarchyLevel: 0,
-    impediment: 'none',
+    priority: null,
+    flag: 'none',
     problems,
   };
 }
@@ -33,8 +34,8 @@ const PROBLEMS = [
 
 const SUGGESTIONS = {
   suggestions: [
-    { key: 'TT-1', status: 'suggested', date: '2026-10-09', source: 'changelog' },
-    { key: 'TT-2', status: 'suggested', date: '2026-09-01', source: 'created' },
+    { key: 'TT-1', status: 'suggested', date: '2026-10-09', basis: 'started' },
+    { key: 'TT-2', status: 'suggested', date: '2026-09-01', basis: 'created' },
   ],
 };
 
@@ -103,8 +104,8 @@ describe('BulkStartDate', () => {
     const dialog = await openReview();
     expect((within(dialog).getByLabelText('Data de início de TT-1') as HTMLInputElement).value).toBe('2026-10-09');
     expect((within(dialog).getByLabelText('Data de início de TT-2') as HTMLInputElement).value).toBe('2026-09-01');
-    expect(within(dialog).getByText('primeira vez em andamento')).toBeTruthy();
-    expect(within(dialog).getByText('data de criação')).toBeTruthy();
+    expect(within(dialog).getByText('primeira passagem por andamento')).toBeTruthy();
+    expect(within(dialog).getByText('criada já fora do Backlog: dia da criação')).toBeTruthy();
     expect(within(dialog).getByText('Login novo')).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: 'Gravar 2 datas' })).toBeTruthy();
   });
@@ -199,7 +200,7 @@ describe('BulkStartDate with more stories than one request takes', () => {
       }
       const keys = decodeURIComponent(url.split('keys=')[1]).split(',');
       return json(200, {
-        suggestions: keys.map((key) => ({ key, status: 'suggested', date: '2026-10-01', source: 'created' })),
+        suggestions: keys.map((key) => ({ key, status: 'suggested', date: '2026-10-01', basis: 'created' })),
       });
     });
     vi.stubGlobal('fetch', fetchMock);

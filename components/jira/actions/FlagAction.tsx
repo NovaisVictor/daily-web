@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { Flag } from 'lucide-react';
-import type { JiraImpediment, JiraItem } from '@/lib/types';
+import type { JiraFlag, JiraItem } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -22,32 +22,32 @@ import { sendJiraWrite, useJiraActions } from './context';
 
 type Phase = 'idle' | 'sending';
 
-/** The flag shown on a row that is marked as impeded; clicking it offers to
- *  remove the impediment. */
+/** The panel's impediment mark, made clickable: it offers to remove the
+ *  impediment. */
 export function FlagIndicator({ issue }: { issue: JiraItem }) {
   const [open, setOpen] = useState(false);
   // Kept mounted while open: after a write that left a warning, the refreshed
   // row is no longer flagged, and the warning must stay on screen.
-  if (issue.impediment !== 'flagged' && !open) return null;
+  if (issue.flag !== 'impediment' && !open) return null;
 
   return (
     <>
-      {issue.impediment === 'flagged' && (
+      {issue.flag === 'impediment' && (
         <button
           type="button"
           className={cn(
-            'inline-flex size-5 shrink-0 items-center justify-center rounded text-danger hover:brightness-110',
+            'inline-flex shrink-0 self-center rounded text-danger hover:brightness-110',
             focusRing,
           )}
-          aria-label="impedida"
-          title="impedida — clique para remover o impedimento"
+          aria-label="impedimento"
+          title="impedimento"
           onClick={() => setOpen(true)}
         >
-          <Flag className="size-3.5" aria-hidden="true" />
+          <Flag className="size-3.5 fill-current" aria-hidden="true" />
         </button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        {open && <FlagDialogBody issue={issue} current="flagged" onDone={() => setOpen(false)} />}
+        {open && <FlagDialogBody issue={issue} current="impediment" onDone={() => setOpen(false)} />}
       </Dialog>
     </>
   );
@@ -57,7 +57,7 @@ export function FlagMenuItem({ issue, onOpen }: MenuItemProps) {
   return (
     <DropdownMenuItem onSelect={() => onOpen('flag')}>
       <Flag aria-hidden="true" />
-      {issue.impediment === 'flagged' ? 'Remover impedimento' : 'Marcar impedimento'}
+      {issue.flag === 'impediment' ? 'Remover impedimento' : 'Marcar impedimento'}
     </DropdownMenuItem>
   );
 }
@@ -66,7 +66,7 @@ export function FlagDialog({ issue, open, onClose }: DialogProps) {
   const isOpen = open === 'flag';
   return (
     <Dialog open={isOpen} onOpenChange={(next) => !next && onClose()}>
-      {isOpen && <FlagDialogBody issue={issue} current={issue.impediment} onDone={onClose} />}
+      {isOpen && <FlagDialogBody issue={issue} current={issue.flag} onDone={onClose} />}
     </Dialog>
   );
 }
@@ -77,7 +77,7 @@ function FlagDialogBody({
   onDone,
 }: {
   issue: JiraItem;
-  current: JiraImpediment;
+  current: JiraFlag;
   onDone: () => void;
 }) {
   const { onChanged } = useJiraActions();

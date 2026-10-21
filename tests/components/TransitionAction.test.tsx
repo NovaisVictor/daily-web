@@ -20,7 +20,8 @@ const ISSUE: JiraItem = {
   kind: 'História',
   subtask: false,
   hierarchyLevel: 0,
-  impediment: 'none',
+  priority: null,
+  flag: 'none',
 };
 
 const DONE: JiraTransition = {

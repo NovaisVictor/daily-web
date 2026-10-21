@@ -27,14 +27,14 @@ export const RELEASES: Release[] = [
         detail: 'Com confirmação, sem abrir o Jira.',
       },
       {
-        title: 'Marcar impedimento',
+        title: 'Marcar e desmarcar impedimento',
         detail:
-          'A bandeira marca a issue como impedida com um motivo, que vira comentário. Desmarque quando destravar.',
+          'Pelo menu "⋯", marque a issue como impedida com um motivo, que vira comentário. Para desmarcar, clique na bandeira vermelha da linha.',
       },
       {
         title: 'Corrigir Problemas em lote',
         detail:
-          '"Preencher início em todas" mostra as datas sugeridas para conferir e grava tudo de uma vez.',
+          '"Preencher início em todas" sugere a data de cada história pela mesma regra do "Preencher início" da linha, para conferir e gravar tudo de uma vez.',
       },
       {
         title: 'Comentar e responder menções',

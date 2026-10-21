@@ -20,8 +20,6 @@ host → `example.atlassian.net`. Issue keys, status/transition/field/priority i
 | `priorities-search.json` | `GET /rest/api/3/priority/search` | paginated, has `isDefault` |
 | `createmeta-issuetypes.json` | `GET /rest/api/3/issue/createmeta/TT/issuetypes` | |
 | `createmeta-story.json` | `GET /rest/api/3/issue/createmeta/TT/issuetypes/10005?maxResults=200` | `fields` filtered to required + `summary`/`parent`; `total` (20) is the unfiltered count |
-| `changelog-status.json` | `GET /rest/api/3/issue/TT-5019/changelog?maxResults=100` | História; only histories with `status` items kept; `total` is unfiltered |
-| `changelog-status-no-start-date.json` | `GET /rest/api/3/issue/TT-4404/changelog?maxResults=100` | Bug in progress with no start date (no such História existed) |
 | `issue-flagged.json` | `GET /rest/api/3/issue/TT-5007?fields=customfield_10021,priority,duedate,assignee` | flagged issue |
 | `myself.json` | `GET /rest/api/3/myself` | reduced to `self`, `accountId`, `accountType`, `active` |
 

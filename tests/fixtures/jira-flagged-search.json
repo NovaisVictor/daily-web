@@ -1,0 +1,19 @@
+{
+  "issues": [
+    {
+      "key": "TT-2343",
+      "fields": {
+        "priority": {
+          "id": "5",
+          "name": "Trivial"
+        },
+        "customfield_10021": [
+          {
+            "value": "Impediment",
+            "id": "10019"
+          }
+        ]
+      }
+    }
+  ]
+}

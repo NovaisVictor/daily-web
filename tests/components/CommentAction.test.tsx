@@ -19,7 +19,8 @@ const ISSUE: JiraItem = {
   hierarchyLevel: 0,
   updatedAt: '2026-10-20T10:00:00.000Z',
   dueDate: '',
-  impediment: 'none',
+  priority: null,
+  flag: 'none',
 };
 
 function json(status: number, body: unknown) {

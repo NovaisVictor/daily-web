@@ -1,4 +1,4 @@
-import { findFlaggedField, jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
+import { instanceMeta, jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
 import { postComment } from '@/lib/integrations/jira/comments';
 import { fail as failIn, isRecord, NOT_FOUND } from '@/lib/integrations/jira/parse';
 
@@ -8,13 +8,6 @@ const IMPEDIMENT_VALUE = 'Impediment';
 
 function fail(detail: string): never {
   failIn('no impedimento', detail);
-}
-
-export function parseFlaggedFieldId(data: unknown): string {
-  if (!Array.isArray(data)) fail('lista de campos ausente');
-  const id = findFlaggedField(data.filter(isRecord));
-  if (!id) throw new Error('campo "Flagged" não encontrado no Jira');
-  return id;
 }
 
 /** The option that means "flagged". The id is per instance, so it comes from
@@ -45,11 +38,11 @@ export class FlagCommentFailed extends Error {
 }
 
 async function flaggedFieldId(auth: JiraAuth): Promise<string> {
-  return parseFlaggedFieldId(await jiraRequest(auth, '/rest/api/3/field', { method: 'GET' }));
+  const { flaggedField } = await instanceMeta(auth);
+  if (!flaggedField) throw new Error('campo "Flagged" não encontrado no Jira');
+  return flaggedField;
 }
 
-/** Discovers the field again instead of trusting the read path's cache: a
- *  write against a stale id would edit the wrong field. */
 export async function changeFlag(auth: JiraAuth, key: string, change: FlagChange): Promise<void> {
   const issue = `/rest/api/3/issue/${encodeURIComponent(key)}`;
   const fieldId = await flaggedFieldId(auth);

@@ -42,6 +42,11 @@ export default function DashboardPage() {
   const desktop = useDesktopAlerts(state);
   const [layoutError, setLayoutError] = useState<string | null>(null);
   const booting = loading && !state;
+  // As duas listas de PRs, para o Jira mostrar sob cada issue o PR que a cita.
+  const jiraPulls = useMemo(
+    () => [...(state?.pulls.data?.items ?? []), ...(state?.reviewRequests.data?.items ?? [])],
+    [state?.pulls.data, state?.reviewRequests.data],
+  );
 
   // Cada pessoa liga os módulos que usa. Um painel de módulo desligado não
   // aparece vazio: ele não aparece.
@@ -149,6 +154,7 @@ export default function DashboardPage() {
           refreshedAt={state?.updatedAt ?? null}
           onChanged={reload}
           loading={booting}
+          pulls={jiraPulls}
         />
       ),
     },

@@ -1,0 +1,92 @@
+{
+  "startAt": 0,
+  "maxResults": 100,
+  "total": 5,
+  "isLast": true,
+  "values": [
+    {
+      "id": "313654",
+      "created": "2026-10-20T15:46:22.089-0300",
+      "items": [
+        {
+          "field": "Link",
+          "fieldtype": "jira",
+          "fieldId": null,
+          "from": null,
+          "fromString": null,
+          "to": "TT-5015",
+          "toString": "This work item blocks TT-5015"
+        }
+      ]
+    },
+    {
+      "id": "313657",
+      "created": "2026-10-20T15:46:22.741-0300",
+      "items": [
+        {
+          "field": "Link",
+          "fieldtype": "jira",
+          "fieldId": null,
+          "from": null,
+          "fromString": null,
+          "to": "TT-5019",
+          "toString": "This work item is blocked by TT-5019"
+        }
+      ]
+    },
+    {
+      "id": "313830",
+      "created": "2026-10-20T16:10:03.515-0300",
+      "items": [
+        {
+          "field": "Start date",
+          "fieldtype": "custom",
+          "fieldId": "customfield_10015",
+          "from": null,
+          "fromString": null,
+          "to": "2026-10-20",
+          "toString": "20/out/26"
+        },
+        {
+          "field": "duedate",
+          "fieldtype": "jira",
+          "fieldId": "duedate",
+          "from": null,
+          "fromString": null,
+          "to": "2026-10-21",
+          "toString": "2026-10-21 00:00:00.0"
+        }
+      ]
+    },
+    {
+      "id": "313832",
+      "created": "2026-10-20T16:10:03.789-0300",
+      "items": [
+        {
+          "field": "status",
+          "fieldtype": "jira",
+          "fieldId": "status",
+          "from": "10175",
+          "fromString": "Backlog",
+          "to": "11540",
+          "toString": "Em Andamento"
+        }
+      ]
+    },
+    {
+      "id": "314030",
+      "created": "2026-10-20T17:57:19.474-0300",
+      "items": [
+        {
+          "field": "status",
+          "fieldtype": "jira",
+          "fieldId": "status",
+          "from": "11540",
+          "fromString": "Em Andamento",
+          "to": "11298",
+          "toString": "Code Review PR"
+        }
+      ]
+    }
+  ]
+}

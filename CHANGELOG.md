@@ -13,13 +13,15 @@ Only `main` is maintained; there are no release branches.
   show what will change, write only on confirmation, and show Jira's own
   message when it refuses. The status on a row opens the transitions the
   workflow allows (a transition that needs fields opens Jira instead); the
-  APROV badge approves or declines your own pending approval; a flag marks an
-  issue as impeded with a reason that becomes a comment, and clicking it
-  clears it; "Preencher início em todas" on the Problems tab suggests each
-  story's start date from the first time it went in progress, for review
-  before writing them all; the row's "⋯" menu comments, changes the due date
-  or priority, assigns the issue to you, and creates a story inside an epic;
-  and Jira mentions in the bell can be answered in place.
+  APROV badge approves or declines your own pending approval; the "⋯" menu
+  marks an issue as impeded with a reason that becomes a comment, and clicking
+  the row's red impediment flag clears it; "Preencher início em todas" on the
+  Problems tab suggests every story's start date with the same rule as the
+  per-row "Preencher início", for review before writing them all in batches of
+  up to 50, with each story's outcome shown; the row's "⋯" menu comments,
+  changes the due date or priority, assigns the issue to you, and creates a
+  story inside an epic; and Jira mentions in the bell can be answered in
+  place.
 - A "Novidades" dialog shows the release notes once per browser, remembered in
   `localStorage`, and can be reopened from the account menu.
 - Jira filters shared by every tab: status, type (initiatives, epics or

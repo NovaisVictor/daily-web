@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { JiraImpediment, JiraItem } from '@/lib/types';
+import type { JiraFlag, JiraItem } from '@/lib/types';
 import { FlagDialog, FlagIndicator, FlagMenuItem } from '@/components/jira/actions/FlagAction';
 import { JiraActionsProvider } from '@/components/jira/actions/context';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
-function issue(impediment: JiraImpediment): JiraItem {
+function issue(flag: JiraFlag): JiraItem {
   return {
     key: 'TT-5019',
     summary: 'Uma história',
@@ -21,7 +21,8 @@ function issue(impediment: JiraImpediment): JiraItem {
     kind: 'História',
     subtask: false,
     hierarchyLevel: 0,
-    impediment,
+    priority: null,
+    flag,
   };
 }
 
@@ -45,12 +46,12 @@ function withActions(ui: React.ReactNode, onChanged = vi.fn()) {
   return onChanged;
 }
 
-function renderMenu(impediment: JiraImpediment, onOpen = vi.fn()) {
+function renderMenu(flag: JiraFlag, onOpen = vi.fn()) {
   render(
     <DropdownMenu open>
       <DropdownMenuTrigger>menu</DropdownMenuTrigger>
       <DropdownMenuContent>
-        <FlagMenuItem issue={issue(impediment)} onOpen={onOpen} />
+        <FlagMenuItem issue={issue(flag)} onOpen={onOpen} />
       </DropdownMenuContent>
     </DropdownMenu>,
   );
@@ -65,19 +66,19 @@ afterEach(() => {
 describe('FlagIndicator', () => {
   it('shows nothing when the issue is not impeded', () => {
     withActions(<FlagIndicator issue={issue('none')} />);
-    expect(screen.queryByRole('button', { name: 'impedida' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'impedimento' })).not.toBeInTheDocument();
   });
 
   it('opens the unflag dialog when the flag is clicked', () => {
-    withActions(<FlagIndicator issue={issue('flagged')} />);
-    fireEvent.click(screen.getByRole('button', { name: 'impedida' }));
+    withActions(<FlagIndicator issue={issue('impediment')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'impedimento' }));
     expect(screen.getByRole('dialog', { name: 'Remover o impedimento de TT-5019?' })).toBeInTheDocument();
   });
 
   it('unflags without a note and refreshes the panel', async () => {
     const fetchMock = stubServer();
-    const onChanged = withActions(<FlagIndicator issue={issue('flagged')} />);
-    fireEvent.click(screen.getByRole('button', { name: 'impedida' }));
+    const onChanged = withActions(<FlagIndicator issue={issue('impediment')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'impedimento' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remover impedimento' }));
 
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
@@ -91,8 +92,8 @@ describe('FlagIndicator', () => {
 
   it('sends the trimmed note when unflagging with one', async () => {
     const fetchMock = stubServer();
-    withActions(<FlagIndicator issue={issue('flagged')} />);
-    fireEvent.click(screen.getByRole('button', { name: 'impedida' }));
+    withActions(<FlagIndicator issue={issue('impediment')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'impedimento' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Observação (opcional)' }), {
       target: { value: '  API liberada ' },
     });
@@ -107,13 +108,13 @@ describe('FlagIndicator after a partial write', () => {
   it('keeps the warning on screen when the refreshed row is no longer flagged', async () => {
     const warning = 'o impedimento foi removido, mas o comentário não foi gravado: recusado';
     stubServer(json(200, { ok: true, warning }));
-    const wrap = (impediment: JiraImpediment) => (
+    const wrap = (flag: JiraFlag) => (
       <JiraActionsProvider value={{ viewer: { kind: 'self' }, onChanged: vi.fn() }}>
-        <FlagIndicator issue={issue(impediment)} />
+        <FlagIndicator issue={issue(flag)} />
       </JiraActionsProvider>
     );
-    const { rerender } = render(wrap('flagged'));
-    fireEvent.click(screen.getByRole('button', { name: 'impedida' }));
+    const { rerender } = render(wrap('impediment'));
+    fireEvent.click(screen.getByRole('button', { name: 'impedimento' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Observação (opcional)' }), { target: { value: 'ok' } });
     fireEvent.click(screen.getByRole('button', { name: 'Remover impedimento' }));
     await screen.findByRole('alert');
@@ -132,7 +133,7 @@ describe('FlagMenuItem', () => {
   });
 
   it('offers to remove the impediment of a flagged issue', () => {
-    renderMenu('flagged');
+    renderMenu('impediment');
     expect(screen.getByRole('menuitem', { name: 'Remover impedimento' })).toBeInTheDocument();
   });
 });

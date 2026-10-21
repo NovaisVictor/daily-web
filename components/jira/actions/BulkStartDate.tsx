@@ -15,20 +15,17 @@ import { focusRing } from '@/lib/theme';
 import { START_DATE_BATCH } from '@/lib/jiraLimits';
 import { isCalendarDate } from '@/lib/integrations/jira/parse';
 import type { JiraProblem, JiraProblemItem } from '@/lib/types';
-import type { StartDateResult, StartDateSource, StartDateSuggestion } from '@/lib/integrations/jira/startDates';
+import type { StartDateBasis } from '@/lib/integrations/jiraApi';
+import type { StartDateResult, StartDateSuggestion } from '@/lib/integrations/jira/startDates';
+import { BASIS_NOTE } from '@/components/JiraProblemFix';
 import { sendJiraWrite, useJiraActions } from './context';
 
 const MISSING_START: readonly JiraProblem[] = ['story-in-progress-without-start', 'story-done-without-start'];
 
-const SOURCE_HINT: Record<StartDateSource, string> = {
-  changelog: 'primeira vez em andamento',
-  created: 'data de criação',
-};
-
 type Inclusion = 'included' | 'excluded';
 
 type Row =
-  | { key: string; summary: string; kind: 'editable'; date: string; source: StartDateSource; inclusion: Inclusion }
+  | { key: string; summary: string; kind: 'editable'; date: string; basis: StartDateBasis; inclusion: Inclusion }
   | { key: string; summary: string; kind: 'unavailable'; error: string };
 
 type Phase =
@@ -54,7 +51,7 @@ function isSuggestion(value: unknown): value is StartDateSuggestion {
   const s = value as Record<string, unknown>;
   if (typeof s.key !== 'string') return false;
   if (s.status === 'failed') return typeof s.error === 'string';
-  return s.status === 'suggested' && typeof s.date === 'string' && (s.source === 'changelog' || s.source === 'created');
+  return s.status === 'suggested' && typeof s.date === 'string' && typeof s.basis === 'string' && Object.hasOwn(BASIS_NOTE, s.basis);
 }
 
 function isResult(value: unknown): value is StartDateResult {
@@ -129,7 +126,7 @@ export function BulkStartDate({ problems }: { problems: JiraProblemItem[] }) {
     const rows = loaded.map((s): Row => {
       const summary = summaries.get(s.key) ?? '';
       return s.status === 'suggested'
-        ? { key: s.key, summary, kind: 'editable', date: s.date, source: s.source, inclusion: 'included' }
+        ? { key: s.key, summary, kind: 'editable', date: s.date, basis: s.basis, inclusion: 'included' }
         : { key: s.key, summary, kind: 'unavailable', error: s.error };
     });
     setPhase((current) => (current.kind === 'loading' ? { kind: 'review', rows, error: null } : current));
@@ -227,7 +224,7 @@ export function BulkStartDate({ problems }: { problems: JiraProblemItem[] }) {
                       )}
                     </div>
                     {row.kind === 'editable' ? (
-                      <span className="type-caption text-ink-dim">{SOURCE_HINT[row.source]}</span>
+                      <span className="type-caption text-ink-dim">{BASIS_NOTE[row.basis]}</span>
                     ) : (
                       <span className="type-caption text-danger">Sem sugestão: {row.error}</span>
                     )}

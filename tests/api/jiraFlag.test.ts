@@ -18,6 +18,7 @@ vi.mock('@/lib/api/context', async (importOriginal) => ({
 
 import { POST } from '@/app/api/jira/issues/[key]/flag/route';
 import { saveConnection, setModuleEnabled } from '@/lib/vault/connections';
+import { setInstanceMetaForTests } from '@/lib/integrations/jiraApi';
 
 const BASE = 'https://acme.atlassian.net';
 const ME = { id: 'u-1', username: 'joao' };
@@ -52,6 +53,7 @@ const writes = (fetchMock: ReturnType<typeof stubJira>) =>
 
 const DISCOVERY = {
   'GET /rest/api/3/field': { status: 200, body: fieldsFixture },
+  'GET /rest/api/3/priority': { status: 200, body: [] },
   'GET /rest/api/3/issue/TT-5019/editmeta': { status: 200, body: editmetaFixture },
 };
 
@@ -74,6 +76,7 @@ beforeEach(async () => {
   process.env.DAILY_WEB_DB_PATH = path.join(dir, 'test.db');
   process.env.DAILY_WEB_SECRET_KEY = Buffer.alloc(32, 'a').toString('base64');
   vi.clearAllMocks();
+  setInstanceMetaForTests(BASE, null);
   currentUser.mockResolvedValue(ME);
   const { getDb } = await import('@/lib/db');
   getDb();
@@ -189,6 +192,7 @@ describe('POST /api/jira/issues/[key]/flag', () => {
   it('502 when the instance has no Impediment option', async () => {
     stubJira({
       'GET /rest/api/3/field': { status: 200, body: fieldsFixture },
+      'GET /rest/api/3/priority': { status: 200, body: [] },
       'GET /rest/api/3/issue/TT-5019/editmeta': {
         status: 200,
         body: { fields: { customfield_10021: { allowedValues: [] } } },

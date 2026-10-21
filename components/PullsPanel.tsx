@@ -11,6 +11,7 @@ import type {
   ReviewRequestsDigest,
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
+import { JiraStatus } from '@/components/data/JiraStatus';
 import { groupByRepo, repoUrl, type RepoGroup } from '@/lib/integrations/githubApi';
 import { Section } from './ui/Section';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,19 @@ function ItemRow({ item, withRepo = false }: { item: PullRequestItem; withRepo?:
       >
         {item.title || EM_DASH}
       </a>
+      {item.jira?.map((ref) => (
+        <a
+          key={ref.key}
+          className="inline-flex shrink-0 items-baseline gap-1.5 type-caption hover:underline"
+          href={ref.url}
+          target="_blank"
+          rel="noreferrer"
+          title={`${ref.key} no Jira`}
+        >
+          <span className="font-mono text-brand">{ref.key}</span>
+          <JiraStatus issue={ref} />
+        </a>
+      ))}
       {/* O autor só importa quando não é você: num repo próprio é o que
           separa o seu PR do que o dependabot abriu. */}
       {!item.mine && item.author && <span className="shrink-0 text-ink-dim">{item.author}</span>}

@@ -350,3 +350,36 @@ describe('aba de revisões pedidas', () => {
     expect(screen.queryByText('Repositórios acompanhados')).not.toBeInTheDocument();
   });
 });
+
+describe('cards do Jira no PR', () => {
+  it('mostra a chave com link e o status atual de cada card citado', () => {
+    render(
+      <PullsPanel
+        pulls={{
+          data: {
+            items: [
+              pull({
+                title: 'feat: login (TT-42, TT-43)',
+                jira: [
+                  { key: 'TT-42', url: 'https://acme.atlassian.net/browse/TT-42', status: 'Code Review PR', statusCategory: 'indeterminate' },
+                  { key: 'TT-43', url: 'https://acme.atlassian.net/browse/TT-43', status: 'Resolvido', statusCategory: 'done' },
+                ],
+              }),
+            ],
+            errors: [],
+          },
+          error: null,
+        }}
+      />,
+    );
+    const card = screen.getByTitle('TT-42 no Jira');
+    expect(card).toHaveAttribute('href', 'https://acme.atlassian.net/browse/TT-42');
+    expect(card).toHaveTextContent('Code review pr');
+    expect(screen.getByTitle('TT-43 no Jira').querySelector('.jira-status-done')).not.toBeNull();
+  });
+
+  it('PR sem card não ganha selo', () => {
+    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [] }, error: null }} />);
+    expect(screen.queryByTitle(/no Jira$/)).toBeNull();
+  });
+});

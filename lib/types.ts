@@ -92,9 +92,19 @@ export interface PullRequestItem {
   /** Separa pull request de issue: o GitHub devolve os dois na mesma lista. */
   isPullRequest: boolean;
   updatedAt: string;
+  /** Os cards do Jira citados no título, com o status de agora. Vazio quando
+   *  o título não cita nenhum ou o Jira não está conectado. */
+  jira?: PullJiraRef[];
   /** Quando foi aberto. Só a busca de revisões pedidas traz isto; a idade do
    *  PR é o que diz há quanto tempo ele espera. */
   createdAt?: string;
+}
+
+export interface PullJiraRef {
+  key: string;
+  url: string;
+  status: string;
+  statusCategory: JiraStatusCategory;
 }
 
 /** As revisões pedidas a você, de qualquer repositório que o token enxergue.
@@ -123,6 +133,16 @@ export interface JiraParent {
  *  por projeto e por idioma; a categoria não. */
 export type JiraStatusCategory = 'new' | 'indeterminate' | 'done';
 
+/** A bandeira de impedimento do Jira, o campo "Flagged". */
+export type JiraFlag = 'impediment' | 'none';
+
+export interface JiraPriority {
+  name: string;
+  /** Posição na ordem da instância, 0 é a mais alta. Nula quando o Jira não
+   *  informa a ordem: a prioridade aparece, mas não ordena. */
+  rank: number | null;
+}
+
 export interface JiraItem {
   key: string;
   summary: string;
@@ -146,12 +166,9 @@ export interface JiraItem {
   updatedAt: string;
   /** AAAA-MM-DD, ou vazio quando a issue não tem prazo. */
   dueDate: string;
-  /** O campo "Flagged" do Jira. `none` também quando a instância não tem o
-   *  campo: a falta dele não pode derrubar o painel. */
-  impediment: JiraImpediment;
+  priority: JiraPriority | null;
+  flag: JiraFlag;
 }
-
-export type JiraImpediment = 'flagged' | 'none';
 
 /** Uma issue com a marca do recorte de tempo. As listas de entregues e de
  *  aprovados cobrem sete dias; `today` diz quais delas caem no dia de hoje,
