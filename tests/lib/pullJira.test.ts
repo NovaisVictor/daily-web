@@ -12,6 +12,17 @@ const pull = (title: string, number = 1): PullRequestItem => ({
   awaitingYou: false,
   mine: true,
   isPullRequest: true,
+  id: 'PR_test',
+  createdAt: '',
+  ci: 'none',
+  failedChecks: [],
+  review: 'none',
+  pendingReviewers: [],
+  merge: 'unknown',
+  size: { additions: 1, deletions: 1, files: 1 },
+  headRef: 'feature/x',
+  baseRef: 'main',
+  headSha: 'abc123',
   updatedAt: '2026-10-20T10:00:00Z',
 });
 

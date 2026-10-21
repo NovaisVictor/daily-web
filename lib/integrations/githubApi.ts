@@ -1,9 +1,35 @@
 import type { Connection } from '@/lib/vault/connections';
-import type { PullsDigest, PullRequestItem } from '@/lib/types';
+import type { MyPullsDigest, PullsDigest, PullRequestItem, ReviewRequestsDigest } from '@/lib/types';
 import { isValidRepo } from '@/lib/api/validation';
+import { githubCall, githubGraphql, graphqlErrorMessage, type GraphqlReply } from './github/client';
+import {
+  MY_PULLS_QUERY,
+  parseReposData,
+  parseSearchData,
+  repoAlias,
+  reposQuery,
+  REVIEW_REQUESTS_QUERY,
+  SEARCH_PULLS_QUERY,
+} from './github/pulls';
 
-const TIMEOUT_MS = 20_000;
-const API = 'https://api.github.com';
+export { githubCall, githubErrorDetail, githubGraphql, githubRequest } from './github/client';
+export type { GithubMethod, GithubReply, GithubRequestOptions, GraphqlError, GraphqlReply } from './github/client';
+export {
+  ciFromState,
+  failedChecksOf,
+  mergeFromState,
+  MY_PULLS_QUERY,
+  parseIssueNode,
+  parsePullNode,
+  parseReposData,
+  parseSearchData,
+  pendingReviewersOf,
+  PER_REPO_LIMIT,
+  REVIEW_REQUESTS_QUERY,
+  reviewFromDecision,
+  SEARCH_LIMIT,
+} from './github/pulls';
+export type { ReviewRequestsDigest } from '@/lib/types';
 
 export function parseRepoList(raw: string): string[] {
   return raw
@@ -20,97 +46,6 @@ export function githubToken(conn: Connection): string {
   const token = (conn.values.token ?? '').trim();
   if (!token) throw new Error('personal access token do GitHub não configurado');
   return token;
-}
-
-/** A hora em que a cota do GitHub volta, já em relógio de parede: o cabeçalho
- *  vem em segundos desde a época, que não diz nada a quem lê a mensagem. */
-function resetAt(header: string | null): string {
-  const seconds = Number(header);
-  if (!Number.isFinite(seconds) || seconds <= 0) return '';
-  return new Date(seconds * 1000).toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-interface Reply {
-  data: unknown;
-  headers: Headers;
-}
-
-async function call(token: string, path: string): Promise<Reply> {
-  const response = await fetch(`${API}${path}`, {
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: 'application/vnd.github+json',
-      'x-github-api-version': '2022-11-28',
-    },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-
-  if (response.status === 401) throw new Error('o GitHub recusou o token');
-  if (response.status === 403) {
-    const remaining = response.headers.get('x-ratelimit-remaining');
-    if (remaining === '0') {
-      // Quanto sobrou e quando volta: sem isso a única saída é tentar de novo
-      // até acertar a hora.
-      const volta = resetAt(response.headers.get('x-ratelimit-reset'));
-      throw new Error(
-        `limite de requisições do GitHub atingido — restam 0${volta ? `, volta às ${volta}` : ''}`,
-      );
-    }
-    throw new Error('o token não tem permissão');
-  }
-  if (!response.ok) throw new Error(`GitHub respondeu ${response.status}`);
-  return { data: await response.json(), headers: response.headers };
-}
-
-async function request(token: string, path: string): Promise<unknown> {
-  return (await call(token, path)).data;
-}
-
-interface RawUser {
-  login?: string;
-}
-
-// O endpoint /issues devolve issues e pull requests na mesma lista; o campo
-// `pull_request` é o que separa os dois. Buscar por ali traz as issues, que
-// o endpoint /pulls não devolve, numa chamada só por repositório.
-interface RawItem {
-  number: number;
-  title: string;
-  html_url: string;
-  draft?: boolean;
-  user?: { login?: string } | null;
-  requested_reviewers?: { login?: string }[] | null;
-  updated_at?: string;
-  pull_request?: unknown;
-}
-
-/**
- * Todo PR aberto de um repositório acompanhado entra na lista. Filtrar por
- * "seu ou pediram sua revisão" parecia razoável e escondia justamente o caso
- * mais comum num repo próprio: o PR do dependabot, que ninguém atribui e
- * ninguém pede revisão, e que é exatamente o que está esperando por você.
- * Quem escolheu acompanhar o repositório já disse o que quer ver.
- */
-export function toPullItems(
-  items: RawItem[],
-  repo: string,
-  login: string,
-): PullRequestItem[] {
-  return items.map((item) => ({
-    repo,
-    number: item.number,
-    title: item.title,
-    url: item.html_url,
-    author: item.user?.login ?? '',
-    draft: item.draft ?? false,
-    awaitingYou: (item.requested_reviewers ?? []).some((r) => r.login === login),
-    mine: item.user?.login === login,
-    isPullRequest: item.pull_request !== undefined && item.pull_request !== null,
-    updatedAt: item.updated_at ?? '',
-  }));
 }
 
 /** O endereço do repositório no GitHub, ou `null` quando o nome guardado não
@@ -156,95 +91,45 @@ export function trackedRepos(conn: Connection): string[] {
   return parseRepoList(conn.values.repos ?? '');
 }
 
+/** Every tracked repo in one GraphQL query, not one call per repo. */
 export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
   const token = githubToken(conn);
-  const repos = trackedRepos(conn);
-  if (repos.length === 0) return { items: [], errors: [] };
+  const tracked = trackedRepos(conn);
+  const empty: PullsDigest = { items: [], errors: [], defaultBranches: [], truncated: [] };
+  if (tracked.length === 0) return empty;
 
-  const me = (await request(token, '/user')) as RawUser;
-  const login = me.login ?? '';
+  const repos = tracked.filter(isValidRepo);
+  const invalid = tracked
+    .filter((repo) => !isValidRepo(repo))
+    .map((repo) => `${repo}: nome inválido — use o formato dono/nome`);
+  if (repos.length === 0) return { ...empty, errors: invalid };
 
-  const results = await Promise.allSettled(
-    repos.map(async (repo) => {
-      const items = (await request(
-        token,
-        `/repos/${repo}/issues?state=open&per_page=100&sort=updated`,
-      )) as RawItem[];
-      return toPullItems(items, repo, login);
-    }),
-  );
+  const { query, variables } = reposQuery(repos);
+  const { data, errors } = await githubGraphql(token, query, variables);
+  const aliases = new Set(repos.map((_, index) => repoAlias(index)));
+  const global = errors.find((error) => !aliases.has(error.path[0] ?? ''));
+  if (global) throw new Error(graphqlErrorMessage(global));
 
-  const items: PullRequestItem[] = [];
-  const errors: string[] = [];
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') items.push(...result.value);
-    // Um repositório renomeado ou sem acesso não pode zerar o painel inteiro.
-    else errors.push(`${repos[index]}: ${result.reason instanceof Error ? result.reason.message : result.reason}`);
-  });
-
-  return { items: rankPulls(items), errors };
+  const parsed = parseReposData(data, repos, errors);
+  return { ...parsed, items: rankPulls(parsed.items), errors: [...invalid, ...parsed.errors] };
 }
 
-// --- Revisões pedidas a você ---------------------------------------------------
+// --- Buscas globais ------------------------------------------------------------
 //
-// Esta lista não tem nada a ver com os repositórios acompanhados: ela vem da
-// busca do GitHub, que varre tudo o que o token enxerga. Uma chamada por
-// ciclo, nunca uma por repositório.
+// As duas listas abaixo não têm nada a ver com os repositórios acompanhados:
+// vêm da busca do GitHub, que varre tudo o que o token enxerga. Uma chamada
+// por lista e por ciclo, nunca uma por repositório. `review-requested:@me` é
+// o que ainda espera a sua revisão — o GitHub tira o pedido quando a revisão
+// chega.
 
-/** A consulta. `review-requested:@me` é o que ainda espera a sua revisão —
- *  o que você já revisou sai da lista sozinho, porque o GitHub tira o pedido
- *  de revisão quando a revisão chega. */
-export const REVIEW_REQUESTS_QUERY = 'is:open is:pr review-requested:@me';
-
-/** Teto de uma página. Cem é o máximo que a busca devolve de uma vez, e uma
- *  segunda página seria uma segunda ida ao GitHub a cada ciclo. */
-export const REVIEW_REQUESTS_PER_PAGE = 100;
-
-export function reviewRequestsPath(): string {
-  const params = new URLSearchParams({
-    q: REVIEW_REQUESTS_QUERY,
-    sort: 'updated',
-    order: 'desc',
-    per_page: String(REVIEW_REQUESTS_PER_PAGE),
-  });
-  return `/search/issues?${params}`;
-}
-
-interface RawSearchItem extends RawItem {
-  /** "https://api.github.com/repos/dono/nome" — é daqui que sai o nome do
-   *  repositório, já que o resultado é global e o item não traz o nome. */
-  repository_url?: string;
-  created_at?: string;
-}
-
-interface RawSearch {
-  total_count?: number;
-  incomplete_results?: boolean;
-  items?: RawSearchItem[];
-}
-
-/** `dono/nome` a partir da URL da API. Uma URL que não tenha essa forma vira
- *  string vazia em vez de um nome torto. */
-export function repoFromApiUrl(url: string | undefined): string {
-  const match = /\/repos\/([^/]+\/[^/]+)\/?$/.exec(url ?? '');
-  return match ? match[1] : '';
-}
-
-export function toReviewItems(items: RawSearchItem[]): PullRequestItem[] {
-  return items.map((item) => ({
-    repo: repoFromApiUrl(item.repository_url),
-    number: item.number,
-    title: item.title,
-    url: item.html_url,
-    author: item.user?.login ?? '',
-    draft: item.draft ?? false,
-    // A busca já filtrou por isto: toda linha aqui espera a sua revisão.
-    awaitingYou: true,
-    mine: false,
-    isPullRequest: true,
-    updatedAt: item.updated_at ?? '',
-    createdAt: item.created_at ?? '',
-  }));
+async function searchPulls(
+  conn: Connection,
+  q: string,
+): Promise<{ reply: GraphqlReply; items: PullRequestItem[]; total: number }> {
+  const reply = await githubGraphql(githubToken(conn), SEARCH_PULLS_QUERY, { q });
+  if (reply.errors.length > 0) throw new Error(graphqlErrorMessage(reply.errors[0]));
+  const { items, total } = parseSearchData(reply.data);
+  return { reply, items, total };
 }
 
 /**
@@ -270,31 +155,24 @@ export function scopeNote(scopesHeader: string | null, empty: boolean): string |
   return null;
 }
 
-export interface ReviewRequestsDigest {
-  items: PullRequestItem[];
-  /** A busca achou mais do que coube numa página. */
-  truncated: boolean;
-  /** Quantos o GitHub diz que existem, para a mensagem do corte. */
-  total: number;
-  /** Aviso de alcance do token, só quando a lista veio vazia. */
-  scopeNote: string | null;
-}
-
 export async function fetchReviewRequests(conn: Connection): Promise<ReviewRequestsDigest> {
-  const token = githubToken(conn);
-  const { data, headers } = await call(token, reviewRequestsPath());
-  const busca = (data ?? {}) as RawSearch;
-  const items = toReviewItems(busca.items ?? []);
-  const total = busca.total_count ?? items.length;
-
+  const { reply, items, total } = await searchPulls(conn, REVIEW_REQUESTS_QUERY);
+  // A busca já filtrou por isto: toda linha aqui espera a sua revisão.
+  const pedidos = items.map((item) => ({ ...item, awaitingYou: true, mine: false }));
   return {
-    items: rankPulls(items),
-    truncated: total > items.length || busca.incomplete_results === true,
+    items: rankPulls(pedidos),
+    truncated: total > pedidos.length,
     total,
-    scopeNote: scopeNote(headers.get('x-oauth-scopes'), items.length === 0),
+    scopeNote: scopeNote(reply.headers.get('x-oauth-scopes'), pedidos.length === 0),
   };
 }
 
+export async function fetchMyPulls(conn: Connection): Promise<MyPullsDigest> {
+  const { items, total } = await searchPulls(conn, MY_PULLS_QUERY);
+  const meus = items.map((item) => ({ ...item, awaitingYou: false, mine: true }));
+  return { items: rankPulls(meus), truncated: total > meus.length, total };
+}
+
 export async function testConnection(conn: Connection): Promise<void> {
-  await request(githubToken(conn), '/user');
+  await githubCall(githubToken(conn), '/user');
 }

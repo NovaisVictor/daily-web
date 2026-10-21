@@ -8,6 +8,7 @@ import type {
   PanelResult,
   PullRequestItem,
   PullsDigest,
+  MyPullsDigest,
   ReviewRequestsDigest,
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
@@ -181,6 +182,7 @@ interface Props {
   /** Opcional: o painel abre e funciona sem ela, mostrando a aba de revisões
    *  vazia enquanto o primeiro ciclo não voltou. */
   reviewRequests?: PanelResult<ReviewRequestsDigest>;
+  myPulls?: PanelResult<MyPullsDigest>;
   className?: string;
   onChanged?: () => void;
   loading?: boolean;

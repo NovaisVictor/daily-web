@@ -265,6 +265,7 @@ async function buildState(
     agenda,
     pulls,
     reviewRequests,
+    myPulls,
     jira,
     tasks,
     mentions,
@@ -285,6 +286,7 @@ async function buildState(
       // Uma busca por ciclo, independente de quantos repositórios são
       // acompanhados — ela varre tudo o que o token enxerga.
       pullsConnection ? panel(() => githubApi.fetchReviewRequests(pullsConnection)) : OFF,
+      pullsConnection ? panel(() => githubApi.fetchMyPulls(pullsConnection)) : OFF,
       jiraConnection ? panel(() => jiraApi.fetchIssues(jiraConnection, JIRA_FILTER)) : OFF,
       has('tasks') ? panel(() => fetchTasks(userId)) : OFF,
       jiraConnection ? panel(() => getNotifications(userId, jiraConnection)) : OFF,
@@ -312,14 +314,18 @@ async function buildState(
         .catch(() => [])
     : [];
 
-  // Os cards citados nos títulos dos PRs, numa busca só para as duas listas.
+  // Os cards citados nos títulos dos PRs, numa busca só para as três listas.
   // Como os ancestrais, é uma segunda rodada que não derruba nada: sem ela o
   // PR só não mostra o status do card.
   const pullsJira = jiraConnection
     ? await jiraApi
         .fetchByKeys(
           jiraConnection,
-          jiraKeysInPulls([...(pulls.data?.items ?? []), ...(reviewRequests.data?.items ?? [])]),
+          jiraKeysInPulls([
+            ...(pulls.data?.items ?? []),
+            ...(reviewRequests.data?.items ?? []),
+            ...(myPulls.data?.items ?? []),
+          ]),
         )
         .catch(() => [])
     : [];
@@ -329,6 +335,9 @@ async function buildState(
   const reviewsComJira = reviewRequests.data
     ? { ...reviewRequests, data: { ...reviewRequests.data, items: withJira(reviewRequests.data.items, pullsJira) } }
     : reviewRequests;
+  const myPullsComJira = myPulls.data
+    ? { ...myPulls, data: { ...myPulls.data, items: withJira(myPulls.data.items, pullsJira) } }
+    : myPulls;
 
   // O que o usuário pediu vence o retrato do servidor. As ações que o retrato
   // já reflete saem do caminho aqui; as demais são sobrepostas a ele.
@@ -360,6 +369,7 @@ async function buildState(
     agenda,
     pulls: pullsComJira,
     reviewRequests: reviewsComJira,
+    myPulls: myPullsComJira,
     jira,
     jiraWatched,
     jiraFollowedPeople: jiraConnection ? jiraFollowedPeople(userId) : [],

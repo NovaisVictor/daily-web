@@ -5,64 +5,13 @@ import {
   groupByRepo,
   parseRepoList,
   rankPulls,
-  repoFromApiUrl,
   repoUrl,
   REVIEW_REQUESTS_QUERY,
-  reviewRequestsPath,
   scopeNote,
   serializeRepoList,
-  toPullItems,
-  toReviewItems,
 } from '@/lib/integrations/githubApi';
 import type { Connection } from '@/lib/vault/connections';
 import type { PullRequestItem } from '@/lib/types';
-
-const ME = 'joaosouzacoder';
-
-function raw(over: Record<string, unknown> = {}) {
-  return {
-    number: 1,
-    title: 'Bump lib',
-    html_url: 'https://github.com/joao/repo/pull/1',
-    draft: false,
-    user: { login: 'dependabot[bot]' },
-    requested_reviewers: [],
-    updated_at: '2026-08-26T10:00:00Z',
-    ...over,
-  };
-}
-
-describe('toPullItems', () => {
-  // Filtrar por "seu ou pediram sua revisão" escondia o PR do dependabot,
-  // que é justamente o que fica esperando no seu próprio repositório.
-  it('inclui PR que não é seu e não pediu sua revisão', () => {
-    const items = toPullItems([raw()], 'joao/repo', ME);
-    expect(items).toHaveLength(1);
-    expect(items[0].mine).toBe(false);
-    expect(items[0].awaitingYou).toBe(false);
-    expect(items[0].author).toBe('dependabot[bot]');
-  });
-
-  it('marca o PR que é seu', () => {
-    const [item] = toPullItems([raw({ user: { login: ME } })], 'joao/repo', ME);
-    expect(item.mine).toBe(true);
-  });
-
-  it('marca quando pediram a sua revisão', () => {
-    const [item] = toPullItems(
-      [raw({ requested_reviewers: [{ login: ME }] })],
-      'joao/repo',
-      ME,
-    );
-    expect(item.awaitingYou).toBe(true);
-  });
-
-  it('preserva rascunho e a origem do repositório', () => {
-    const [item] = toPullItems([raw({ draft: true })], 'joao/repo', ME);
-    expect(item.draft).toBe(true);
-    expect(item.repo).toBe('joao/repo');
-  });
-});
 
 function item(over: Partial<PullRequestItem>): PullRequestItem {
   return {
@@ -76,6 +25,17 @@ function item(over: Partial<PullRequestItem>): PullRequestItem {
     mine: false,
     isPullRequest: true,
     updatedAt: '2026-08-01T00:00:00Z',
+    id: 'PR_test',
+    createdAt: '2026-08-01T00:00:00Z',
+    ci: 'none',
+    failedChecks: [],
+    review: 'none',
+    pendingReviewers: [],
+    merge: 'unknown',
+    size: { additions: 1, deletions: 1, files: 1 },
+    headRef: 'feature/x',
+    baseRef: 'main',
+    headSha: 'abc123',
     ...over,
   };
 }
@@ -190,65 +150,70 @@ function conn(token = 'ghp_token'): Connection {
   } as unknown as Connection;
 }
 
-function searchItem(over: Record<string, unknown> = {}) {
+/** A GraphQL search reply with one PR from a repo outside the tracked list. */
+function searchReply(issueCount: number, nodes: unknown[], headers: Record<string, string> = {}, status = 200) {
+  return new Response(JSON.stringify({ data: { search: { issueCount, nodes } } }), { status, headers });
+}
+
+function searchNode(over: Record<string, unknown> = {}) {
   return {
+    id: 'PR_7',
     number: 7,
     title: 'Trocar o parser',
-    html_url: 'https://github.com/outra/org/pull/7',
-    user: { login: 'maria' },
-    repository_url: 'https://api.github.com/repos/outra/org',
-    updated_at: '2026-09-10T10:00:00Z',
-    created_at: '2026-09-01T10:00:00Z',
-    draft: false,
-    pull_request: {},
+    url: 'https://github.com/outra/org/pull/7',
+    isDraft: false,
+    createdAt: '2026-09-01T10:00:00Z',
+    updatedAt: '2026-09-10T10:00:00Z',
+    author: { login: 'maria' },
+    additions: 1,
+    deletions: 1,
+    changedFiles: 1,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    reviewDecision: 'REVIEW_REQUIRED',
+    headRefName: 'feature/x',
+    baseRefName: 'main',
+    reviewRequests: { nodes: [] },
+    commits: { nodes: [{ commit: { oid: 'abc', statusCheckRollup: null } }] },
+    repository: { nameWithOwner: 'outra/org' },
     ...over,
   };
 }
 
-/** Uma resposta do GitHub com os cabeçalhos que importam aqui. */
 function reply(body: unknown, headers: Record<string, string> = {}, status = 200) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-describe('reviewRequestsPath', () => {
-  it('monta uma busca só, com a consulta pedida', () => {
-    const path = reviewRequestsPath();
-    const url = new URL(`https://api.github.com${path}`);
-
-    expect(url.pathname).toBe('/search/issues');
-    expect(url.searchParams.get('q')).toBe(REVIEW_REQUESTS_QUERY);
+describe('REVIEW_REQUESTS_QUERY', () => {
+  it('pede só o que ainda espera a sua revisão', () => {
     expect(REVIEW_REQUESTS_QUERY).toBe('is:open is:pr review-requested:@me');
-    expect(url.searchParams.get('per_page')).toBe('100');
-    expect(url.searchParams.get('sort')).toBe('updated');
   });
 });
 
-describe('repoFromApiUrl', () => {
-  it('tira dono/nome da URL da API', () => {
-    expect(repoFromApiUrl('https://api.github.com/repos/dono/nome')).toBe('dono/nome');
+describe('fetchReviewRequests', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('leva o repositório, o autor, a idade e o link', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchReply(1, [searchNode()])));
+
+    const [item] = (await fetchReviewRequests(conn())).items;
+
+    expect(item).toMatchObject({
+      repo: 'outra/org',
+      number: 7,
+      title: 'Trocar o parser',
+      url: 'https://github.com/outra/org/pull/7',
+      author: 'maria',
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-10T10:00:00Z',
+    });
   });
 
-  it('devolve vazio para o que não tem essa forma', () => {
-    expect(repoFromApiUrl('https://api.github.com/user')).toBe('');
-    expect(repoFromApiUrl(undefined)).toBe('');
-  });
-});
+  it('toda linha da busca está esperando a sua revisão e não é sua', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(searchReply(1, [searchNode()])));
 
-describe('toReviewItems', () => {
-  it('leva o repositório, o autor, a idade e o link', () => {
-    const [item] = toReviewItems([searchItem()]);
-
-    expect(item.repo).toBe('outra/org');
-    expect(item.number).toBe(7);
-    expect(item.title).toBe('Trocar o parser');
-    expect(item.url).toBe('https://github.com/outra/org/pull/7');
-    expect(item.author).toBe('maria');
-    expect(item.createdAt).toBe('2026-09-01T10:00:00Z');
-    expect(item.updatedAt).toBe('2026-09-10T10:00:00Z');
-  });
-
-  it('toda linha da busca está esperando a sua revisão e não é sua', () => {
-    const [item] = toReviewItems([searchItem()]);
+    const [item] = (await fetchReviewRequests(conn())).items;
 
     expect(item.awaitingYou).toBe(true);
     expect(item.mine).toBe(false);
@@ -275,18 +240,18 @@ describe('scopeNote', () => {
   });
 });
 
-describe('fetchReviewRequests', () => {
+describe('fetchReviewRequests: a ida ao GitHub', () => {
   beforeEach(() => vi.restoreAllMocks());
   afterEach(() => vi.restoreAllMocks());
 
   it('faz uma chamada só, para a busca', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(reply({ total_count: 1, items: [searchItem()] }));
+    const fetchMock = vi.fn().mockResolvedValue(searchReply(1, [searchNode()]));
     vi.stubGlobal('fetch', fetchMock);
 
     const digest = await fetchReviewRequests(conn());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/search/issues');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://api.github.com/graphql');
     expect(digest.items.map((i) => i.repo)).toEqual(['outra/org']);
     expect(digest.truncated).toBe(false);
     vi.unstubAllGlobals();
@@ -295,7 +260,7 @@ describe('fetchReviewRequests', () => {
   it('diz quando a página cortou a lista', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(reply({ total_count: 250, items: [searchItem()] })),
+      vi.fn().mockResolvedValue(searchReply(250, [searchNode()])),
     );
 
     const digest = await fetchReviewRequests(conn());
@@ -308,7 +273,7 @@ describe('fetchReviewRequests', () => {
   it('lista vazia com token sem alcance vira aviso, não silêncio', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(reply({ total_count: 0, items: [] }, { 'x-oauth-scopes': 'gist' })),
+      vi.fn().mockResolvedValue(searchReply(0, [], { 'x-oauth-scopes': 'gist' })),
     );
 
     const digest = await fetchReviewRequests(conn());
@@ -321,7 +286,7 @@ describe('fetchReviewRequests', () => {
   it('lista vazia com token completo não inventa problema', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(reply({ total_count: 0, items: [] }, { 'x-oauth-scopes': 'repo' })),
+      vi.fn().mockResolvedValue(searchReply(0, [], { 'x-oauth-scopes': 'repo' })),
     );
 
     expect((await fetchReviewRequests(conn())).scopeNote).toBeNull();

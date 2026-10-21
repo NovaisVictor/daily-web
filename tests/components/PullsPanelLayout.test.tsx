@@ -32,6 +32,17 @@ function pull(n: number): PullRequestItem {
     awaitingYou: false,
     mine: true,
     isPullRequest: true,
+    id: 'PR_test',
+    createdAt: '',
+    ci: 'none',
+    failedChecks: [],
+    review: 'none',
+    pendingReviewers: [],
+    merge: 'unknown',
+    size: { additions: 1, deletions: 1, files: 1 },
+    headRef: 'feature/x',
+    baseRef: 'main',
+    headSha: 'abc123',
     updatedAt: '2026-09-10T10:00:00Z',
   };
 }
@@ -41,7 +52,7 @@ function pull(n: number): PullRequestItem {
 function montar(items: PullRequestItem[]) {
   return render(
     <PanelFrame>
-      <PullsPanel pulls={{ data: { items, errors: [] }, error: null }} />
+      <PullsPanel pulls={{ data: { items, errors: [], defaultBranches: [], truncated: [] }, error: null }} />
     </PanelFrame>,
   );
 }

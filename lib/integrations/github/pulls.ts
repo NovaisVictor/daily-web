@@ -1,0 +1,362 @@
+import type {
+  DefaultBranchStatus,
+  PullCi,
+  PullFailedCheck,
+  PullMerge,
+  PullRequestItem,
+  PullReview,
+  PullsTruncation,
+} from '@/lib/types';
+import { isRecord, unexpected, type GraphqlError } from './client';
+
+export const PER_REPO_LIMIT = 50;
+export const SEARCH_LIMIT = 50;
+export const FAILED_CHECKS_LIMIT = 5;
+
+export const REVIEW_REQUESTS_QUERY = 'is:open is:pr review-requested:@me';
+export const MY_PULLS_QUERY = 'is:open is:pr author:@me';
+
+const PULL_FIELDS = `
+fragment PullFields on PullRequest {
+  id number title url isDraft createdAt updatedAt
+  author { login }
+  additions deletions changedFiles
+  mergeable mergeStateStatus reviewDecision
+  headRefName baseRefName
+  reviewRequests(first: 20) {
+    nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug } } }
+  }
+  commits(last: 1) {
+    nodes { commit { oid statusCheckRollup { state contexts(first: 50) { nodes {
+      __typename
+      ... on CheckRun { name conclusion status detailsUrl }
+      ... on StatusContext { context state targetUrl }
+    } } } } }
+  }
+}`;
+
+const REPO_FIELDS = `
+fragment RepoFields on Repository {
+  nameWithOwner
+  pullRequests(states: OPEN, first: ${PER_REPO_LIMIT}, orderBy: { field: UPDATED_AT, direction: DESC }) {
+    totalCount
+    nodes { ...PullFields }
+  }
+  issues(states: OPEN, first: ${PER_REPO_LIMIT}, orderBy: { field: UPDATED_AT, direction: DESC }) {
+    totalCount
+    nodes { id number title url createdAt updatedAt author { login } }
+  }
+  defaultBranchRef { name target { ... on Commit { statusCheckRollup { state } } } }
+}`;
+
+export function repoAlias(index: number): string {
+  return `repo${index}`;
+}
+
+/** One query for every tracked repo, one alias each. Owner and name travel as
+ *  variables, never spliced into the query text. */
+export function reposQuery(repos: string[]): { query: string; variables: Record<string, string> } {
+  const variables: Record<string, string> = {};
+  const declarations: string[] = [];
+  const selections: string[] = [];
+  repos.forEach((repo, index) => {
+    const [owner, name] = repo.split('/');
+    variables[`owner${index}`] = owner;
+    variables[`name${index}`] = name;
+    declarations.push(`$owner${index}: String!`, `$name${index}: String!`);
+    selections.push(`${repoAlias(index)}: repository(owner: $owner${index}, name: $name${index}) { ...RepoFields }`);
+  });
+  const args = declarations.length > 0 ? `(${declarations.join(', ')})` : '';
+  const query = `query TrackedRepos${args} {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${REPO_FIELDS}\n${PULL_FIELDS}`;
+  return { query, variables };
+}
+
+export const SEARCH_PULLS_QUERY = `query SearchPulls($q: String!) {
+  search(query: $q, type: ISSUE, first: ${SEARCH_LIMIT}) {
+    issueCount
+    nodes { ... on PullRequest { ...PullFields repository { nameWithOwner } } }
+  }
+}
+${PULL_FIELDS}`;
+
+// --- Enum mappings: an unknown value is `unknown`, never a thrown error -----
+
+export function ciFromState(state: unknown): PullCi {
+  if (state === null || state === undefined) return 'none';
+  switch (state) {
+    case 'SUCCESS':
+      return 'passing';
+    case 'FAILURE':
+    case 'ERROR':
+      return 'failing';
+    case 'PENDING':
+    case 'EXPECTED':
+      return 'running';
+    default:
+      return 'unknown';
+  }
+}
+
+export function reviewFromDecision(decision: unknown): PullReview {
+  if (decision === null || decision === undefined) return 'none';
+  switch (decision) {
+    case 'APPROVED':
+      return 'approved';
+    case 'CHANGES_REQUESTED':
+      return 'changes-requested';
+    case 'REVIEW_REQUIRED':
+      return 'pending';
+    default:
+      return 'unknown';
+  }
+}
+
+const BLOCKED_STATES = new Set(['BLOCKED', 'BEHIND', 'UNSTABLE', 'HAS_HOOKS', 'DRAFT']);
+
+export function mergeFromState(mergeable: unknown, mergeStateStatus: unknown): PullMerge {
+  if (mergeable === 'CONFLICTING') return 'conflict';
+  if (mergeable !== 'MERGEABLE') return 'unknown';
+  if (mergeStateStatus === 'CLEAN') return 'clean';
+  if (mergeStateStatus === 'DIRTY') return 'conflict';
+  if (typeof mergeStateStatus === 'string' && BLOCKED_STATES.has(mergeStateStatus)) return 'blocked';
+  return 'unknown';
+}
+
+export function failedChecksOf(contexts: unknown[]): PullFailedCheck[] {
+  const failed: PullFailedCheck[] = [];
+  for (const context of contexts) {
+    if (!isRecord(context)) continue;
+    if (context.__typename === 'CheckRun' && (context.conclusion === 'FAILURE' || context.conclusion === 'TIMED_OUT')) {
+      failed.push({ name: textOr(context.name, 'check'), url: textOrNull(context.detailsUrl) });
+    } else if (context.__typename === 'StatusContext' && (context.state === 'FAILURE' || context.state === 'ERROR')) {
+      failed.push({ name: textOr(context.context, 'status'), url: textOrNull(context.targetUrl) });
+    }
+  }
+  return failed.slice(0, FAILED_CHECKS_LIMIT);
+}
+
+export function pendingReviewersOf(requests: unknown[]): string[] {
+  const reviewers: string[] = [];
+  for (const request of requests) {
+    const reviewer = isRecord(request) ? request.requestedReviewer : null;
+    if (!isRecord(reviewer)) continue;
+    if (reviewer.__typename === 'Team' && typeof reviewer.slug === 'string') reviewers.push(`team:${reviewer.slug}`);
+    else if (typeof reviewer.login === 'string' && reviewer.login !== '') reviewers.push(reviewer.login);
+  }
+  return reviewers;
+}
+
+// --- Shape readers: a missing structural field fails visibly ---------------
+
+function textOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value !== '' ? value : fallback;
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function text(node: Record<string, unknown>, key: string, where: string): string {
+  const value = node[key];
+  if (typeof value !== 'string') throw unexpected(where, `${key} ausente`);
+  return value;
+}
+
+function count(node: Record<string, unknown>, key: string, where: string): number {
+  const value = node[key];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) throw unexpected(where, `${key} ausente`);
+  return value;
+}
+
+function record(value: unknown, where: string, what: string): Record<string, unknown> {
+  if (!isRecord(value)) throw unexpected(where, `${what} ausente`);
+  return value;
+}
+
+function nodesOf(connection: unknown, where: string, what: string): unknown[] {
+  const nodes = record(connection, where, what).nodes;
+  if (!Array.isArray(nodes)) throw unexpected(where, `${what}.nodes ausente`);
+  return nodes;
+}
+
+function authorOf(node: Record<string, unknown>): string {
+  return isRecord(node.author) && typeof node.author.login === 'string' ? node.author.login : '';
+}
+
+function identity(raw: unknown, repo: string, kind: string) {
+  const node = record(raw, `em ${repo}`, kind);
+  const number = count(node, 'number', `em ${repo}`);
+  const where = `em ${repo}#${number}`;
+  return {
+    node,
+    where,
+    fields: {
+      id: text(node, 'id', where),
+      repo,
+      number,
+      title: text(node, 'title', where),
+      url: text(node, 'url', where),
+      author: authorOf(node),
+      createdAt: text(node, 'createdAt', where),
+      updatedAt: text(node, 'updatedAt', where),
+    },
+  };
+}
+
+export function parsePullNode(raw: unknown, repo: string, login: string): PullRequestItem {
+  const { node, where, fields } = identity(raw, repo, 'pull request');
+  if (typeof node.isDraft !== 'boolean') throw unexpected(where, 'isDraft ausente');
+  const requests = nodesOf(node.reviewRequests, where, 'reviewRequests');
+  const commit = nodesOf(node.commits, where, 'commits')
+    .map((entry) => (isRecord(entry) && isRecord(entry.commit) ? entry.commit : null))
+    .at(-1);
+  const rollup = commit && isRecord(commit.statusCheckRollup) ? commit.statusCheckRollup : null;
+  const contexts = rollup && isRecord(rollup.contexts) && Array.isArray(rollup.contexts.nodes) ? rollup.contexts.nodes : [];
+
+  return {
+    ...fields,
+    draft: node.isDraft,
+    awaitingYou:
+      login !== '' &&
+      requests.some(
+        (request) =>
+          isRecord(request) &&
+          isRecord(request.requestedReviewer) &&
+          request.requestedReviewer.__typename === 'User' &&
+          request.requestedReviewer.login === login,
+      ),
+    mine: login !== '' && fields.author === login,
+    isPullRequest: true,
+    ci: rollup ? ciFromState(rollup.state) : 'none',
+    failedChecks: failedChecksOf(contexts),
+    review: reviewFromDecision(node.reviewDecision),
+    pendingReviewers: pendingReviewersOf(requests),
+    merge: mergeFromState(node.mergeable, node.mergeStateStatus),
+    size: {
+      additions: count(node, 'additions', where),
+      deletions: count(node, 'deletions', where),
+      files: count(node, 'changedFiles', where),
+    },
+    headRef: text(node, 'headRefName', where),
+    baseRef: text(node, 'baseRefName', where),
+    headSha: commit ? textOrNull(commit.oid) : null,
+  };
+}
+
+export function parseIssueNode(raw: unknown, repo: string, login: string): PullRequestItem {
+  const { fields } = identity(raw, repo, 'issue');
+  return {
+    ...fields,
+    draft: false,
+    awaitingYou: false,
+    mine: login !== '' && fields.author === login,
+    isPullRequest: false,
+    ci: 'none',
+    failedChecks: [],
+    review: 'none',
+    pendingReviewers: [],
+    merge: 'none',
+    size: null,
+    headRef: null,
+    baseRef: null,
+    headSha: null,
+  };
+}
+
+export function viewerLogin(data: Record<string, unknown>): string {
+  const viewer = record(data.viewer, 'no GraphQL', 'viewer');
+  return text(viewer, 'login', 'no GraphQL');
+}
+
+export interface ParsedRepos {
+  items: PullRequestItem[];
+  errors: string[];
+  defaultBranches: DefaultBranchStatus[];
+  truncated: PullsTruncation[];
+}
+
+function parseRepo(raw: unknown, repo: string, login: string): Omit<ParsedRepos, 'errors'> {
+  const node = record(raw, `em ${repo}`, 'repositório');
+  const where = `em ${repo}`;
+  const pulls = record(node.pullRequests, where, 'pullRequests');
+  const issues = record(node.issues, where, 'issues');
+  const pullNodes = nodesOf(pulls, where, 'pullRequests');
+  const issueNodes = nodesOf(issues, where, 'issues');
+
+  const truncated: PullsTruncation[] = [];
+  const pullTotal = count(pulls, 'totalCount', where);
+  const issueTotal = count(issues, 'totalCount', where);
+  if (pullTotal > pullNodes.length) truncated.push({ repo, kind: 'pulls', shown: pullNodes.length, total: pullTotal });
+  if (issueTotal > issueNodes.length) truncated.push({ repo, kind: 'issues', shown: issueNodes.length, total: issueTotal });
+
+  const defaultBranches: DefaultBranchStatus[] = [];
+  if (isRecord(node.defaultBranchRef)) {
+    const target = isRecord(node.defaultBranchRef.target) ? node.defaultBranchRef.target : null;
+    const rollup = target && isRecord(target.statusCheckRollup) ? target.statusCheckRollup : null;
+    defaultBranches.push({
+      repo,
+      branch: text(node.defaultBranchRef, 'name', where),
+      ci: rollup ? ciFromState(rollup.state) : 'none',
+    });
+  }
+
+  return {
+    items: [
+      ...pullNodes.map((pull) => parsePullNode(pull, repo, login)),
+      ...issueNodes.map((issue) => parseIssueNode(issue, repo, login)),
+    ],
+    defaultBranches,
+    truncated,
+  };
+}
+
+/** `repos[i]` answered under alias `repo{i}`. A repo that failed alone (renamed,
+ *  no access, odd shape) lands in `errors` and the others still load. */
+export function parseReposData(
+  data: Record<string, unknown>,
+  repos: string[],
+  graphqlErrors: GraphqlError[],
+): ParsedRepos {
+  const login = viewerLogin(data);
+  const result: ParsedRepos = { items: [], errors: [], defaultBranches: [], truncated: [] };
+  repos.forEach((repo, index) => {
+    const alias = repoAlias(index);
+    const failure = graphqlErrors.find((error) => error.path[0] === alias);
+    if (failure) {
+      result.errors.push(`${repo}: ${failure.message}`);
+      return;
+    }
+    if (data[alias] === null || data[alias] === undefined) {
+      result.errors.push(`${repo}: repositório não encontrado ou sem acesso`);
+      return;
+    }
+    try {
+      const parsed = parseRepo(data[alias], repo, login);
+      result.items.push(...parsed.items);
+      result.defaultBranches.push(...parsed.defaultBranches);
+      result.truncated.push(...parsed.truncated);
+    } catch (error) {
+      result.errors.push(`${repo}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+  return result;
+}
+
+export interface ParsedSearch {
+  items: PullRequestItem[];
+  total: number;
+}
+
+/** Search results span repos outside the tracked list: each node names its own. */
+export function parseSearchData(data: Record<string, unknown>): ParsedSearch {
+  const search = record(data.search, 'na busca', 'search');
+  const total = count(search, 'issueCount', 'na busca');
+  const nodes = nodesOf(search, 'na busca', 'search');
+  const items = nodes
+    .filter((node) => node !== null)
+    .map((node) => {
+      const repository = record(isRecord(node) ? node.repository : null, 'na busca', 'repository');
+      return parsePullNode(node, text(repository, 'nameWithOwner', 'na busca'), '');
+    });
+  return { items, total };
+}

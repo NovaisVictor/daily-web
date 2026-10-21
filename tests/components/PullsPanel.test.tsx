@@ -56,6 +56,17 @@ function pull(over: Partial<PullRequestItem>): PullRequestItem {
     awaitingYou: false,
     mine: true,
     isPullRequest: true,
+    id: 'PR_test',
+    createdAt: '',
+    ci: 'none',
+    failedChecks: [],
+    review: 'none',
+    pendingReviewers: [],
+    merge: 'unknown',
+    size: { additions: 1, deletions: 1, files: 1 },
+    headRef: 'feature/x',
+    baseRef: 'main',
+    headSha: 'abc123',
     updatedAt: '2026-08-26T10:00:00Z',
     ...over,
   };
@@ -66,7 +77,7 @@ describe('PullsPanel', () => {
     vi.mocked(global.fetch).mockImplementation(
       async () => new Response(JSON.stringify({ repos: [] }), { status: 200 }),
     );
-    const panel = <PullsPanel pulls={{ data: { items: [pull({})], errors: [] }, error: null }} />;
+    const panel = <PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />;
     const { rerender } = render(panel);
     expect(screen.queryByLabelText('agendar foco para joao/daily-web#3')).not.toBeInTheDocument();
     rerender(
@@ -78,7 +89,7 @@ describe('PullsPanel', () => {
   });
 
   it('lista cada PR com link para o GitHub', () => {
-    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     const link = screen.getByRole('link', { name: 'Arrumar o build' });
     expect(link).toHaveAttribute('href', 'https://github.com/joao/daily-web/pull/3');
     // O repositório virou cabeçalho do bloco; a linha só carrega o número.
@@ -89,7 +100,7 @@ describe('PullsPanel', () => {
   it('marca o PR que está esperando a sua revisão', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [pull({ awaitingYou: true })], errors: [] }, error: null }}
+        pulls={{ data: { items: [pull({ awaitingYou: true })], errors: [], defaultBranches: [], truncated: [] }, error: null }}
       />,
     );
     expect(screen.getByText('revisar')).toBeInTheDocument();
@@ -99,7 +110,7 @@ describe('PullsPanel', () => {
     render(
       <PullsPanel
         pulls={{
-          data: { items: [pull({ mine: false, author: 'dependabot[bot]' })], errors: [] },
+          data: { items: [pull({ mine: false, author: 'dependabot[bot]' })], errors: [], defaultBranches: [], truncated: [] },
           error: null,
         }}
       />,
@@ -108,7 +119,7 @@ describe('PullsPanel', () => {
   });
 
   it('marca rascunho', () => {
-    render(<PullsPanel pulls={{ data: { items: [pull({ draft: true })], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [pull({ draft: true })], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     expect(screen.getByText('rascunho')).toBeInTheDocument();
   });
 
@@ -118,7 +129,7 @@ describe('PullsPanel', () => {
     render(
       <PullsPanel
         pulls={{
-          data: { items: [pull({})], errors: ['joao/antigo: GitHub respondeu 404'] },
+          data: { items: [pull({})], errors: ['joao/antigo: GitHub respondeu 404'], defaultBranches: [], truncated: [] },
           error: null,
         }}
       />,
@@ -128,7 +139,7 @@ describe('PullsPanel', () => {
   });
 
   it('mostra o erro do painel quando presente', () => {
-    render(<PullsPanel pulls={{ data: { items: [], errors: [] }, error: 'o GitHub recusou o token' }} />);
+    render(<PullsPanel pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: 'o GitHub recusou o token' }} />);
     expect(screen.getByRole('alert').textContent).toContain('recusou o token');
   });
 
@@ -136,7 +147,7 @@ describe('PullsPanel', () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(JSON.stringify({ repos: ['joaosouzacoder/daily-web'] }), { status: 200 }),
     );
-    render(<PullsPanel pulls={{ data: { items: [], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     await waitFor(() => expect(screen.getByText('joaosouzacoder/daily-web')).toBeInTheDocument());
   });
 
@@ -145,7 +156,7 @@ describe('PullsPanel', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ repos: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ repos: ['a/b'] }), { status: 200 }));
     const onChanged = vi.fn();
-    render(<PullsPanel pulls={{ data: { items: [], errors: [] }, error: null }} onChanged={onChanged} />);
+    render(<PullsPanel pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }} onChanged={onChanged} />);
     fireEvent.change(screen.getByLabelText('novo repositório'), { target: { value: 'a/b' } });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar repositório' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
@@ -159,7 +170,7 @@ describe('PullsPanel', () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify({ repos: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'repositório inválido' }), { status: 400 }));
-    render(<PullsPanel pulls={{ data: { items: [], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     fireEvent.change(screen.getByLabelText('novo repositório'), { target: { value: '-x' } });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar repositório' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('repositório inválido'));
@@ -170,7 +181,7 @@ describe('PullsPanel', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ repos: ['a/b'] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ repos: [] }), { status: 200 }));
     const onChanged = vi.fn();
-    render(<PullsPanel pulls={{ data: { items: [], errors: [] }, error: null }} onChanged={onChanged} />);
+    render(<PullsPanel pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }} onChanged={onChanged} />);
     await waitFor(() => expect(screen.getByText('a/b')).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText('remover a/b'));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
@@ -183,7 +194,7 @@ describe('PullsPanel', () => {
 
 describe('repositório clicável', () => {
   it('o nome do repositório abre o repositório no GitHub', () => {
-    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     const link = screen.getByRole('link', { name: 'joao/daily-web' });
     expect(link).toHaveAttribute('href', 'https://github.com/joao/daily-web');
     expect(link).toHaveAttribute('target', '_blank');
@@ -194,7 +205,7 @@ describe('repositório clicável', () => {
   it('um nome fora do formato continua texto, sem virar link', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [pull({ repo: 'javascript:alert(1)' })], errors: [] }, error: null }}
+        pulls={{ data: { items: [pull({ repo: 'javascript:alert(1)' })], errors: [], defaultBranches: [], truncated: [] }, error: null }}
       />,
     );
     expect(screen.queryByRole('link', { name: 'javascript:alert(1)' })).toBeNull();
@@ -225,7 +236,7 @@ describe('aba de revisões pedidas', () => {
   it('a aba padrão não vai para a URL, e a outra vai', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review(), error: null }}
       />,
     );
@@ -241,7 +252,7 @@ describe('aba de revisões pedidas', () => {
     nav.search = 'pulls=inventada';
     render(
       <PullsPanel
-        pulls={{ data: { items: [pull({})], errors: [] }, error: null }}
+        pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review({ items: [pedido] }), error: null }}
       />,
     );
@@ -256,7 +267,7 @@ describe('aba de revisões pedidas', () => {
     nav.search = 'pulls=revisoes';
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review({ items: [pedido] }), error: null }}
       />,
     );
@@ -267,7 +278,7 @@ describe('aba de revisões pedidas', () => {
   it('cada linha diz de qual repositório veio, com link para ele', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review({ items: [pedido] }), error: null }}
       />,
     );
@@ -288,7 +299,7 @@ describe('aba de revisões pedidas', () => {
   it('lista vazia diz que não há pedido', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review(), error: null }}
       />,
     );
@@ -300,7 +311,7 @@ describe('aba de revisões pedidas', () => {
   it('lista vazia por alcance do token explica o que fazer', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{
           data: review({ scopeNote: 'este token clássico não tem o escopo `repo`' }),
           error: null,
@@ -315,7 +326,7 @@ describe('aba de revisões pedidas', () => {
   it('token recusado aparece como erro, não como lista vazia', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: null, error: 'o GitHub recusou o token' }}
       />,
     );
@@ -328,7 +339,7 @@ describe('aba de revisões pedidas', () => {
   it('avisa quando a página cortou a lista', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review({ items: [pedido], truncated: true, total: 250 }), error: null }}
       />,
     );
@@ -340,7 +351,7 @@ describe('aba de revisões pedidas', () => {
   it('a gaveta de repositórios acompanhados não segue para a outra aba', () => {
     render(
       <PullsPanel
-        pulls={{ data: { items: [], errors: [] }, error: null }}
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
         reviewRequests={{ data: review({ items: [pedido] }), error: null }}
       />,
     );
@@ -367,6 +378,8 @@ describe('cards do Jira no PR', () => {
               }),
             ],
             errors: [],
+            defaultBranches: [],
+            truncated: [],
           },
           error: null,
         }}
@@ -379,7 +392,7 @@ describe('cards do Jira no PR', () => {
   });
 
   it('PR sem card não ganha selo', () => {
-    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [] }, error: null }} />);
+    render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);
     expect(screen.queryByTitle(/no Jira$/)).toBeNull();
   });
 });

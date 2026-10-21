@@ -87,7 +87,7 @@ beforeEach(async () => {
 
   vi.mocked(loadInbox).mockResolvedValue([]);
   vi.mocked(fetchAgenda).mockResolvedValue([]);
-  vi.mocked(fetchPulls).mockResolvedValue({ items: [], errors: [] });
+  vi.mocked(fetchPulls).mockResolvedValue({ items: [], errors: [], defaultBranches: [], truncated: [] });
   vi.mocked(fetchIssues).mockResolvedValue([]);
   vi.mocked(fetchMentions).mockResolvedValue([]);
   vi.mocked(fetchTasks).mockResolvedValue([]);

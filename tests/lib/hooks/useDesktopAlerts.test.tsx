@@ -31,11 +31,12 @@ function state(updatedAt: string, emails: EmailEnvelope[]): DashboardState {
     layouts: [],
     email: { data: emails, error: null },
     agenda: { data: [], error: null },
-    pulls: { data: { items: [], errors: [] }, error: null },
+    pulls: { data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null },
     reviewRequests: {
       data: { items: [], truncated: false, total: 0, scopeNote: null },
       error: null,
     },
+    myPulls: { data: { items: [], truncated: false, total: 0 }, error: null },
     jira: { data: [], error: null },
     jiraWatched: { data: [], error: null },
     jiraFollowedPeople: [],

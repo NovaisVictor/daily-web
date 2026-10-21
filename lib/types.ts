@@ -78,11 +78,39 @@ export interface AgendaCalendarRef {
   canWrite: boolean;
 }
 
+/** Last-commit check rollup. `none`: the commit has no checks at all. */
+export type PullCi = 'passing' | 'failing' | 'running' | 'none' | 'unknown';
+
+/** From GitHub's reviewDecision. `none`: the repo requires no review. */
+export type PullReview = 'approved' | 'changes-requested' | 'pending' | 'none' | 'unknown';
+
+/** `unknown` is GitHub's "not computed yet" (mergeability is computed
+ *  lazily), never a conflict. `none` is only used for issues. */
+export type PullMerge = 'clean' | 'conflict' | 'blocked' | 'unknown' | 'none';
+
+export interface PullFailedCheck {
+  name: string;
+  url: string | null;
+}
+
+export interface PullSize {
+  additions: number;
+  deletions: number;
+  files: number;
+}
+
+/** An open pull request or issue. Issues share the list, so every PR-only
+ *  field has a fixed "not applicable" value on them: `ci: 'none'`,
+ *  `review: 'none'`, `merge: 'none'`, empty `failedChecks` and
+ *  `pendingReviewers`, and `null` size/headRef/baseRef/headSha. */
 export interface PullRequestItem {
+  /** GraphQL node id, used by writes. */
+  id: string;
   repo: string;
   number: number;
   title: string;
   url: string;
+  /** Empty when the author account was deleted. */
   author: string;
   draft: boolean;
   /** Pediram a sua revisão. */
@@ -92,12 +120,21 @@ export interface PullRequestItem {
   /** Separa pull request de issue: o GitHub devolve os dois na mesma lista. */
   isPullRequest: boolean;
   updatedAt: string;
+  createdAt: string;
+  ci: PullCi;
+  /** At most five. */
+  failedChecks: PullFailedCheck[];
+  review: PullReview;
+  /** User logins, and teams as `team:<slug>`. */
+  pendingReviewers: string[];
+  merge: PullMerge;
+  size: PullSize | null;
+  headRef: string | null;
+  baseRef: string | null;
+  headSha: string | null;
   /** Os cards do Jira citados no título, com o status de agora. Vazio quando
    *  o título não cita nenhum ou o Jira não está conectado. */
   jira?: PullJiraRef[];
-  /** Quando foi aberto. Só a busca de revisões pedidas traz isto; a idade do
-   *  PR é o que diz há quanto tempo ele espera. */
-  createdAt?: string;
 }
 
 export interface PullJiraRef {
@@ -111,15 +148,42 @@ export interface PullJiraRef {
  *  Vem da busca do GitHub, não da lista de repositórios acompanhados. */
 export interface ReviewRequestsDigest {
   items: PullRequestItem[];
+  /** A busca achou mais do que coube numa página. */
+  truncated: boolean;
+  /** Quantos o GitHub diz que existem, para a mensagem do corte. */
+  total: number;
+  /** Aviso de alcance do token, só quando a lista veio vazia. */
+  scopeNote: string | null;
+}
+
+/** Open PRs authored by the user, in any repository the token sees. */
+export interface MyPullsDigest {
+  items: PullRequestItem[];
   truncated: boolean;
   total: number;
-  scopeNote: string | null;
+}
+
+export interface DefaultBranchStatus {
+  repo: string;
+  branch: string;
+  ci: PullCi;
+}
+
+/** A tracked repo with more open PRs or issues than one page holds. */
+export interface PullsTruncation {
+  repo: string;
+  kind: 'pulls' | 'issues';
+  shown: number;
+  total: number;
 }
 
 export interface PullsDigest {
   items: PullRequestItem[];
   /** Repositórios que falharam sozinhos, sem derrubar os outros. */
   errors: string[];
+  /** One per tracked repo that has a default branch. */
+  defaultBranches: DefaultBranchStatus[];
+  truncated: PullsTruncation[];
 }
 
 export type JiraRole = 'assignee' | 'reporter' | 'both';
@@ -331,6 +395,7 @@ export interface DashboardState {
   /** PRs esperando a revisão do usuário, inclusive fora dos repositórios
    *  acompanhados. */
   reviewRequests: PanelResult<ReviewRequestsDigest>;
+  myPulls: PanelResult<MyPullsDigest>;
   jira: PanelResult<JiraItem[]>;
   /** Issues que o usuário escolheu acompanhar, mesmo não sendo dele. */
   jiraWatched: PanelResult<JiraItem[]>;

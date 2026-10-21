@@ -77,6 +77,8 @@ function pull(over: Record<string, unknown> = {}) {
     repo: 'joao/daily-web', number: 12, title: 'Corrige o login',
     url: 'https://github.com/joao/daily-web/pull/12', author: 'alguem',
     draft: false, awaitingYou: false, mine: false, isPullRequest: true,
+    id: 'PR_test', createdAt: '', ci: 'none' as const, failedChecks: [], review: 'none' as const, pendingReviewers: [],
+    merge: 'unknown' as const, size: { additions: 1, deletions: 1, files: 1 }, headRef: 'feature/x', baseRef: 'main', headSha: 'abc123',
     updatedAt: '2026-08-30T10:00:00Z', ...over,
   };
 }
@@ -201,7 +203,7 @@ describe('combineNotifications', () => {
     const result = combineNotifications(
       'u-1',
       { data: [{ id: 'jira_mention:ENG-1', source: 'jira_mention' as const, title: 'ENG-1', url: 'u', read: false, date: '2026-08-30T10:00:00Z' }], error: null },
-      { data: { items: [pull()], errors: [] }, error: null },
+      { data: { items: [pull()], errors: [], defaultBranches: [], truncated: [] }, error: null },
       { data: [envelope()], error: null },
     );
     expect(result.data?.map((n) => n.source).sort()).toEqual(['email', 'jira_mention', 'pull_request']);
@@ -211,7 +213,7 @@ describe('combineNotifications', () => {
   // painel inteiro ficava ausente quando ela não existia.
   it('avisa de PR e e-mail mesmo sem Jira configurado', async () => {
     const { combineNotifications } = await import('@/lib/notifications');
-    const result = combineNotifications('u-1', OFF, { data: { items: [pull()], errors: [] }, error: null }, { data: [envelope()], error: null });
+    const result = combineNotifications('u-1', OFF, { data: { items: [pull()], errors: [], defaultBranches: [], truncated: [] }, error: null }, { data: [envelope()], error: null });
     expect(result.data).toHaveLength(2);
   });
 
@@ -249,7 +251,7 @@ describe('ordem do sino', () => {
     const result = combineNotifications(
       'u-1',
       { data: [{ id: 'jira_mention:ENG-1', source: 'jira_mention' as const, title: 'ENG-1', url: 'u', read: false, date: '2026-08-20T10:00:00Z' }], error: null },
-      { data: { items: [pull({ updatedAt: '2026-08-10T10:00:00Z' })], errors: [] }, error: null },
+      { data: { items: [pull({ updatedAt: '2026-08-10T10:00:00Z' })], errors: [], defaultBranches: [], truncated: [] }, error: null },
       { data: [envelope({ date: '2026-08-30T10:00:00Z' })], error: null },
     );
     expect(result.data?.map((n) => n.source)).toEqual(['email', 'jira_mention', 'pull_request']);
@@ -260,7 +262,7 @@ describe('ordem do sino', () => {
     const result = combineNotifications(
       'u-1',
       { data: [], error: null },
-      { data: { items: [pull({ updatedAt: '2026-08-31T09:00:00Z' })], errors: [] }, error: null },
+      { data: { items: [pull({ updatedAt: '2026-08-31T09:00:00Z' })], errors: [], defaultBranches: [], truncated: [] }, error: null },
       { data: [envelope({ date: '2026-08-31T10:00:00Z' })], error: null },
     );
     expect(result.data?.[0].source).toBe('email');

@@ -6,7 +6,7 @@ import path from 'node:path';
 vi.mock('@/lib/integrations/imap', () => ({ fetchBodies: vi.fn() }));
 vi.mock('@/lib/email/inbox', () => ({ loadInbox: vi.fn() }));
 vi.mock('@/lib/integrations/ics', () => ({ fetchAgenda: vi.fn() }));
-vi.mock('@/lib/integrations/githubApi', () => ({ fetchPulls: vi.fn() }));
+vi.mock('@/lib/integrations/githubApi', () => ({ fetchPulls: vi.fn(), fetchMyPulls: vi.fn() }));
 vi.mock('@/lib/integrations/jiraApi', () => ({
   fetchIssues: vi.fn(),
   fetchMentions: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('@/lib/tasks', () => ({ fetchTasks: vi.fn() }));
 
 import { loadInbox } from '@/lib/email/inbox';
 import { fetchAgenda } from '@/lib/integrations/ics';
-import { fetchPulls } from '@/lib/integrations/githubApi';
+import { fetchMyPulls, fetchPulls } from '@/lib/integrations/githubApi';
 import { fetchByKeys, fetchIssues, fetchMentions, fetchProblems } from '@/lib/integrations/jiraApi';
 import { fetchTasks } from '@/lib/tasks';
 import type { JiraItem, JiraProblem, JiraProblemItem } from '@/lib/types';
@@ -59,7 +59,8 @@ beforeEach(async () => {
 
   vi.mocked(loadInbox).mockResolvedValue([]);
   vi.mocked(fetchAgenda).mockResolvedValue([]);
-  vi.mocked(fetchPulls).mockResolvedValue({ items: [], errors: [] });
+  vi.mocked(fetchPulls).mockResolvedValue({ items: [], errors: [], defaultBranches: [], truncated: [] });
+  vi.mocked(fetchMyPulls).mockResolvedValue({ items: [], truncated: false, total: 0 });
   vi.mocked(fetchIssues).mockResolvedValue([]);
   vi.mocked(fetchMentions).mockResolvedValue([]);
   vi.mocked(fetchProblems).mockResolvedValue([]);
@@ -507,13 +508,24 @@ describe('cards do Jira nos PRs', () => {
     awaitingYou: false,
     mine: true,
     isPullRequest: true,
+    id: 'PR_test',
+    createdAt: '',
+    ci: 'none' as const,
+    failedChecks: [],
+    review: 'none' as const,
+    pendingReviewers: [],
+    merge: 'unknown' as const,
+    size: { additions: 1, deletions: 1, files: 1 },
+    headRef: 'feature/x',
+    baseRef: 'main',
+    headSha: 'abc123',
     updatedAt: '2026-10-20T10:00:00Z',
   });
 
   it('busca os cards citados nos títulos e põe o status no PR', async () => {
     await connect(USER, 'pulls', { token: 'gh', repos: 'acme/app' });
     await connect(USER, 'jira', { cloud: 'acme', email: 'a@x.com', token: 't' });
-    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [] });
+    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [], defaultBranches: [], truncated: [] });
     vi.mocked(fetchByKeys).mockResolvedValue([
       { ...problemaBase('TT-42'), status: 'Code Review PR', statusCategory: 'indeterminate' },
     ]);
@@ -527,9 +539,23 @@ describe('cards do Jira nos PRs', () => {
     ]);
   });
 
+  it('the PRs you opened arrive in the same cycle with their Jira cards', async () => {
+    await connect(USER, 'pulls', { token: 'gh', repos: 'acme/app' });
+    await connect(USER, 'jira', { cloud: 'acme', email: 'a@x.com', token: 't' });
+    vi.mocked(fetchMyPulls).mockResolvedValue({ items: [pr('feat: login (TT-77)')], truncated: false, total: 1 });
+    vi.mocked(fetchByKeys).mockResolvedValue([
+      { ...problemaBase('TT-77'), status: 'Code Review PR', statusCategory: 'indeterminate' },
+    ]);
+
+    const { refreshAll } = await import('@/lib/refresher');
+    const state = await refreshAll(USER);
+
+    expect(state.myPulls.data!.items[0].jira?.map((j) => j.key)).toEqual(['TT-77']);
+  });
+
   it('sem o Jira o PR chega sem card, e a falha da busca não derruba o PR', async () => {
     await connect(USER, 'pulls', { token: 'gh', repos: 'acme/app' });
-    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [] });
+    vi.mocked(fetchPulls).mockResolvedValue({ items: [pr('feat: login (TT-42)')], errors: [], defaultBranches: [], truncated: [] });
     const { refreshAll, dropCache } = await import('@/lib/refresher');
 
     const semJira = await refreshAll(USER);
