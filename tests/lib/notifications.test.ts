@@ -268,3 +268,95 @@ describe('ordem do sino', () => {
     expect(result.data?.[0].source).toBe('email');
   });
 });
+
+const REVIEW_NOW = new Date('2026-10-21T12:00:00Z');
+
+describe('staleReviewNotifications', () => {
+  it('avisa do pedido de revisão parado há mais de um dia, contando desde a abertura do PR', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    const [aviso] = staleReviewNotifications(
+      'u-1',
+      [pull({ awaitingYou: true, createdAt: '2026-10-18T11:00:00Z' })],
+      REVIEW_NOW,
+    );
+    expect(aviso.title).toBe('revisão parada há 3 dias — joao/daily-web#12 Corrige o login');
+  });
+
+  it('usa o singular para um dia parado', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    const [aviso] = staleReviewNotifications(
+      'u-1',
+      [pull({ awaitingYou: true, createdAt: '2026-10-20T11:00:00Z' })],
+      REVIEW_NOW,
+    );
+    expect(aviso.title).toMatch(/^revisão parada há 1 dia —/);
+  });
+
+  it('não avisa do pedido aberto há menos de um dia', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    expect(
+      staleReviewNotifications('u-1', [pull({ awaitingYou: true, createdAt: '2026-10-20T13:00:00Z' })], REVIEW_NOW),
+    ).toEqual([]);
+  });
+
+  it('não avisa do PR que não espera a sua revisão', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    expect(
+      staleReviewNotifications('u-1', [pull({ awaitingYou: false, createdAt: '2026-10-01T12:00:00Z' })], REVIEW_NOW),
+    ).toEqual([]);
+  });
+
+  it('não avisa sem data de abertura', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    expect(staleReviewNotifications('u-1', [pull({ awaitingYou: true, createdAt: '' })], REVIEW_NOW)).toEqual([]);
+  });
+
+  it('usa a mesma chave de lida do aviso do PR', async () => {
+    const { staleReviewNotifications } = await import('@/lib/notifications');
+    const [aviso] = staleReviewNotifications(
+      'u-1',
+      [pull({ awaitingYou: true, createdAt: '2026-10-01T12:00:00Z' })],
+      REVIEW_NOW,
+    );
+    expect(aviso.id).toBe('pull_request:joao/daily-web#12');
+  });
+});
+
+describe('combineNotifications com pedidos de revisão', () => {
+  const parado = pull({ awaitingYou: true, createdAt: '2020-01-01T00:00:00Z' });
+
+  it('um PR acompanhado com revisão parada vira um aviso só', async () => {
+    const { combineNotifications } = await import('@/lib/notifications');
+    const result = combineNotifications(
+      'u-1',
+      OFF,
+      { data: { items: [parado], errors: [], defaultBranches: [], truncated: [] }, error: null },
+      OFF,
+      OFF,
+      { data: { items: [parado], truncated: false, total: 1, scopeNote: null }, error: null },
+    );
+    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:joao/daily-web#12']);
+  });
+
+  it('o aviso que fica é o da revisão parada', async () => {
+    const { combineNotifications } = await import('@/lib/notifications');
+    const result = combineNotifications(
+      'u-1',
+      OFF,
+      { data: { items: [parado], errors: [], defaultBranches: [], truncated: [] }, error: null },
+      OFF,
+      OFF,
+      { data: { items: [parado], truncated: false, total: 1, scopeNote: null }, error: null },
+    );
+    expect(result.data?.[0].title).toMatch(/^revisão parada há/);
+  });
+
+  it('avisa da revisão parada fora dos repositórios acompanhados', async () => {
+    const { combineNotifications } = await import('@/lib/notifications');
+    const result = combineNotifications('u-1', OFF, OFF, OFF, OFF, {
+      data: { items: [pull({ ...parado, repo: 'acme/repo-9' })], truncated: false, total: 1, scopeNote: null },
+      error: null,
+    });
+    expect(result.data?.map((n) => n.id)).toEqual(['pull_request:acme/repo-9#12']);
+  });
+});

@@ -8,8 +8,10 @@ import type {
   PanelResult,
   PullRequestItem,
   PullsDigest,
+  ReviewRequestsDigest,
   SlackDigest,
 } from '@/lib/types';
+import { elapsedMs, formatDays, STALE_REVIEW_MS } from './pullAge';
 
 /** Um sino com tudo é um sino que ninguém lê. Cada fonte entra com os mais
  *  recentes até este teto; o painel continua mostrando a lista inteira. */
@@ -106,6 +108,45 @@ export function pullNotifications(userId: string, items: PullRequestItem[]): Not
     });
 }
 
+/** Review requests waiting longer than a day. The search does not say when the
+ *  review was requested, so the clock starts at the PR's creation. */
+export function staleReviewNotifications(
+  userId: string,
+  items: PullRequestItem[],
+  now: Date = new Date(),
+): NotificationItem[] {
+  return items
+    .filter((item) => item.isPullRequest && item.awaitingYou)
+    .flatMap((item) => {
+      const waiting = elapsedMs(item.createdAt, now);
+      return waiting !== null && waiting > STALE_REVIEW_MS ? [{ item, waiting }] : [];
+    })
+    .sort((a, b) => b.waiting - a.waiting)
+    .slice(0, PER_SOURCE_LIMIT)
+    .map(({ item, waiting }) => {
+      const externalId = `${item.repo}#${item.number}`;
+      return {
+        id: notificationId('pull_request', externalId),
+        source: 'pull_request' as const,
+        title: `revisão parada há ${formatDays(waiting)} — ${externalId} ${item.title}`,
+        url: item.url,
+        read: isRead(userId, 'pull_request', externalId),
+        date: item.updatedAt,
+      };
+    });
+}
+
+/** The stale review says more than the plain "PR open" entry for the same PR. */
+function pullAndStaleReviews(
+  userId: string,
+  pulls: PullRequestItem[],
+  reviewRequests: PullRequestItem[],
+): NotificationItem[] {
+  const stale = staleReviewNotifications(userId, reviewRequests);
+  const staleIds = new Set(stale.map((item) => item.id));
+  return [...stale, ...pullNotifications(userId, pulls).filter((item) => !staleIds.has(item.id))];
+}
+
 /** Um aviso por e-mail que chegou e ainda não foi lido. Marcar o aviso como
  *  lido não mexe na caixa: dispensar o aviso e ler o e-mail são coisas
  *  diferentes, e o sino não escreve no servidor de e-mail. */
@@ -158,6 +199,7 @@ export function combineNotifications(
   pulls: PanelResult<PullsDigest>,
   email: PanelResult<EmailEnvelope[]>,
   slack: PanelResult<SlackDigest> = { data: null, error: null },
+  reviewRequests: PanelResult<ReviewRequestsDigest> = { data: null, error: null },
 ): PanelResult<NotificationItem[]> {
   const desligado =
     mentions.data === null &&
@@ -167,12 +209,14 @@ export function combineNotifications(
     email.data === null &&
     email.error === null &&
     slack.data === null &&
-    slack.error === null;
+    slack.error === null &&
+    reviewRequests.data === null &&
+    reviewRequests.error === null;
   if (desligado) return { data: null, error: null };
 
   const items = [
     ...(mentions.data ?? []),
-    ...pullNotifications(userId, pulls.data?.items ?? []),
+    ...pullAndStaleReviews(userId, pulls.data?.items ?? [], reviewRequests.data?.items ?? []),
     ...emailNotifications(userId, email.data ?? []),
     ...slackNotifications(userId, slack.data ?? { mentions: [], directs: [], team: '' }),
   ].sort((a, b) => b.date.localeCompare(a.date));

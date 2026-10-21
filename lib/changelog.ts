@@ -13,6 +13,45 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-21-github',
+    date: '2026-10-21',
+    title: 'GitHub: o que trava cada PR',
+    items: [
+      {
+        title: 'Selos de CI, revisão e conflito',
+        detail:
+          'Cada PR mostra se o CI falhou, se pediram mudanças, se está aprovado e se tem conflito, além de há quanto tempo está aberto e parado.',
+      },
+      {
+        title: 'Aba "Meus PRs"',
+        detail:
+          'Seus PRs agrupados em "Precisa de você", "Esperando os outros", "Pronto para merge" e "Rascunho".',
+      },
+      {
+        title: 'Ações pela linha',
+        detail:
+          'Pelo menu "⋯": aprovar ou pedir mudanças, comentar, pedir revisão de novo, fazer o merge e rodar de novo o CI que falhou, sempre com confirmação.',
+      },
+      {
+        title: 'Card do Jira junto com o PR',
+        detail:
+          'Quando o card citado no PR ficou para trás, o painel oferece movê-lo para revisão ou em andamento, e avisa quando o card já está concluído com o PR aberto.',
+      },
+      {
+        title: 'Filtros e busca',
+        detail: 'Por repositório, autor e situação, guardados no endereço da página.',
+      },
+      {
+        title: 'CI vermelho na branch principal',
+        detail: 'Um aviso no topo quando a branch principal de um repositório acompanhado está falhando.',
+      },
+      {
+        title: 'Revisões paradas no sino',
+        detail: 'Uma revisão pedida a você há mais de um dia vira aviso.',
+      },
+    ],
+  },
+  {
     id: '2026-10-20-jira-acoes',
     date: '2026-10-20',
     title: 'Ações do Jira direto no painel',

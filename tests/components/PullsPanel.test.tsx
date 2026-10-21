@@ -275,6 +275,18 @@ describe('aba de revisões pedidas', () => {
     expect(screen.getByRole('link', { name: 'Trocar o parser' })).toBeInTheDocument();
   });
 
+  it('a aba Meus PRs vem aberta quando a URL pede, agrupada pelo que trava cada PR', () => {
+    nav.search = 'pulls=meus';
+    render(
+      <PullsPanel
+        pulls={{ data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null }}
+        myPulls={{ data: { items: [pull({ ci: 'failing' })], truncated: false, total: 1 }, error: null }}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: /Precisa de você/ })).toBeInTheDocument();
+  });
+
   it('cada linha diz de qual repositório veio, com link para ele', () => {
     render(
       <PullsPanel

@@ -345,7 +345,7 @@ async function buildState(
 
   // O sino soma menção do Jira, pull request aberto e e-mail não lido. As
   // três já foram buscadas acima: o aviso é derivado, não é uma quarta ida.
-  const notifications = combineNotifications(userId, mentions, pulls, emailReconciliado, slack);
+  const notifications = combineNotifications(userId, mentions, pulls, emailReconciliado, slack, reviewRequests);
 
   const mailboxes: MailboxRef[] = mailConnections.map((c) => ({ id: c.id, label: c.label }));
   const agendaCalendars: AgendaCalendarRef[] = calendars

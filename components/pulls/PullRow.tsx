@@ -6,7 +6,7 @@ import type { PullRequestItem } from '@/lib/types';
 import { JiraStatus } from '@/components/data/JiraStatus';
 import { repoUrl } from '@/lib/integrations/githubApi';
 import { Badge } from '@/components/ui/badge';
-import { EM_DASH, formatRelative } from '@/lib/format';
+import { EM_DASH } from '@/lib/format';
 import { tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
@@ -82,11 +82,6 @@ export function PullRow({ item, withRepo = false }: { item: PullRequestItem; wit
         <Badge variant="secondary" className="shrink-0">
           rascunho
         </Badge>
-      )}
-      {/* A idade só aparece onde ela é a informação: há quanto tempo este
-          pedido de revisão está parado. */}
-      {withRepo && item.createdAt && (
-        <span className="shrink-0 text-ink-dim">{formatRelative(item.createdAt)}</span>
       )}
       {/* Na aba de revisões toda linha espera revisão: a etiqueta em todas
           elas não separaria nada. */}

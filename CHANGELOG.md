@@ -9,6 +9,16 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- The GitHub panel says why each pull request is stuck: CI, review and
+  conflict badges, age and staleness, a "Meus PRs" tab grouped by what blocks
+  each PR, and a warning when a tracked repository's default branch is red.
+  It now reads everything in one GraphQL query per refresh instead of one REST
+  call per repository. Row actions approve or request changes, comment,
+  re-request review, merge (only when the head has not moved since it was
+  shown) and re-run failed CI, each after confirmation. A linked Jira card that
+  lags behind its PR can be moved to review or in progress from the row.
+  Repository, author, state and search filters live in the URL, and review
+  requests waiting for more than a day reach the bell.
 - Jira actions straight from the panel, every one following the same contract:
   show what will change, write only on confirmation, and show Jira's own
   message when it refuses. The status on a row opens the transitions the
