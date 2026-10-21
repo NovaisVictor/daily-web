@@ -73,6 +73,7 @@ import { TransitionAction } from './jira/actions/TransitionAction';
 import { ApprovalBadge } from './jira/actions/ApprovalAction';
 import { FlagIndicator } from './jira/actions/FlagAction';
 import { BulkStartDate } from './jira/actions/BulkStartDate';
+import { StandupDialog } from './jira/StandupDialog';
 
 /**
  * A panel that cannot reach its integration is information, not an alarm: the
@@ -171,6 +172,8 @@ interface Props {
   loading?: boolean;
   /** Os PRs do painel do GitHub. Os que citam uma issue aparecem sob ela. */
   pulls?: PullRequestItem[];
+  /** Os seus PRs abertos, de qualquer repositório, para o resumo da daily. */
+  myPulls?: PullRequestItem[];
 }
 
 const SEM_PRS = new Map<string, PullRequestItem[]>();
@@ -217,6 +220,7 @@ export function JiraPanel({
   onChanged,
   loading: meLoading = false,
   pulls,
+  myPulls,
 }: Props) {
   const prsPorChave = useMemo(() => (pulls ? pullsByJiraKey(pulls) : SEM_PRS), [pulls]);
   const searchParams = useSearchParams();
@@ -661,6 +665,18 @@ export function JiraPanel({
         aba === 'abertas' && activeFilters.length > 0
           ? `${visible.length} de ${all.length}`
           : undefined
+      }
+      actions={
+        pessoaAtiva ? undefined : (
+          <StandupDialog
+            source={{
+              open: meJira.data ?? [],
+              delivered: meDelivered.data ?? [],
+              approved: meApproved.data ?? [],
+              myPulls: myPulls ?? [],
+            }}
+          />
+        )
       }
     >
       <div className="flex min-w-0 items-start gap-2">

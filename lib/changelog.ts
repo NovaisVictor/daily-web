@@ -13,6 +13,18 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-21-daily',
+    date: '2026-10-21',
+    title: 'Resumo para a daily',
+    items: [
+      {
+        title: 'Ontem, hoje e bloqueios num clique',
+        detail:
+          'O botão no topo do painel do Jira monta o resumo com o que você entregou desde o último dia útil, o que está em andamento e o que está travado, inclusive os seus PRs, pronto para copiar.',
+      },
+    ],
+  },
+  {
     id: '2026-10-21-github',
     date: '2026-10-21',
     title: 'GitHub: o que trava cada PR',

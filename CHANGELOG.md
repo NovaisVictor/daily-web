@@ -9,6 +9,14 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- A "Resumo para a daily" button in the Jira panel header opens a plain-text
+  standup summary in three sections: Ontem (issues delivered or approved and
+  PRs opened since the previous working day, Friday on a Monday), Hoje
+  (assigned issues in progress) and Bloqueios (impeded issues and your PRs
+  blocked by failing CI, requested changes or a conflict). It is built from
+  the data the dashboard already loaded, with no extra request and no AI, and
+  "Copiar" puts it on the clipboard. Shown only on your own view, not on a
+  followed person's.
 - The GitHub panel says why each pull request is stuck: CI, review and
   conflict badges, age and staleness, a "Meus PRs" tab grouped by what blocks
   each PR, and a warning when a tracked repository's default branch is red.

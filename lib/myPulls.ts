@@ -4,6 +4,12 @@ export type MyPullGroup = 'needs-you' | 'waiting-others' | 'ready' | 'draft';
 
 export type MyPullBlocker = 'ci-failing' | 'changes-requested' | 'conflict';
 
+export const MY_PULL_BLOCKER_LABEL: Record<MyPullBlocker, string> = {
+  'ci-failing': 'CI falhou',
+  'changes-requested': 'pediram mudanças',
+  conflict: 'conflito',
+};
+
 export interface MyPullGroupEntry {
   group: MyPullGroup;
   items: PullRequestItem[];

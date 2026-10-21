@@ -933,6 +933,12 @@ describe('Visão de Pessoa (pessoaAtiva)', () => {
     render(<Panel people={people} watched={{ data: [issue({ key: 'WATCH-1' })], error: null }} />);
     expect(screen.queryByText('WATCH-1')).not.toBeInTheDocument();
   });
+
+  it('não oferece o resumo da daily na visão de terceiro', () => {
+    nav.search = 'jiraPessoa=123:abc';
+    render(<Panel people={people} />);
+    expect(screen.queryByRole('button', { name: 'Resumo para a daily' })).not.toBeInTheDocument();
+  });
 });
 
 describe('filtros do Jira', () => {
@@ -1462,5 +1468,19 @@ describe('PRs sob a issue', () => {
   it('sem PRs o painel não muda', () => {
     render(<Panel jira={{ data: [issue({ key: 'A-1' })], error: null }} />);
     expect(screen.queryByRole('list', { name: /^PRs de/ })).toBeNull();
+  });
+
+  it('monta o resumo da daily com as suas issues e os seus PRs', () => {
+    render(
+      <Panel
+        jira={{ data: [issue({ key: 'A-1', summary: 'Andando', statusCategory: 'indeterminate' })], error: null }}
+        myPulls={[pr({ repo: 'acme/api', number: 3, title: 'Travado', ci: 'failing' })]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Resumo para a daily' }));
+
+    const texto = (screen.getByRole('textbox', { name: 'texto do resumo' }) as HTMLTextAreaElement).value;
+    expect(texto).toContain('Hoje\n- A-1 — Andando');
+    expect(texto).toContain('Bloqueios\n- acme/api#3 — Travado (CI falhou)');
   });
 });
