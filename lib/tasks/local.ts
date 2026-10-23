@@ -51,10 +51,10 @@ export function listTasks(userId: string): TodoTask[] {
     id: row.id,
     title: row.title,
     completed: row.completed === 1,
-    due: row.due,
-    time: row.time,
+    due: cleared(row.due),
+    time: cleared(row.time),
     priority: row.priority as TaskPriority,
-    recur: row.recur,
+    recur: cleared(row.recur),
     notes: row.notes,
     subtasks: byTask.get(row.id) ?? [],
   }));
@@ -117,6 +117,17 @@ const EDITABLE: Record<keyof EditTaskInput, string> = {
   priority: 'priority',
 };
 
+/**
+ * 'none' is how callers say "clear this field": it is the mstodo CLI's
+ * convention, and parseDueInput returns it for a date with no time. This
+ * store used to translate it for recur only, so due and time kept the literal
+ * word, the panel showed "24/10 none", and a cleared due sorted as a date
+ * after every real one. Reads go through it too, for rows written before.
+ */
+function cleared(value: string): string {
+  return value === 'none' ? '' : value;
+}
+
 export function editTask(userId: string, id: string, input: EditTaskInput): void {
   const assignments: string[] = [];
   const values: string[] = [];
@@ -124,7 +135,7 @@ export function editTask(userId: string, id: string, input: EditTaskInput): void
     const value = input[field as keyof EditTaskInput];
     if (value === undefined) continue;
     assignments.push(`${column} = ?`);
-    values.push(value === 'none' && field === 'recur' ? '' : value);
+    values.push(cleared(value));
   }
   if (assignments.length === 0) return;
   getDb()

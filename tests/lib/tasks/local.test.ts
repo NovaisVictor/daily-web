@@ -60,6 +60,28 @@ describe('tarefas locais', () => {
     expect(task.title).toBe('Tarefa');
   });
 
+  // parseDueInput answers 'none' for a date with no time, and the store kept
+  // the word: the panel showed "24/10 none".
+  it('treats "none" as clearing the due date, time and recurrence', async () => {
+    const { addTask, editTask, listTasks } = await import('@/lib/tasks/local');
+    const id = addTask(USER, 'Tarefa');
+    editTask(USER, id, { due: '2026-09-01', time: '14:00', recur: 'weekly' });
+    editTask(USER, id, { due: 'none', time: 'none', recur: 'none' });
+
+    const [task] = listTasks(USER);
+    expect(task).toMatchObject({ due: '', time: '', recur: '' });
+  });
+
+  it('keeps a date and drops a "none" time written before the fix', async () => {
+    const { addTask, listTasks } = await import('@/lib/tasks/local');
+    const { getDb } = await import('@/lib/db');
+    const id = addTask(USER, 'Antiga');
+    getDb().prepare("UPDATE tasks SET due = '2026-09-01', time = 'none' WHERE id = ?").run(id);
+
+    const [task] = listTasks(USER);
+    expect(task).toMatchObject({ due: '2026-09-01', time: '' });
+  });
+
   it('não deixa um usuário editar a tarefa do outro', async () => {
     const { addTask, editTask, listTasks } = await import('@/lib/tasks/local');
     const id = addTask(USER, 'Minha');

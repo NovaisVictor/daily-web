@@ -123,6 +123,11 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- A local task with a date but no time no longer shows "none" after the date
+  ("24/10 none"), and clearing a task's date no longer files it under
+  "Depois". The local store kept the word 'none', which callers use to mean
+  "clear this field", for the date and time; only recurrence was translated.
+  Tasks saved that way before this fix read correctly too.
 - Creating a focus block now shows the "Bloco de foco criado" confirmation.
   The provider called `toast()` but no Toaster was ever mounted, so the
   message was queued and never rendered. The shell now mounts one for every
