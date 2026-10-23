@@ -410,6 +410,26 @@ function addTaskBoardStatus(instance: Database.Database): void {
   `);
 }
 
+// The paper and pin colour a person picked for a note on the board. A table
+// of its own rather than columns on task_board_status: a missing row there
+// means "A fazer" and the row is deleted on every completion and move back,
+// which would take the colour with it. No CHECK on the colours, on purpose:
+// SQLite cannot alter one, so every new colour would cost a table rebuild;
+// the API validates on the way in and the read drops unknown values. NULL is
+// "automatic", and a row with both NULL is deleted rather than kept.
+function addTaskBoardStyle(instance: Database.Database): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS task_board_style (
+      user_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      paper TEXT,
+      pin TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, task_id)
+    );
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -425,6 +445,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   renameCopyActionToTag,
   addNoteFolders,
   addTaskBoardStatus,
+  addTaskBoardStyle,
 ];
 
 function migrate(instance: Database.Database): void {

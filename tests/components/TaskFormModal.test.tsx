@@ -21,10 +21,12 @@ const tarefa = (overrides: Partial<TodoTask> = {}): TodoTask => ({
   notes: '',
   subtasks: [],
   doing: false,
+  paper: null,
+  pin: null,
   ...overrides,
 });
 
-function renderModal(task: TodoTask | null = null, handlers: Partial<{ onClose: () => void; onSaved: () => void; onDeleted: (id: string) => void }> = {}) {
+function renderModal(task: TodoTask | null = null, handlers: Partial<{ onClose: () => void; onSaved: (styleError?: string) => void; onDeleted: (id: string) => void }> = {}) {
   return render(
     <TaskFormModal
       task={task}
@@ -379,5 +381,102 @@ describe('proteção contra envio duplicado', () => {
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     expect(String(fetchSpy.mock.calls[0][0])).toBe('/api/tasks/AQMk%2BADAw%2Fabc%3D%3D');
+  });
+});
+
+describe('cor da nota no formulário', () => {
+  function urls(fetchSpy: { mock: { calls: unknown[][] } }) {
+    return fetchSpy.mock.calls.map(([url]) => url);
+  }
+
+  it('oferece papel e alfinete ao criar, com Automático marcado', () => {
+    renderModal();
+    const paper = screen.getByRole('radiogroup', { name: 'Papel' });
+    expect(within(paper).getByRole('radio', { name: 'Papel automático (amarelo)' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(screen.getByRole('radiogroup', { name: 'Alfinete' })).getByRole('radio', { name: 'Alfinete automático' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  // O automático acompanha a prioridade escolhida no próprio formulário.
+  it('o Automático diz a cor que a prioridade dará', () => {
+    renderModal();
+    fireEvent.change(screen.getByLabelText('Prioridade'), { target: { value: 'low' } });
+    expect(screen.getByRole('radio', { name: 'Papel automático (azul)' })).toBeInTheDocument();
+  });
+
+  it('ao editar, mostra a cor já escolhida', () => {
+    renderModal(tarefa({ paper: 'white', pin: 'green' }));
+    expect(screen.getByRole('radio', { name: 'Papel branco' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Alfinete verde' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('sem mudar a cor, salvar não chama a rota do quadro', async () => {
+    const fetchSpy = okResponse();
+    const onSaved = vi.fn();
+    renderModal(tarefa(), { onSaved });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Outro título' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith());
+    expect(urls(fetchSpy)).toEqual(['/api/tasks/T1']);
+  });
+
+  it('ao editar, grava a cor numa segunda chamada, depois de a tarefa ser salva', async () => {
+    const fetchSpy = okResponse();
+    const onSaved = vi.fn();
+    renderModal(tarefa({ paper: 'white' }), { onSaved });
+    fireEvent.click(screen.getByRole('radio', { name: 'Papel rosa' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Alfinete azul' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(undefined));
+    expect(urls(fetchSpy)).toEqual(['/api/tasks/T1', '/api/tasks/T1/board']);
+    expect(sentBody(fetchSpy, 1)).toEqual({ paper: 'pink', pin: 'blue' });
+  });
+
+  it('ao criar, grava a cor no id que a criação devolveu', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url) =>
+      new Response(url === '/api/tasks' ? JSON.stringify({ id: 'NOVA' }) : '{}', { status: 200 }),
+    );
+    const onSaved = vi.fn();
+    renderModal(null, { onSaved });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Comprar café' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'Papel verde' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(urls(fetchSpy)).toEqual(['/api/tasks', '/api/tasks/NOVA/board']);
+    expect(sentBody(fetchSpy, 1)).toEqual({ paper: 'green', pin: null });
+  });
+
+  it('se a tarefa não for salva, a cor nem é enviada', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ error: 'mstodo falhou' }), { status: 502 }),
+    );
+    renderModal(tarefa());
+    fireEvent.click(screen.getByRole('radio', { name: 'Papel cinza' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('mstodo falhou');
+    expect(urls(fetchSpy)).toEqual(['/api/tasks/T1']);
+  });
+
+  // A tarefa já existe: ficar aberto faria o próximo "Salvar" criá-la de novo.
+  it('quando só a cor falha, fecha e diz que a tarefa foi salva sem a cor', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (url) =>
+      String(url).endsWith('/board')
+        ? new Response(JSON.stringify({ error: 'cor de papel inválida' }), { status: 400 })
+        : new Response(JSON.stringify({ id: 'NOVA' }), { status: 200 }),
+    );
+    const onSaved = vi.fn();
+    renderModal(null, { onSaved });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Comprar café' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'Papel rosa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('cor de papel inválida'));
+  });
+
+  it('mudar só a cor conta como alteração antes de descartar', async () => {
+    const onClose = vi.fn();
+    renderModal(tarefa(), { onClose });
+    fireEvent.click(screen.getByRole('radio', { name: 'Papel azul' }));
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Editar tarefa' }), { key: 'Escape' });
+    expect(await screen.findByRole('dialog', { name: 'Descartar as alterações?' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

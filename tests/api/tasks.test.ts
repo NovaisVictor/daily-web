@@ -20,9 +20,22 @@ vi.mock('@/lib/tasks', () => ({
   deleteSubtask: vi.fn(),
   checkSubtask: vi.fn(),
   setDoing: vi.fn(),
+  setTaskStyle: vi.fn((_user: string, _id: string, patch: { paper?: string | null; pin?: string | null }) => ({
+    paper: patch.paper ?? null,
+    pin: patch.pin ?? null,
+  })),
 }));
 
-import { addTask, editTask, setCompleted, deleteTask, addSubtask, editSubtask, checkSubtask, setDoing } from '@/lib/tasks';
+// Medir que uma troca de cor não recarrega as tarefas: no Microsoft To Do
+// isso rodaria a CLI só para repintar uma nota.
+vi.mock('@/lib/refresher', () => ({
+  refreshTasks: vi.fn(async () => {}),
+  patchCachedState: vi.fn(),
+}));
+
+import { addTask, editTask, setCompleted, deleteTask, addSubtask, editSubtask, checkSubtask, setDoing, setTaskStyle } from '@/lib/tasks';
+import { patchCachedState, refreshTasks } from '@/lib/refresher';
+import type { DashboardState } from '@/lib/types';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { POST as createRoute } from '@/app/api/tasks/route';
 import { PATCH as patchRoute, DELETE as deleteRoute } from '@/app/api/tasks/[id]/route';
@@ -280,5 +293,77 @@ describe('PATCH /api/tasks/[id]/board', () => {
     const res = await boardRoute(req({ status: 'doing' }), params({ id: 'T1' }));
     expect(res.status).toBe(401);
     expect(setDoing).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/tasks/[id]/board: cor da nota', () => {
+  it('papel válido grava e devolve o estilo salvo', async () => {
+    const res = await boardRoute(req({ paper: 'pink' }), params({ id: 'T1' }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, paper: 'pink', pin: null });
+    expect(setTaskStyle).toHaveBeenCalledWith('u-1', 'T1', { paper: 'pink' });
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('papel fora da paleta devolve 400 sem gravar', async () => {
+    const res = await boardRoute(req({ paper: 'teal' }), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(setTaskStyle).not.toHaveBeenCalled();
+  });
+
+  it('alfinete fora da paleta devolve 400 sem gravar nada, nem o status', async () => {
+    const res = await boardRoute(req({ status: 'doing', pin: 'purple' }), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(setTaskStyle).not.toHaveBeenCalled();
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('corpo vazio devolve 400', async () => {
+    const res = await boardRoute(req({}), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(setTaskStyle).not.toHaveBeenCalled();
+  });
+
+  it('status e cor juntos gravam os dois e recarregam as tarefas', async () => {
+    const res = await boardRoute(req({ status: 'doing', paper: 'grey', pin: 'red' }), params({ id: 'T1' }));
+    expect(res.status).toBe(200);
+    expect(setDoing).toHaveBeenCalledWith('u-1', 'T1', true);
+    expect(setTaskStyle).toHaveBeenCalledWith('u-1', 'T1', { paper: 'grey', pin: 'red' });
+    expect(refreshTasks).toHaveBeenCalledWith('u-1');
+  });
+
+  it('null volta ao automático', async () => {
+    const res = await boardRoute(req({ paper: null, pin: null }), params({ id: 'T1' }));
+    expect(res.status).toBe(200);
+    expect(setTaskStyle).toHaveBeenCalledWith('u-1', 'T1', { paper: null, pin: null });
+  });
+
+  it('só a cor corrige o cache no lugar, sem recarregar as tarefas', async () => {
+    await boardRoute(req({ pin: 'blue' }), params({ id: 'T1' }));
+    expect(refreshTasks).not.toHaveBeenCalled();
+    expect(patchCachedState).toHaveBeenCalledTimes(1);
+
+    // O patch registrado aplica o estilo salvo à tarefa certa, e só a ela.
+    const patch = vi.mocked(patchCachedState).mock.calls[0][1];
+    const before = {
+      tasks: {
+        data: [
+          { id: 'T1', paper: 'white', pin: null },
+          { id: 'T2', paper: 'pink', pin: null },
+        ],
+        error: null,
+      },
+    } as unknown as DashboardState;
+    expect(patch(before).tasks.data).toMatchObject([
+      { id: 'T1', paper: null, pin: 'blue' },
+      { id: 'T2', paper: 'pink', pin: null },
+    ]);
+  });
+
+  it('sem sessão devolve 401 sem gravar a cor', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
+    const res = await boardRoute(req({ paper: 'pink' }), params({ id: 'T1' }));
+    expect(res.status).toBe(401);
+    expect(setTaskStyle).not.toHaveBeenCalled();
   });
 });

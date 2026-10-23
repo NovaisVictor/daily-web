@@ -20,6 +20,27 @@ Only `main` is maintained; there are no release branches.
   moved into the row's "⋯" menu, and the subtask arrow grew to 24px.
 
 ### Added
+- Each task's note on the board can have its own paper and pin colour. The
+  "⋯" menu of a note and of a list row has "Cor da nota…", which opens two
+  choices, "Papel" (yellow, pink, blue, green, white, grey) and "Alfinete"
+  (red, blue, yellow, green), each starting with "Automático". The task form
+  offers the same choices when creating and editing. A chosen paper wins over
+  the priority colour and over the green of a finished note; the automatic
+  pin avoids the colour the chosen paper would hide, and a chosen pin that
+  clashes is kept, with a "pode sumir neste papel" warning. The list shows a
+  chosen paper as a small dot beside the title. Colours live in a new local
+  table, `task_board_style` (migration 15), keyed by user and task id like
+  "Fazendo", so they work for local and Microsoft To Do tasks; they survive
+  completing and moving the task, and go away when it is deleted or its user
+  is removed.
+- `PATCH /api/tasks/[id]/board` accepts `paper` and `pin` (a palette colour,
+  or `null` for automatic) alone or with `status`, and answers with the saved
+  `{ paper, pin }`. A colour-only change corrects the cached state in place
+  instead of reloading the tasks, so it never runs the Microsoft To Do CLI.
+- White and grey paper tokens (`--postit-white`, `--postit-grey`) in the
+  light, dark and Catppuccin themes, and a test that reads `globals.css` and
+  requires at least 4.5:1 between the note's ink and every paper in every
+  theme, down to the darker bottom of the note.
 - The tasks board does everything the list does. Each note and each list row
   has the same "⋯" menu: Editar, Adicionar subtarefa, Agendar foco (when a
   Google calendar is connected), "Mover para" A fazer / Fazendo / Feito, and

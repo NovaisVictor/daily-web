@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db';
 import type { ProviderTask, TodoTask } from '@/lib/types';
+import { boardStyles } from './boardStyle';
 
 /** Ids of the tasks this user marked "Fazendo" on the board. */
 export function doingTaskIds(userId: string): Set<string> {
@@ -27,11 +28,23 @@ export function clearBoardStatus(userId: string, taskId: string): void {
 }
 
 /**
- * A completed task is "Feito" whatever the overlay says. The row can outlive
- * the completion when the task was completed somewhere this app does not see —
- * on the phone, in Microsoft To Do — so it is ignored here rather than trusted.
+ * Everything the board keeps beside the provider's task: "Fazendo" and the
+ * note's colours. A completed task is "Feito" whatever the overlay says. The
+ * row can outlive the completion when the task was completed somewhere this
+ * app does not see — on the phone, in Microsoft To Do — so it is ignored here
+ * rather than trusted. The colours are not tied to the column and stay.
  */
-export function withBoardStatus(userId: string, tasks: ProviderTask[]): TodoTask[] {
-  const doing = tasks.length > 0 ? doingTaskIds(userId) : new Set<string>();
-  return tasks.map((task) => ({ ...task, doing: !task.completed && doing.has(task.id) }));
+export function withBoardOverlay(userId: string, tasks: ProviderTask[]): TodoTask[] {
+  if (tasks.length === 0) return [];
+  const doing = doingTaskIds(userId);
+  const styles = boardStyles(userId);
+  return tasks.map((task) => {
+    const style = styles.get(task.id);
+    return {
+      ...task,
+      doing: !task.completed && doing.has(task.id),
+      paper: style?.paper ?? null,
+      pin: style?.pin ?? null,
+    };
+  });
 }

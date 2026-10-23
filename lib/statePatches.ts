@@ -1,4 +1,4 @@
-import type { DashboardState, EmailEnvelope, NotificationItem, TodoTask } from './types';
+import type { DashboardState, EmailEnvelope, NotePaper, NotificationItem, PinColor, TodoTask } from './types';
 
 // Depois de uma ação, o painel não pode continuar mostrando o estado
 // anterior. Refazer o `refreshAll` inteiro custa uma ida ao IMAP, ao Jira e ao
@@ -91,6 +91,26 @@ export function setTaskCompleted(
 export function setTaskDoing(state: DashboardState, id: string, doing: boolean): DashboardState {
   return mapTasks(state, (list) =>
     list.map((task) => (task.id === id ? { ...task, doing } : task)),
+  );
+}
+
+/** A colour left out keeps what the task has; null goes back to automatic.
+ *  The panel uses it ahead of the server, and the board route on the cache. */
+export function setTaskStyle(
+  state: DashboardState,
+  id: string,
+  style: { paper?: NotePaper | null; pin?: PinColor | null },
+): DashboardState {
+  return mapTasks(state, (list) =>
+    list.map((task) =>
+      task.id === id
+        ? {
+            ...task,
+            paper: style.paper === undefined ? task.paper : style.paper,
+            pin: style.pin === undefined ? task.pin : style.pin,
+          }
+        : task,
+    ),
   );
 }
 

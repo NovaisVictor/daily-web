@@ -250,9 +250,9 @@ describe('coluna Fazendo do quadro de tarefas', () => {
   it('as tarefas que já existiam continuam lá, todas fora de Fazendo', async () => {
     seedTasksDatabase();
     const { listTasks } = await import('@/lib/tasks/local');
-    const { withBoardStatus } = await import('@/lib/tasks/boardStatus');
+    const { withBoardOverlay } = await import('@/lib/tasks/boardStatus');
 
-    const tasks = withBoardStatus('u-1', listTasks('u-1'));
+    const tasks = withBoardOverlay('u-1', listTasks('u-1'));
     expect(tasks.map((t) => [t.title, t.completed, t.doing])).toEqual([
       ['Aberta', false, false],
       ['Feita', true, false],
@@ -266,7 +266,7 @@ describe('coluna Fazendo do quadro de tarefas', () => {
     const { markDoing } = await import('@/lib/tasks/boardStatus');
     markDoing('u-1', 't-1');
     const version = getDb().pragma('user_version', { simple: true });
-    expect(version).toBe(14);
+    expect(version).toBe(15);
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
@@ -282,5 +282,81 @@ describe('coluna Fazendo do quadro de tarefas', () => {
         .prepare("INSERT INTO task_board_status VALUES ('u-1', 't-1', 'feito', '2026-10-23')")
         .run(),
     ).toThrow();
+  });
+});
+
+describe('cor das notas do quadro de tarefas', () => {
+  // O banco como ficou depois da coluna Fazendo, com tarefas e uma marcação.
+  function seedBoardDatabase(): void {
+    const legacy = new Database(dbFile);
+    legacy.exec(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0, due TEXT NOT NULL DEFAULT '',
+        time TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL DEFAULT 'normal',
+        recur TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+        position INTEGER NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE subtasks (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL, title TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL
+      );
+      CREATE TABLE task_board_status (
+        user_id TEXT NOT NULL, task_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('doing')), updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, task_id)
+      );
+      INSERT INTO tasks (id, user_id, title, completed, priority, position, created_at)
+        VALUES ('t-1', 'u-1', 'Aberta', 0, 'high', 1, '2026-09-01'),
+               ('t-2', 'u-1', 'Feita', 1, 'normal', 2, '2026-09-01');
+      INSERT INTO task_board_status VALUES ('u-1', 't-1', 'doing', '2026-10-23');
+    `);
+    legacy.pragma('user_version = 14');
+    legacy.close();
+  }
+
+  it('as tarefas e a marcação de Fazendo continuam, todas com cor automática', async () => {
+    seedBoardDatabase();
+    const { getDb } = await import('@/lib/db');
+    expect(getDb().pragma('user_version', { simple: true })).toBe(15);
+    const { listTasks } = await import('@/lib/tasks/local');
+    const { withBoardOverlay } = await import('@/lib/tasks/boardStatus');
+
+    const tasks = withBoardOverlay('u-1', listTasks('u-1'));
+    expect(tasks.map((t) => [t.title, t.doing, t.paper, t.pin])).toEqual([
+      ['Aberta', true, null, null],
+      ['Feita', false, null, null],
+    ]);
+  });
+
+  it('a migração roda uma vez só e não perde a cor gravada', async () => {
+    seedBoardDatabase();
+    const { setBoardStyle } = await import('@/lib/tasks/boardStyle');
+    setBoardStyle('u-1', 't-1', { paper: 'grey', pin: 'red' });
+
+    vi.resetModules();
+    const { getDb: reopen } = await import('@/lib/db');
+    expect(reopen().pragma('user_version', { simple: true })).toBe(15);
+    const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
+    expect(boardStyleOf('u-1', 't-1')).toEqual({ paper: 'grey', pin: 'red' });
+  });
+
+  // CREATE TABLE IF NOT EXISTS: um banco que já tem a tabela (uma migração
+  // interrompida depois do CREATE) não quebra ao rodar de novo.
+  it('rodar a migração sobre uma tabela que já existe não falha nem apaga linhas', async () => {
+    seedBoardDatabase();
+    const half = new Database(dbFile);
+    half.exec(`
+      CREATE TABLE task_board_style (
+        user_id TEXT NOT NULL, task_id TEXT NOT NULL, paper TEXT, pin TEXT,
+        updated_at TEXT NOT NULL, PRIMARY KEY (user_id, task_id)
+      );
+      INSERT INTO task_board_style VALUES ('u-1', 't-2', 'white', NULL, '2026-10-23');
+    `);
+    half.close();
+    const { getDb } = await import('@/lib/db');
+    expect(getDb().pragma('user_version', { simple: true })).toBe(15);
+    const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
+    expect(boardStyleOf('u-1', 't-2')).toEqual({ paper: 'white', pin: null });
   });
 });

@@ -151,6 +151,7 @@ describe('remoção de usuário leva os dados junto', () => {
     const { putCachedBody } = await import('@/lib/emailCache');
     const { markRead } = await import('@/lib/notifications');
     const { markDoing } = await import('@/lib/tasks/boardStatus');
+    const { setBoardStyle } = await import('@/lib/tasks/boardStyle');
     const { getDb } = await import('@/lib/db');
 
     const admin = await createUser('chefe', 'senha-boa-123', true);
@@ -160,6 +161,7 @@ describe('remoção de usuário leva os dados junto', () => {
     const taskId = local.addTask(alvo.id, 'Tarefa dele');
     local.addSubtask(alvo.id, taskId, 'Etapa');
     markDoing(alvo.id, taskId);
+    setBoardStyle(alvo.id, taskId, { paper: 'pink', pin: 'blue' });
     putCachedBody(alvo.id, 'mail-1', '1', 'corpo');
     markRead(alvo.id, 'jira_mention', 'X-1');
 
@@ -170,6 +172,7 @@ describe('remoção de usuário leva os dados junto', () => {
     expect(count('SELECT count(*) c FROM connections WHERE user_id = ?')).toBe(0);
     expect(count('SELECT count(*) c FROM tasks WHERE user_id = ?')).toBe(0);
     expect(count('SELECT count(*) c FROM task_board_status WHERE user_id = ?')).toBe(0);
+    expect(count('SELECT count(*) c FROM task_board_style WHERE user_id = ?')).toBe(0);
     expect(count('SELECT count(*) c FROM email_bodies WHERE user_id = ?')).toBe(0);
     expect(count('SELECT count(*) c FROM notifications_read WHERE user_id = ?')).toBe(0);
     expect(

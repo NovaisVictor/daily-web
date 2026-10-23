@@ -1,4 +1,5 @@
-import type { TaskPriority } from '@/lib/types';
+import type { NotePaper, PinColor, TaskPriority } from '@/lib/types';
+import { NOTE_PAPERS, PIN_COLORS } from '@/lib/taskBoard';
 import type { Recur } from '@/lib/tasks/types';
 
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -47,6 +48,16 @@ export function isValidTaskPriority(value: unknown): value is TaskPriority {
 
 export function isValidRecur(value: unknown): value is Recur {
   return typeof value === 'string' && (VALID_RECURS as string[]).includes(value);
+}
+
+// The database has no CHECK on the colours, so a new one costs no table
+// rebuild; this list is the guard instead, on the way in.
+export function isNotePaper(value: unknown): value is NotePaper {
+  return typeof value === 'string' && (NOTE_PAPERS as string[]).includes(value);
+}
+
+export function isPinColor(value: unknown): value is PinColor {
+  return typeof value === 'string' && (PIN_COLORS as string[]).includes(value);
 }
 
 // Guarda mínima para valores de texto livre (ex.: title) que acabam como

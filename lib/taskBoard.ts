@@ -1,4 +1,6 @@
-import type { TodoTask } from '@/lib/types';
+import type { NotePaper, PinColor, TodoTask } from '@/lib/types';
+
+export type { NotePaper, PinColor };
 
 export type BoardColumn = 'todo' | 'doing' | 'done';
 
@@ -68,35 +70,69 @@ export function noteTilt(id: string): number {
   return Math.round((steps / 10 - 2) * 10) / 10;
 }
 
-export type NoteTone = 'yellow' | 'pink' | 'blue' | 'green';
+/** In the order the colour picker shows them: the classic yellow first, the
+ *  priority colours next, then the neutral ones. */
+export const NOTE_PAPERS: NotePaper[] = ['yellow', 'pink', 'blue', 'green', 'white', 'grey'];
+
+export const PIN_COLORS: PinColor[] = ['red', 'blue', 'yellow', 'green'];
+
+export const PAPER_LABEL: Record<NotePaper, string> = {
+  yellow: 'amarelo',
+  pink: 'rosa',
+  blue: 'azul',
+  green: 'verde',
+  white: 'branco',
+  grey: 'cinza',
+};
+
+export const PIN_LABEL: Record<PinColor, string> = {
+  red: 'vermelho',
+  blue: 'azul',
+  yellow: 'amarelo',
+  green: 'verde',
+};
 
 /** Finished notes go green; open ones take their colour from priority, with
  *  the classic yellow for the common case. Priority is also written on the
  *  note, so the colour is never the only signal. */
-export function noteTone(task: TodoTask): NoteTone {
+export function derivedPaper(task: Pick<TodoTask, 'completed' | 'priority'>): NotePaper {
   if (task.completed) return 'green';
   if (task.priority === 'high') return 'pink';
   if (task.priority === 'low') return 'blue';
   return 'yellow';
 }
 
-export type PinColor = 'red' | 'blue' | 'yellow' | 'green';
+/** A chosen paper wins even over the green of a finished note: the "Feito"
+ *  column and the struck-through title already say it is done, and forcing
+ *  green would erase the colour exactly where notes pile up. */
+export function notePaper(task: TodoTask): NotePaper {
+  return task.paper ?? derivedPaper(task);
+}
 
-const PIN_COLORS: PinColor[] = ['red', 'blue', 'yellow', 'green'];
-
-/** The pin a paper colour would swallow: a yellow pin vanishes on a yellow
- *  note, and red reads as a smudge on pink. */
-const CLASHES: Record<NoteTone, PinColor> = {
-  yellow: 'yellow',
-  pink: 'red',
-  blue: 'blue',
-  green: 'green',
+/** The pins a paper colour would swallow: a yellow pin vanishes on a yellow
+ *  note, red reads as a smudge on pink, and yellow is too close in lightness
+ *  to white and grey to stand out from them. */
+export const CLASHES: Record<NotePaper, PinColor[]> = {
+  yellow: ['yellow'],
+  pink: ['red'],
+  blue: ['blue'],
+  green: ['green'],
+  white: ['yellow'],
+  grey: ['yellow'],
 };
 
+export function pinClashes(pin: PinColor, paper: NotePaper): boolean {
+  return CLASHES[paper].includes(pin);
+}
+
 /** A pin colour per note, varied across the board like a real one, but never
- *  the colour the note's paper would hide. */
+ *  the colour the note's paper would hide. The paper is the one on screen, so
+ *  a chosen paper moves the automatic pin off it too. A chosen pin is kept
+ *  even when it clashes: the picker warns, and the person decides. */
 export function notePin(task: TodoTask): PinColor {
-  const options = PIN_COLORS.filter((c) => c !== CLASHES[noteTone(task)]);
+  if (task.pin) return task.pin;
+  const paper = notePaper(task);
+  const options = PIN_COLORS.filter((c) => !pinClashes(c, paper));
   // A different stride from the tilt, so pin and angle do not move together.
   return options[Math.floor(idHash(task.id) / 7) % options.length];
 }

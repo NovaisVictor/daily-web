@@ -17,6 +17,8 @@ function task(over: Partial<TodoTask>): TodoTask {
     notes: '',
     subtasks: [],
     doing: false,
+    paper: null,
+    pin: null,
     ...over,
   };
 }
@@ -882,5 +884,154 @@ describe('foco ao mover uma nota', () => {
 
     const title = await within(column('Feito')).findByRole('button', { name: 'Revisar PR' });
     await waitFor(() => expect(title).toHaveFocus());
+  });
+});
+
+describe('cor da nota', () => {
+  // Stands in for the page, which applies the optimistic change to its state,
+  // so the note and the picker really redraw with the new colour.
+  function Panel({ view = 'board', onChanged = () => {} }: { view?: 'board' | 'list'; onChanged?: () => void }) {
+    const [tasks, setTasks] = useState<TodoTask[]>([
+      task({ id: '1', title: 'Escrever proposta' }),
+      task({ id: '2', title: 'Revisar PR', priority: 'high', paper: 'grey' }),
+    ]);
+    return (
+      <TasksPanel
+        view={view}
+        tasks={{ data: tasks, error: null }}
+        onChanged={onChanged}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        onCompletedChanged={() => {}}
+        onStyleChanged={(id, patch) =>
+          setTasks((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+        }
+      />
+    );
+  }
+
+  async function openColours(title: string) {
+    const menu = await openActions(title);
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Cor da nota…' }));
+    return screen.findByRole('dialog', { name: `cor da nota de ${title}` });
+  }
+
+  function paperOf(title: string) {
+    return screen.getByRole('button', { name: title }).closest('.postit')?.getAttribute('data-paper');
+  }
+
+  it('o menu abre a escolha de cor, com Automático marcado quando nada foi escolhido', async () => {
+    render(<Panel />);
+    const dialog = await openColours('Escrever proposta');
+    const paper = within(dialog).getByRole('radiogroup', { name: 'Papel' });
+    const pin = within(dialog).getByRole('radiogroup', { name: 'Alfinete' });
+    expect(within(paper).getByRole('radio', { name: 'Papel automático (amarelo)' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(paper).getAllByRole('radio')).toHaveLength(7);
+    expect(within(pin).getByRole('radio', { name: 'Alfinete automático' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(pin).getAllByRole('radio')).toHaveLength(5);
+  });
+
+  it('escolher um papel muda a nota na hora, grava pela rota do quadro e anuncia', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ ok: true, paper: 'pink', pin: null })),
+    );
+    render(<Panel />);
+    const dialog = await openColours('Escrever proposta');
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Papel rosa' }));
+
+    expect(within(dialog).getByRole('radio', { name: 'Papel rosa' })).toHaveAttribute('aria-checked', 'true');
+    expect(paperOf('Escrever proposta')).toBe('pink');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/tasks/1/board',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ paper: 'pink' }) }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Papel rosa em Escrever proposta.'),
+    );
+  });
+
+  it('quando gravar falha, a cor volta, o erro aparece e o painel recarrega', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ error: 'banco travado' }), { status: 502 }),
+    );
+    const onChanged = vi.fn();
+    render(<Panel onChanged={onChanged} />);
+    const dialog = await openColours('Revisar PR');
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Papel branco' }));
+    expect(paperOf('Revisar PR')).toBe('white');
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('banco travado'));
+    expect(paperOf('Revisar PR')).toBe('grey');
+    expect(within(dialog).getByRole('radio', { name: 'Papel cinza' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent('Não foi possível mudar a cor de Revisar PR');
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('avisa qual alfinete pode sumir no papel da nota, sem impedir a escolha', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    render(<Panel />);
+    const dialog = await openColours('Revisar PR');
+    // Papel cinza: o amarelo quase não se destaca dele.
+    const yellow = within(dialog).getByRole('radio', { name: 'Alfinete amarelo, pode sumir neste papel' });
+    fireEvent.click(yellow);
+    expect(yellow).toHaveAttribute('aria-checked', 'true');
+    expect(within(dialog).getByText('O alfinete amarelo pode sumir neste papel.')).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith('/api/tasks/2/board', expect.objectContaining({ body: JSON.stringify({ pin: 'yellow' }) }));
+  });
+
+  it('pelas setas, o grupo anda entre as cores e escolhe a que recebe o foco', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    render(<Panel />);
+    const dialog = await openColours('Escrever proposta');
+    const automatic = within(dialog).getByRole('radio', { name: 'Papel automático (amarelo)' });
+    expect(automatic).toHaveAttribute('tabindex', '0');
+    fireEvent.keyDown(automatic, { key: 'ArrowRight' });
+    const yellow = within(dialog).getByRole('radio', { name: 'Papel amarelo' });
+    expect(yellow).toHaveAttribute('aria-checked', 'true');
+    expect(yellow).toHaveFocus();
+  });
+
+  it('Automático devolve a nota à cor da prioridade', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    render(<Panel />);
+    const dialog = await openColours('Revisar PR');
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Papel automático (rosa)' }));
+    expect(paperOf('Revisar PR')).toBe('pink');
+    expect(fetchSpy).toHaveBeenCalledWith('/api/tasks/2/board', expect.objectContaining({ body: JSON.stringify({ paper: null }) }));
+  });
+
+  // Paridade: o que o quadro mostra, a lista também mostra.
+  it('na lista, a cor escolhida aparece ao lado do título e o menu também a oferece', async () => {
+    render(<Panel view="list" />);
+    expect(screen.getByRole('img', { name: 'nota cinza' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /^nota amarelo/ })).not.toBeInTheDocument();
+    const dialog = await openColours('Escrever proposta');
+    expect(within(dialog).getByRole('radiogroup', { name: 'Papel' })).toBeInTheDocument();
+  });
+
+  // O tachado é de quem terminou, não de quem tem papel verde.
+  it('o tachado segue a conclusão, não a cor do papel', () => {
+    render(
+      <TasksPanel
+        view="board"
+        tasks={{
+          data: [
+            task({ id: '1', title: 'Aberta verde', paper: 'green' }),
+            task({ id: '2', title: 'Feita rosa', completed: true, paper: 'pink' }),
+          ],
+          error: null,
+        }}
+        onChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        onCompletedChanged={() => {}}
+      />,
+    );
+    const open = screen.getByRole('button', { name: 'Aberta verde' }).closest('.postit');
+    const done = screen.getByRole('button', { name: 'Feita rosa' }).closest('.postit');
+    expect(open).toHaveAttribute('data-paper', 'green');
+    expect(open).not.toHaveAttribute('data-done');
+    expect(done).toHaveAttribute('data-paper', 'pink');
+    expect(done).toHaveAttribute('data-done');
   });
 });

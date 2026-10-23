@@ -30,7 +30,8 @@ import { SubtaskList } from '@/components/tasks/SubtaskList';
 import { TaskActionsMenu } from '@/components/tasks/TaskActionsMenu';
 import { segmentedGroup, segmentedItem } from '@/components/tasks/segmented';
 import { readErrorMessage } from '@/components/tasks/readErrorMessage';
-import { columnLabel, planMove, type BoardColumn } from '@/lib/taskBoard';
+import { PAPER_LABEL, PIN_LABEL, columnLabel, planMove, type BoardColumn } from '@/lib/taskBoard';
+import type { NoteStyle } from '@/components/tasks/NoteColourPicker';
 
 /** A failing integration is information, not an alarm: contained block, side marker. */
 
@@ -66,6 +67,7 @@ interface Props {
   onRemoved: (id: string) => void;
   onSubtaskChanged: (taskId: string, itemId: string, completed: boolean) => void;
   onDoingChanged?: (id: string, doing: boolean) => void;
+  onStyleChanged?: (id: string, patch: Partial<NoteStyle>) => void;
   /** The saved choice between the list and the board. The board is the
    *  default: it does everything the list does, and shows "Fazendo" at a glance. */
   view?: TasksView;
@@ -120,6 +122,7 @@ export function TasksPanel({
   onRemoved,
   onSubtaskChanged,
   onDoingChanged,
+  onStyleChanged,
   view: savedView = 'board',
   onViewChanged,
   loading = false,
@@ -308,6 +311,36 @@ export function TasksPanel({
     return true;
   };
 
+  const describeStyle = (patch: Partial<NoteStyle>): string => {
+    if ('paper' in patch) return patch.paper ? `Papel ${PAPER_LABEL[patch.paper]}` : 'Papel automático';
+    return patch.pin ? `Alfinete ${PIN_LABEL[patch.pin]}` : 'Alfinete automático';
+  };
+
+  // Shown at once, like a move. The server only writes a row of this app's
+  // own database, so a failure is rare; when it happens the old colours come
+  // back right away and the reload confirms what is really saved.
+  const changeStyle = async (task: TodoTask, patch: Partial<NoteStyle>) => {
+    const previous: Partial<NoteStyle> = {};
+    if ('paper' in patch) previous.paper = task.paper;
+    if ('pin' in patch) previous.pin = task.pin;
+    onStyleChanged?.(task.id, patch);
+    setActionError(null);
+    const res = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/board`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const message = await readErrorMessage(res, 'Falha ao mudar a cor');
+      onStyleChanged?.(task.id, previous);
+      setActionError(message);
+      setAnnouncement(`Não foi possível mudar a cor de ${task.title}: ${message}`);
+      onChanged();
+      return;
+    }
+    setAnnouncement(`${describeStyle(patch)} em ${task.title}.`);
+  };
+
   // One request even for "Fazendo": a create followed by a separate move could
   // leave the task in "A fazer" when the second request failed.
   const createTask = async (title: string, column: 'todo' | 'doing'): Promise<boolean> => {
@@ -455,6 +488,7 @@ export function TasksPanel({
           onMove={moveTask}
           onOpen={setEditing}
           onRemove={(task) => void remove(task)}
+          onStyleChange={(task, patch) => void changeStyle(task, patch)}
           onCreate={createTask}
           onChanged={onChanged}
           onError={setActionError}
@@ -502,6 +536,17 @@ export function TasksPanel({
                     onChange={() => void toggleComplete(task)}
                     aria-label={`concluir ${task.title}`}
                   />
+                  {/* Parity with the board: a colour chosen there shows here
+                      too, or the list would hide something the board says. */}
+                  {task.paper && (
+                    <span
+                      role="img"
+                      className="paper-dot"
+                      data-paper={task.paper}
+                      aria-label={`nota ${PAPER_LABEL[task.paper]}`}
+                      title={`nota ${PAPER_LABEL[task.paper]}`}
+                    />
+                  )}
                   <button
                     type="button"
                     className={cn(
@@ -560,6 +605,7 @@ export function TasksPanel({
                     onEdit={() => setEditing(task)}
                     onAddSubtask={() => startAddingSubtask(task.id)}
                     onMove={(to) => void moveTask(task, to)}
+                    onStyleChange={(patch) => void changeStyle(task, patch)}
                     onDelete={() => void remove(task)}
                   />
                 </div>
@@ -585,8 +631,11 @@ export function TasksPanel({
         <TaskFormModal
           task={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(styleError) => {
             setEditing(null);
+            // The task itself was saved; only its colour was not, and the
+            // message says exactly that rather than "failed to save".
+            if (styleError) setActionError(`A tarefa foi salva, mas a cor não: ${styleError}`);
             onChanged();
           }}
           onDeleted={(id) => {

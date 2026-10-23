@@ -30,6 +30,27 @@ export const RELEASES: Release[] = [
     ],
   },
   {
+    id: '2026-10-23-cores-notas',
+    date: '2026-10-23',
+    title: 'Cores nas notas do quadro',
+    items: [
+      {
+        title: 'Escolha o papel e o alfinete',
+        detail:
+          'No menu "⋯" de uma nota, ou de uma linha da lista, use "Cor da nota…". O papel pode ser amarelo, rosa, azul, verde, branco ou cinza, e o alfinete vermelho, azul, amarelo ou verde. "Automático" volta à cor de antes. O formulário da tarefa tem as mesmas opções.',
+      },
+      {
+        title: 'A cor é sua, até no Feito',
+        detail:
+          'A cor escolhida fica no lugar da cor da prioridade e também do verde das concluídas. A prioridade continua escrita na nota. Se o alfinete escolhido puder sumir no papel, o app avisa.',
+      },
+      {
+        title: 'Também na lista',
+        detail: 'Na lista, uma bolinha ao lado do título mostra a cor de papel escolhida.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-quadro-completo',
     date: '2026-10-23',
     title: 'Quadro completo, e agora padrão',
