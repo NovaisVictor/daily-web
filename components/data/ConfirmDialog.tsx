@@ -40,8 +40,13 @@ interface Pending extends ConfirmOptions {
 export function useConfirm() {
   const [pending, setPending] = useState<Pending | null>(null);
   const resolverRef = useRef<((ok: boolean) => void) | null>(null);
+  // Radix returns focus to a DialogTrigger on close and this dialog has none,
+  // so without this focus fell to <body>. Inside another dialog that strands
+  // the keyboard: Tab no longer reaches the form the person went back to.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const confirm = useCallback((options: ConfirmOptions) => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return new Promise<boolean>((resolve) => {
       resolverRef.current = resolve;
       setPending({ ...options, resolve });
@@ -65,6 +70,11 @@ export function useConfirm() {
     >
       <DialogContent
         className="sm:max-w-md"
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+          returnFocusRef.current = null;
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
