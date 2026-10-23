@@ -73,6 +73,20 @@ describe('POST /api/tasks', () => {
     expect(addTask).not.toHaveBeenCalled();
   });
 
+  // Completing a repeating task with no date completed it for good, while the
+  // panel announced it would come back with its next date.
+  it('recorrente sem data devolve 400 sem criar a tarefa', async () => {
+    const res = await createRoute(req({ title: 'Pagar fatura', recur: 'monthly' }));
+    expect(res.status).toBe(400);
+    expect(addTask).not.toHaveBeenCalled();
+  });
+
+  it('recorrente com data é criada', async () => {
+    const res = await createRoute(req({ title: 'Pagar fatura', recur: 'monthly', due: 'amanhã' }));
+    expect(res.status).toBe(200);
+    expect(editTask).toHaveBeenCalledWith('u-1', 'NEW-ID', expect.objectContaining({ recur: 'monthly' }));
+  });
+
   it('título iniciado com "-" devolve 400 sem chamar addTask', async () => {
     const res = await createRoute(req({ title: '-rf tudo' }));
     expect(res.status).toBe(400);
@@ -113,6 +127,17 @@ describe('PATCH /api/tasks/[id]', () => {
     const res = await patchRoute(req({ recur: 'a cada hora' }), params({ id: 'T1' }));
     expect(res.status).toBe(400);
     expect(editTask).not.toHaveBeenCalled();
+  });
+
+  it('limpar a data de uma recorrente devolve 400 sem editar', async () => {
+    const res = await patchRoute(req({ recur: 'weekly', due: '' }), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(editTask).not.toHaveBeenCalled();
+  });
+
+  it('deixar de repetir e limpar a data juntos é aceito', async () => {
+    const res = await patchRoute(req({ recur: 'none', due: '' }), params({ id: 'T1' }));
+    expect(res.status).toBe(200);
   });
 
   it('título iniciado com "-" devolve 400 sem chamar editTask', async () => {

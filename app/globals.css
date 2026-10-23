@@ -107,9 +107,6 @@
   --postit-ink: oklch(0.27 0.03 70);
   --postit-ink-mid: oklch(0.42 0.03 70);
   --postit-shadow: oklch(0.3 0.04 70 / 30%);
-  --postit-pin: oklch(0.58 0.2 27);
-  --postit-pin-light: oklch(0.86 0.08 27);
-  --postit-pin-dark: oklch(0.38 0.15 27);
 
   /* Declared for documentation and deliberately NOT mapped into @theme: there is no
      `duration-fast` utility. Every real duration here is stock Tailwind. */
@@ -261,9 +258,6 @@
     --postit-ink: oklch(0.2 0.02 70);
     --postit-ink-mid: oklch(0.33 0.02 70);
     --postit-shadow: oklch(0 0 0 / 55%);
-    --postit-pin: oklch(0.62 0.19 27);
-    --postit-pin-light: oklch(0.88 0.07 27);
-    --postit-pin-dark: oklch(0.4 0.15 27);
   }
 }
 
@@ -346,9 +340,6 @@
   --postit-ink: oklch(0.2 0.02 70);
   --postit-ink-mid: oklch(0.33 0.02 70);
   --postit-shadow: oklch(0 0 0 / 55%);
-  --postit-pin: oklch(0.62 0.19 27);
-  --postit-pin-light: oklch(0.88 0.07 27);
-  --postit-pin-dark: oklch(0.4 0.15 27);
 }
 
 /* Catppuccin backdrop: a flat base instead of the mesh, only when the account
@@ -442,9 +433,6 @@
     --postit-green: var(--ctp-green);
     --postit-ink: var(--ctp-crust);
     --postit-ink-mid: var(--ctp-base);
-    --postit-pin: var(--ctp-red);
-    --postit-pin-light: oklch(0.9 0.06 2.764);
-    --postit-pin-dark: oklch(0.5 0.13 2.764);
   }
 }
 
@@ -499,9 +487,6 @@
   --postit-green: var(--ctp-green);
   --postit-ink: var(--ctp-crust);
   --postit-ink-mid: var(--ctp-base);
-  --postit-pin: var(--ctp-red);
-  --postit-pin-light: oklch(0.9 0.06 2.764);
-  --postit-pin-dark: oklch(0.5 0.13 2.764);
 }
 
 /* Dracula, dark theme only. The official palette names one background and one
@@ -1212,12 +1197,13 @@
   .board-notes {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    /* Room for the pin, which sticks out above the first note. */
-    padding-top: 0.625rem;
+    gap: 2.25rem;
+    /* Room for the pin's head, which stands above the first note. */
+    padding-top: 1.75rem;
   }
 
   .postit-slot {
+    position: relative;
     cursor: grab;
   }
   .postit-slot:active {
@@ -1282,37 +1268,92 @@
     }
   }
 
-  /* The pushpin, seen from above: a glossy round head, and the shadow it
-     casts down and to the right. */
+  /* The pushpin leans right with its needle in the paper, its head standing
+     above the note's top edge. The SVG draws it; this places and colours it.
+     Plastic does not change with the theme, so the colours are fixed. */
   .postit-pin {
     position: absolute;
-    top: -7px;
-    left: 50%;
-    width: 15px;
-    height: 15px;
-    margin-left: -7.5px;
-    border-radius: 9999px;
-    background: radial-gradient(
-      circle at 35% 30%,
-      var(--postit-pin-light) 0%,
-      var(--postit-pin) 42%,
-      var(--postit-pin-dark) 100%
-    );
-    box-shadow:
-      inset -1px -1px 2px oklch(0 0 0 / 25%),
-      2px 3px 3px var(--postit-shadow);
+    z-index: 1;
+    top: -30px;
+    left: calc(50% - 22px);
+    width: 44px;
+    height: 46px;
+    overflow: visible;
+    pointer-events: none;
+    --pin-light: oklch(from var(--pin) calc(l + 0.24) calc(c * 0.55) h);
+    --pin-shade: oklch(from var(--pin) calc(l - 0.22) c h);
   }
-  .postit-pin::after {
+  .postit-pin[data-pin='red'] {
+    --pin: oklch(0.6 0.21 27);
+  }
+  .postit-pin[data-pin='blue'] {
+    --pin: oklch(0.6 0.17 255);
+  }
+  .postit-pin[data-pin='yellow'] {
+    --pin: oklch(0.82 0.16 85);
+  }
+  .postit-pin[data-pin='green'] {
+    --pin: oklch(0.7 0.19 142);
+  }
+  .postit-pin-shadow {
+    stroke: var(--postit-shadow);
+  }
+  /* A yellow head on pale paper has almost no luminance contrast; a thin rim
+     in its own shade keeps the outline without changing the colour. */
+  .postit-pin-head {
+    stroke: var(--pin-shade);
+    stroke-width: 0.6;
+  }
+  .postit-pin {
+    transition: transform var(--dur) var(--ease);
+  }
+  /* The pin goes up with the note on hover, or the needle would slide over
+     the paper. */
+  .postit-slot:hover .postit-pin,
+  .postit-slot:focus-within .postit-pin {
+    transform: translateY(-3px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .postit-pin {
+      transition: none;
+    }
+    .postit-slot:hover .postit-pin,
+    .postit-slot:focus-within .postit-pin {
+      transform: none;
+    }
+  }
+
+  /* A peeling corner. The note loses its bottom-right triangle to a mask and
+     the flap is drawn over the rest of that square; the shadow moves to the
+     slot as a drop-shadow, since a box-shadow would still paint the corner
+     the mask took away. */
+  .postit-slot[data-curl] .postit-paper {
+    filter: drop-shadow(0 1px 1px var(--postit-shadow)) drop-shadow(5px 8px 6px var(--postit-shadow));
+  }
+  /* The flap covers the corner, which is where the forward move button sits. */
+  .postit-slot[data-curl] .postit-moves {
+    padding-right: var(--curl);
+  }
+  .postit-slot[data-curl] .postit {
+    --curl: 22px;
+    border-bottom-right-radius: 2px;
+    box-shadow: none;
+    mask: linear-gradient(315deg, transparent calc(var(--curl) * 0.7071), #000 calc(var(--curl) * 0.7071));
+  }
+  .postit-slot[data-curl] .postit::after {
     content: '';
     position: absolute;
-    top: 11px;
-    left: 9px;
-    width: 7px;
-    height: 2px;
-    border-radius: 9999px;
-    background: var(--postit-shadow);
-    transform: rotate(35deg);
-    transform-origin: left center;
+    right: 0;
+    bottom: 0;
+    width: var(--curl);
+    height: var(--curl);
+    border-top-left-radius: 3px;
+    background: linear-gradient(
+      135deg,
+      oklch(from var(--postit-paper) calc(l + 0.03) c h) 0%,
+      oklch(from var(--postit-paper) calc(l - 0.09) c h) 50%,
+      transparent 50%
+    );
   }
 
   .postit-title {
@@ -1330,7 +1371,7 @@
     -webkit-line-clamp: 4;
     overflow: hidden;
   }
-  .postit[data-tone='green'] .postit-title {
+  .postit[data-done] .postit-title {
     text-decoration: line-through;
     text-decoration-thickness: 1px;
     text-decoration-color: var(--postit-ink-mid);

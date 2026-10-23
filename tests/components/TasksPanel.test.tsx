@@ -123,6 +123,34 @@ describe('TasksPanel', () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
+  it('apagar pede confirmação e só apaga depois do sim', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    const onRemoved = vi.fn();
+    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={onRemoved} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'apagar Tarefa' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Apagar a tarefa?' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(onRemoved).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apagar' }));
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith('/api/tasks/1', expect.objectContaining({ method: 'DELETE' })),
+    );
+    expect(onRemoved).toHaveBeenCalledWith('1');
+  });
+
+  it('cancelar a confirmação não apaga', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'apagar Tarefa' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Apagar a tarefa?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   // Ao falhar, a marcação otimista precisa ser desfeita — e a fonte da
   // verdade é o servidor, então recarregar é justamente o certo a fazer.
   it('mostra o erro e recarrega para desfazer quando concluir falha', async () => {

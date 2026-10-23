@@ -11,10 +11,13 @@ import {
   columnOf,
   groupByColumn,
   neighbours,
+  noteCurls,
+  notePin,
   noteTilt,
   noteTone,
   type BoardColumn,
 } from '@/lib/taskBoard';
+import { PushPin } from './PushPin';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
 import { GLYPH } from '@/components/data/Status';
@@ -73,75 +76,83 @@ function NoteCard({
       onDragStart={startDrag}
       onDragEnd={() => setDragging(false)}
       data-dragging={dragging || undefined}
+      data-curl={noteCurls(task.id) || undefined}
     >
-      <div className="postit" data-tone={noteTone(task)} style={style}>
-        <span className="postit-pin" aria-hidden="true" />
-        <button
-          type="button"
-          className={cn('postit-title rounded-sm text-left', focusRing)}
-          onClick={() => onOpen(task)}
-        >
-          <span className="postit-title-text">{task.title}</span>
-        </button>
+      {/* Outside the note: a curled note is masked, and the mask would cut
+          away the pin's head, which stands above the paper. */}
+      <PushPin color={notePin(task)} />
+      {/* The paper's own shadow lives on this wrapper: a curled note is masked,
+          and a shadow on the masked element would be cut with it. Keeping the
+          pin outside also keeps it from getting a second shadow. */}
+      <div className="postit-paper">
+        <div className="postit" data-tone={noteTone(task)} data-done={task.completed || undefined} style={style}>
+          <button
+            type="button"
+            className={cn('postit-title rounded-sm text-left', focusRing)}
+            onClick={() => onOpen(task)}
+          >
+            <span className="postit-title-text">{task.title}</span>
+          </button>
 
-        {(task.priority !== 'normal' || task.recur !== '' || task.due || task.subtasks.length > 0) && (
-          <div className="postit-meta">
-            {task.priority !== 'normal' && (
-              <span className="postit-tag">
-                <span aria-hidden>{task.priority === 'high' ? GLYPH.alert : GLYPH.idle}</span>
-                {PRIORITY_LABEL[task.priority]}
-              </span>
+          {(task.priority !== 'normal' || task.recur !== '' || task.due || task.subtasks.length > 0) && (
+            <div className="postit-meta">
+              {task.priority !== 'normal' && (
+                <span className="postit-tag">
+                  <span aria-hidden>{task.priority === 'high' ? GLYPH.alert : GLYPH.idle}</span>
+                  {PRIORITY_LABEL[task.priority]}
+                </span>
+              )}
+              {task.recur !== '' && (
+                <span className="postit-tag" title="tarefa recorrente">
+                  repete
+                </span>
+              )}
+              {task.due && (
+                <span className={tabular}>
+                  <span className="sr-only">prazo </span>
+                  {formatDue(task.due, task.time)}
+                </span>
+              )}
+              {task.subtasks.length > 0 && (
+                <span className={cn('postit-progress', tabular)} title="subtarefas concluídas">
+                  <span
+                    className="postit-progress-bar"
+                    aria-hidden="true"
+                    style={{ '--progress': `${(doneSubtasks / task.subtasks.length) * 100}%` } as CSSProperties}
+                  />
+                  <span className="sr-only">subtarefas concluídas: </span>
+                  {doneSubtasks}/{task.subtasks.length}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Dragging is pointer-only. These are the same moves for keyboard,
+              screen reader and touch, where HTML5 drag does not fire at all. */}
+          <div className="postit-moves">
+            {previous && (
+              <button
+                type="button"
+                className={cn('postit-move', focusRing)}
+                aria-label={`mover ${task.title} para ${columnLabel(previous)}`}
+                onClick={() => onMove(task, previous)}
+              >
+                <ArrowLeft className="size-3.5" aria-hidden="true" />
+                {columnLabel(previous)}
+              </button>
             )}
-            {task.recur !== '' && (
-              <span className="postit-tag" title="tarefa recorrente">
-                repete
-              </span>
-            )}
-            {task.due && (
-              <span className={tabular}>
-                <span className="sr-only">prazo </span>
-                {formatDue(task.due, task.time)}
-              </span>
-            )}
-            {task.subtasks.length > 0 && (
-              <span className={cn('postit-progress', tabular)} title="subtarefas concluídas">
-                <span
-                  className="postit-progress-bar"
-                  aria-hidden="true"
-                  style={{ '--progress': `${(doneSubtasks / task.subtasks.length) * 100}%` } as CSSProperties}
-                />
-                <span className="sr-only">subtarefas concluídas: </span>
-                {doneSubtasks}/{task.subtasks.length}
-              </span>
+            {next && (
+              <button
+                type="button"
+                className={cn('postit-move ml-auto', focusRing)}
+                aria-label={`mover ${task.title} para ${columnLabel(next)}`}
+                onClick={() => onMove(task, next)}
+              >
+                {columnLabel(next)}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </button>
             )}
           </div>
-        )}
-
-        {/* Dragging is pointer-only. These are the same moves for keyboard,
-            screen reader and touch, where HTML5 drag does not fire at all. */}
-        <div className="postit-moves">
-          {previous && (
-            <button
-              type="button"
-              className={cn('postit-move', focusRing)}
-              aria-label={`mover ${task.title} para ${columnLabel(previous)}`}
-              onClick={() => onMove(task, previous)}
-            >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              {columnLabel(previous)}
-            </button>
-          )}
-          {next && (
-            <button
-              type="button"
-              className={cn('postit-move ml-auto', focusRing)}
-              aria-label={`mover ${task.title} para ${columnLabel(next)}`}
-              onClick={() => onMove(task, next)}
-            >
-              {columnLabel(next)}
-              <ArrowRight className="size-3.5" aria-hidden="true" />
-            </button>
-          )}
         </div>
       </div>
     </li>

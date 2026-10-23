@@ -13,6 +13,23 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23-modal-tarefa',
+    date: '2026-10-23',
+    title: 'Formulário de tarefa mais claro',
+    items: [
+      {
+        title: 'Todos os campos à vista',
+        detail:
+          'Prioridade e repetição agora são listas de opções, e a data tem calendário, hora e atalhos: Hoje, Amanhã, Próx. semana e Sem data. Quem prefere digitar ainda pode usar "Digitar data", com prévia do resultado.',
+      },
+      {
+        title: 'Salvar, apagar e não perder nada',
+        detail:
+          'Enter salva. Na edição, o botão "Apagar" pede confirmação antes. Se você clicar fora com alterações, o app pergunta antes de descartar. E editar uma tarefa mensal não apaga mais a repetição.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-kanban',
     date: '2026-10-23',
     title: 'Tarefas em quadro',
@@ -26,6 +43,11 @@ export const RELEASES: Release[] = [
         title: 'Arraste ou use os botões',
         detail:
           'Arraste a nota de uma coluna para outra, ou use os botões "A fazer", "Fazendo" e "Feito" na própria nota, que também funcionam pelo teclado. Levar para Feito conclui a tarefa; tirar de lá a reabre.',
+      },
+      {
+        title: 'Alfinetes de verdade',
+        detail:
+          'As notas agora ficam presas por alfinetes coloridos vistos de lado, e algumas têm o canto descolando do quadro.',
       },
     ],
   },

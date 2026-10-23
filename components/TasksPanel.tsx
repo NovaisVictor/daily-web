@@ -17,6 +17,7 @@ import { SearchInput } from './ui/SearchInput';
 import { Chip } from './ui/Chip';
 import { ActiveFilters } from './ui/ActiveFilters';
 import { EmptyState } from '@/components/data/EmptyState';
+import { useConfirm } from '@/components/data/ConfirmDialog';
 import { SkeletonRows } from './ui/legacy-skeleton';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -239,6 +240,7 @@ export function TasksPanel({
   }
   const [announcement, setAnnouncement] = useState('');
   const [editing, setEditing] = useState<TodoTask | 'new' | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
@@ -402,7 +404,7 @@ export function TasksPanel({
       }
     }
     setAnnouncement(
-      to === 'done' && recurring
+      to === 'done' && recurring && task.due
         ? `${task.title} concluída. Ela repete, então volta para A fazer com a próxima data.`
         : `${task.title} movida para ${columnLabel(to)}.`,
     );
@@ -410,6 +412,15 @@ export function TasksPanel({
   };
 
   const remove = async (task: TodoTask) => {
+    // Same rule as notes and e-mail: deleting asks first. With Microsoft To Do
+    // behind the panel there is no trash to restore from.
+    const ok = await confirm({
+      title: 'Apagar a tarefa?',
+      description: `"${task.title}" será removida. Isso não tem volta.`,
+      confirmLabel: 'Apagar',
+      destructive: true,
+    });
+    if (!ok) return;
     onRemoved(task.id);
     setActionError(null);
 
@@ -652,6 +663,7 @@ export function TasksPanel({
         </div>
       ))}
 
+      {confirmDialog}
       {editing && (
         <TaskFormModal
           task={editing === 'new' ? null : editing}
@@ -659,6 +671,10 @@ export function TasksPanel({
           onSaved={() => {
             setEditing(null);
             onChanged();
+          }}
+          onDeleted={(id) => {
+            setEditing(null);
+            onRemoved(id);
           }}
         />
       )}
