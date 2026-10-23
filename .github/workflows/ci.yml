@@ -34,11 +34,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Tests
+      - name: Tests (unit, OAuth, retention, MCP parity)
+        # The native suite includes tests/mcp and tests/lib/agents. Real-client
+        # interoperability and production proxy acceptance remain release gates.
         run: npm test
 
       - name: Build
-        # The build runs TypeScript, so a type error fails here.
+        # The native build compiles the OAuth companion and runs the Next
+        # production build/type check, so either compiler failure stops CI.
         run: npm run build
         env:
           # The build talks to no service, but the code reads these variables;

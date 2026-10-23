@@ -15,6 +15,27 @@ if [[ ! -d "$TARGET" ]]; then
   exit 1
 fi
 
+OAUTH_SERVICE="${DAILY_WEB_OAUTH_SERVICE:-daily-web-oauth}"
+OAUTH_INSTALLED=0
+if systemctl cat "$OAUTH_SERVICE" >/dev/null 2>&1; then
+  OAUTH_INSTALLED=1
+  sudo systemctl stop "$OAUTH_SERVICE"
+fi
+
+ARTIFACT_READY=0
+recover() {
+  local status=$?
+  if [[ "$status" != "0" && "$OAUTH_INSTALLED" == "1" ]]; then
+    if [[ "$ARTIFACT_READY" == "1" ]] && systemctl is-active --quiet "$SERVICE"; then
+      sudo systemctl start "$OAUTH_SERVICE" || echo "OAuth recovery failed; inspect the companion service" >&2
+    else
+      echo "Publish failed; OAuth remains stopped. Restore a complete compatible artifact and a healthy application before starting $OAUTH_SERVICE." >&2
+    fi
+  fi
+  exit "$status"
+}
+trap recover EXIT
+
 echo "publishing to $TARGET"
 
 # --delete so the target does not accumulate files that left the repository.
@@ -24,5 +45,9 @@ rsync -a --delete \
   --exclude 'data/' \
   ./ "$TARGET/"
 
+ARTIFACT_READY=1
 echo "restarting $SERVICE"
 sudo systemctl restart "$SERVICE"
+if [[ "$OAUTH_INSTALLED" == "1" ]]; then
+  sudo systemctl start "$OAUTH_SERVICE"
+fi

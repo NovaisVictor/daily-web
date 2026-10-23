@@ -1,0 +1,111 @@
+{
+  "snapshot": {
+    "tasks": {
+      "items": [
+        {
+          "id": "task-fixture-1",
+          "externalId": "ui-acceptance-task-1",
+          "title": "UI acceptance first task",
+          "description": "Captured browser acceptance task",
+          "status": "working",
+          "version": 2,
+          "createdAt": "2026-10-23T20:18:57.827Z",
+          "lastActivityAt": "2026-10-23T20:18:57.871Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "claude",
+            "displayName": "Acceptance Claude",
+            "freshness": "fresh"
+          }
+        },
+        {
+          "id": "task-fixture-2",
+          "externalId": "ui-acceptance-task-2",
+          "title": "UI acceptance second task",
+          "description": "",
+          "status": "queued",
+          "version": 1,
+          "createdAt": "2026-10-23T20:18:57.835Z",
+          "lastActivityAt": "2026-10-23T20:18:57.835Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "claude",
+            "displayName": "Acceptance Claude",
+            "freshness": "fresh"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    },
+    "sessions": {
+      "items": [
+        {
+          "id": "session-fixture",
+          "agentId": "agent-fixture",
+          "externalId": "ui-acceptance-session",
+          "version": 1,
+          "startedAt": "2026-10-23T20:18:57.818Z",
+          "lastActivityAt": "2026-10-23T20:18:57.818Z",
+          "freshness": "fresh",
+          "agent": {
+            "id": "agent-fixture",
+            "externalId": "ui-acceptance-agent",
+            "provider": "claude",
+            "displayName": "Acceptance Claude",
+            "createdAt": "2026-10-23T20:18:57.802Z",
+            "lastActivityAt": "2026-10-23T20:18:57.802Z"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    }
+  },
+  "detail": {
+    "task": {
+      "id": "task-fixture-1",
+      "externalId": "ui-acceptance-task-1",
+      "title": "UI acceptance first task",
+      "description": "Captured browser acceptance task",
+      "status": "working",
+      "version": 2,
+      "createdAt": "2026-10-23T20:18:57.827Z",
+      "lastActivityAt": "2026-10-23T20:18:57.871Z",
+      "source": null,
+      "assignment": {
+        "sessionId": "session-fixture",
+        "agentId": "agent-fixture",
+        "provider": "claude",
+        "displayName": "Acceptance Claude",
+        "freshness": "fresh"
+      }
+    },
+    "activity": {
+      "items": [
+        {
+          "id": "activity-fixture-c928ad78",
+          "taskId": "task-fixture-1",
+          "kind": "transition",
+          "summary": "working",
+          "receivedAt": "2026-10-23T20:18:57.871Z",
+          "occurredAt": null
+        },
+        {
+          "id": "activity-fixture-880bf648",
+          "taskId": "task-fixture-1",
+          "kind": "created",
+          "summary": "",
+          "receivedAt": "2026-10-23T20:18:57.827Z",
+          "occurredAt": null
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    }
+  }
+}

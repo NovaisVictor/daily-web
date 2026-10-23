@@ -266,7 +266,7 @@ describe('coluna Fazendo do quadro de tarefas', () => {
     const { markDoing } = await import('@/lib/tasks/boardStatus');
     markDoing('u-1', 't-1');
     const version = getDb().pragma('user_version', { simple: true });
-    expect(version).toBe(14);
+    expect(version).toBe(15);
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');

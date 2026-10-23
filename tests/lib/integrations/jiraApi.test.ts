@@ -371,8 +371,7 @@ describe('fetchProblems', () => {
   });
 
   it('para com erro em vez de cortar a lista em silêncio', async () => {
-    const page = { issues: [], nextPageToken: 'mais', isLast: false };
-    stubJira(Array.from({ length: 20 }, () => page));
+    stubJira(Array.from({ length: 20 }, (_, index) => ({ issues: [], nextPageToken: `page-${index}`, isLast: false })));
     await expect(fetchProblems(CONN)).rejects.toThrow('passou de 1000 issues');
   });
 
@@ -834,5 +833,32 @@ describe('épicos', () => {
       return { ok: false, status: 403, text: async () => '' };
     }));
     await expect(setEpic(CONN, 'TT-5', 'TT-10')).rejects.toThrow('não tem permissão');
+  });
+});
+
+
+describe('validated Jira search pagination', () => {
+  it('follows token pages and deduplicates captured issue data', async () => {
+    const first = { ...flaggedFixture, nextPageToken: 'second-page', isLast: false };
+    const second = { ...flaggedFixture, isLast: true };
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok:true,status:200,json:async()=>first }).mockResolvedValueOnce({ ok:true,status:200,json:async()=>second });
+    vi.stubGlobal('fetch',fetchMock);
+    const result = await fetchByKeys(CONN,['TT-2343']);
+    expect(result.map(item=>item.key)).toEqual(['TT-2343']);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).nextPageToken).toBe('second-page');
+  });
+  it('fails visibly on repeated cursors rather than returning a complete prefix', async () => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({...flaggedFixture,nextPageToken:'repeat',isLast:false})}));
+    await expect(fetchByKeys(CONN,['TT-2343'])).rejects.toThrow('repetiu um cursor');
+  });
+  it('rejects malformed responses and unknown status enums', async () => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({issues:[issue('TT-1',{status:{name:'Future',statusCategory:{key:'surprise'}}})],isLast:true})}));
+    await expect(fetchByKeys(CONN,['TT-1'])).rejects.toThrow('busca do Jira inválida');
+  });
+  it('accepts short legacy pages but rejects explicit incomplete pages without tokens', async () => {
+    const fetchMock=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({...flaggedFixture,isLast:false})});vi.stubGlobal('fetch',fetchMock);
+    await expect(fetchByKeys(CONN,['TT-2343'])).rejects.toThrow('sem cursor');
+    fetchMock.mockResolvedValue({ok:true,status:200,json:async()=>flaggedFixture});
+    await expect(fetchByKeys(CONN,['TT-2343'])).resolves.toHaveLength(1);
   });
 });

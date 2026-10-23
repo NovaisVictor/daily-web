@@ -10,6 +10,10 @@ for attempt in $(seq 1 "$TRIES"); do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$URL" || true)"
   if [[ "$code" == "200" ]]; then
     echo "up: $URL answered 200 on attempt $attempt"
+    if [[ -n "${DAILY_WEB_OAUTH_HEALTH_URL:-}" ]]; then
+      curl --fail --silent --max-time 5 "$DAILY_WEB_OAUTH_HEALTH_URL" >/dev/null || exit 1
+      echo "OAuth companion answered successfully"
+    fi
     exit 0
   fi
   sleep 2

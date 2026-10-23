@@ -1,0 +1,68 @@
+{
+  "recordedAt": "2026-10-23T20:32:26.415Z",
+  "scope": "Real disposable Next production app behind loopback proxy; twenty authenticated headless Chromium contexts with document.visibilityState=visible, service workers blocked for test stability, actual React card time[datetime] mutation observed during 10 accepted reports/second. Browser layout/rendering and its natural 2-second polling are included; physical display paint, production network and interactive real agents are not measured.",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "browser": "155.0.8059.85",
+    "headless": true
+  },
+  "workload": {
+    "users": 20,
+    "sessions": 100,
+    "retainedTasks": 10000,
+    "reports": 100,
+    "scheduledReportsPerSecond": 10,
+    "seedMode": "reused"
+  },
+  "visibility": [
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible",
+    "visible"
+  ],
+  "acceptedHttpMs": {
+    "samples": 100,
+    "p50": 3.1335829999989073,
+    "p95": 9.004667000001064,
+    "p99": 21.533457999998063,
+    "maximum": 29.747959000000264
+  },
+  "reportToBrowserSnapshotMs": {
+    "samples": 100,
+    "p50": 911.193124999998,
+    "p95": 1837.4707089999974,
+    "p99": 1871.3851670000004,
+    "maximum": 1875.8821669999998
+  },
+  "reportToReactDomMs": {
+    "samples": 100,
+    "p50": 906.5220000000008,
+    "p95": 1834.473958999999,
+    "p99": 1867.934707999997,
+    "maximum": 1869.3335420000003
+  },
+  "appMemory": {
+    "rssBeforeBytes": 202539008,
+    "rssPeakBytes": 345522176
+  },
+  "errors": {},
+  "pass": true
+}

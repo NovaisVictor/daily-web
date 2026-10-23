@@ -1,0 +1,104 @@
+{
+  "recordedAt": "2026-10-23",
+  "environment": {
+    "kind": "disposable local production build",
+    "canonicalOrigin": "http://127.0.0.1:8022",
+    "transport": "Streamable HTTP",
+    "authentication": "OAuth authorization code with PKCE and dynamic client registration",
+    "fixture": "disposable user and SQLite database; no production provider writes"
+  },
+  "clients": [
+    {
+      "name": "Claude Code",
+      "version": "2.1.309",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "full loopback callback URL pasted into CLI",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "tool unavailable; no direct post-revocation tool call observed"
+      },
+      "cleanup": "OAuth logout and temporary local MCP configuration removed"
+    },
+    {
+      "name": "Codex CLI",
+      "version": "0.163.0",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "full loopback callback URL pasted into CLI",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "transport AuthRequired with Bearer invalid_token; tools unavailable"
+      },
+      "cleanup": "OAuth logout; server configured by ephemeral command override"
+    },
+    {
+      "name": "Google Antigravity CLI",
+      "alias": "agy",
+      "version": "1.4.6",
+      "model": "Gemini 4 Argon Medium",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "authorization code captured from declared HTTPS callback by isolated test browser and pasted into MCP manager",
+      "manager": "Authenticated; 58 tools discovered",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "permission": "approved once for this exact read-only operation",
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "final production build: initialize Unauthorized [Auth Needed]"
+      },
+      "cleanup": "temporary MCP configuration removed; fixture grant revoked; disposable PTY/browser drivers terminated"
+    }
+  ],
+  "providerLibraryTests": {
+    "result": "passed",
+    "testCount": 10,
+    "coverage": [
+      "HTTP discovery and RFC8414 metadata location",
+      "DCR redirect restrictions and bounded registration",
+      "PKCE and audience enforcement",
+      "opaque token introspection",
+      "encrypted persistence and provider restart",
+      "refresh rotation and replay revocation",
+      "concurrent authorization-code consume",
+      "immediate grant and user revocation",
+      "browser-bound consent and handoff ownership",
+      "private Unix socket ownership and permissions"
+    ]
+  },
+  "limitations": [
+    "Client-specific automatic refresh after access-token expiry was not timed; refresh rotation/replay/restart are verified through actual provider HTTP/library tests.",
+    "The installed Gemini-family client is Antigravity agy; a standalone official Gemini CLI binary was not available or installed.",
+    "Terminal URL wrapping and OSC8 hyperlinks required harness parsing; these were harness issues, not OAuth server failures.",
+    "No production systemd, Traefik, remote HTTPS deployment or external Jira/GitHub write was performed."
+  ],
+  "finalBuildSmoke": {
+    "result": "passed negative authorization check",
+    "application": "final optimized production build",
+    "companion": "restarted from final dist bundle",
+    "client": "Google Antigravity CLI 1.4.6",
+    "expected": "previously revoked fixture grant rejected",
+    "observed": "initialize returned Unauthorized [Auth Needed]",
+    "successfulToolCallsAfterFinalBuild": "not repeated; all three positive tool calls are from preceding production runtime with identical frozen OAuth sources"
+  }
+}

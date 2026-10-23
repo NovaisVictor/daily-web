@@ -8,3 +8,11 @@
       tls:
         certResolver: letsencrypt
       service: daily-web-app
+    daily-web-oauth:
+      rule: "Host(`dashboard.exemplo.com`) && (PathPrefix(`/oauth/`) || Path(`/.well-known/oauth-authorization-server/oauth`) || Path(`/.well-known/openid-configuration/oauth`))"
+      priority: 300
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: daily-web-oauth

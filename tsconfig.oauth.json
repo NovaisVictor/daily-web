@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {"incremental":false,"plugins":[]},
+  "include":["scripts/oauth-server.ts","scripts/migrate-db.ts","lib/oauth/**/*.ts","lib/vault/crypto.ts"],
+  "exclude":["node_modules"]
+}

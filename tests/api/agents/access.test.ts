@@ -1,0 +1,17 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {mkdtempSync,rmSync} from 'node:fs';
+import path from 'node:path';
+import {tmpdir} from 'node:os';
+import {getDb} from '@/lib/db';
+vi.mock('@/lib/auth/currentUser',()=>({getCurrentUser:vi.fn()}));
+import {getCurrentUser} from '@/lib/auth/currentUser';
+import {GET,POST} from '@/app/api/agent-access/tokens/route';
+import {DELETE} from '@/app/api/agent-access/tokens/[id]/route';
+import {GET as prompt} from '@/app/api/agent-access/prompt/route';
+let dir:string;
+beforeEach(()=>{dir=mkdtempSync(path.join(tmpdir(),'daily-agent-access-'));process.env.DAILY_WEB_DB_PATH=path.join(dir,'test.db');process.env.PUBLIC_ORIGIN='https://daily.example';getDb().prepare("INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES('a','a','unused',1,'2026-01-01')").run();vi.mocked(getCurrentUser).mockResolvedValue({id:'a',username:'a',passwordHash:'unused',isAdmin:true,createdAt:'2026-01-01'});});
+afterEach(()=>{delete process.env.PUBLIC_ORIGIN;rmSync(dir,{recursive:true,force:true});});
+const request=(origin='https://daily.example')=>new Request('https://daily.example/api/agent-access/tokens',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({label:'My key',scopes:['agents:read']})});
+it('requires authenticated same-origin browser administration',async()=>{expect((await POST(request('https://attacker.example'))).status).toBe(403);vi.mocked(getCurrentUser).mockResolvedValue(null);expect((await POST(request())).status).toBe(401);});
+it('creates a secret only once, lists metadata and revokes with ownership checks',async()=>{const created=await POST(request());expect(created.status).toBe(201);const value=await created.json();expect(value.secret).toMatch(/^dwp_/);const listed=await(await GET(new Request('https://daily.example/api/agent-access/tokens'))).json();expect(JSON.stringify(listed)).not.toContain(value.secret);expect((await DELETE(new Request('https://daily.example/x',{method:'DELETE',headers:{origin:'https://daily.example'}}),{params:Promise.resolve({id:value.credential.id})})).status).toBe(204);expect((await DELETE(new Request('https://daily.example/x',{method:'DELETE',headers:{origin:'https://daily.example'}}),{params:Promise.resolve({id:'other'})})).status).toBe(404);});
+it('returns a configured prompt without using attacker host or embedded secrets',async()=>{const value=await(await prompt(new Request('https://attacker.example/x'))).json();expect(value.prompt).toContain('https://daily.example/api/v1/agents');expect(value.prompt).not.toContain('attacker.example');expect(value.prompt).toContain('<DAILY_WEB_REPORTING_TOKEN>');delete process.env.PUBLIC_ORIGIN;expect((await prompt(new Request('https://daily.example/x'))).status).toBe(503);});

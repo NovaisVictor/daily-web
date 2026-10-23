@@ -1,3 +1,5 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
+import { z } from 'zod';
 import type { Connection } from '@/lib/vault/connections';
 import type {
   JiraDatedItem,
@@ -45,7 +47,7 @@ export interface JiraAuth {
  *  configurando copia da barra de endereços, não do manual. */
 export function jiraBaseUrl(cloud: string): string {
   const raw = cloud.trim().replace(/\/+$/, '');
-  if (!raw) throw new Error('domínio do Jira não configurado');
+  if (!raw) throw new ProviderRefusal('domínio do Jira não configurado');
   if (/^https?:\/\//i.test(raw)) return raw;
   if (raw.includes('.')) return `https://${raw}`;
   return `https://${raw}.atlassian.net`;
@@ -53,7 +55,7 @@ export function jiraBaseUrl(cloud: string): string {
 
 export function jiraAuth(conn: Connection): JiraAuth {
   const { cloud = '', email = '', token = '' } = conn.values;
-  if (!email.trim() || !token.trim()) throw new Error('e-mail ou API token do Jira não configurados');
+  if (!email.trim() || !token.trim()) throw new ProviderRefusal('e-mail ou API token do Jira não configurados');
   return {
     baseUrl: jiraBaseUrl(cloud),
     header: `Basic ${Buffer.from(`${email.trim()}:${token.trim()}`).toString('base64')}`,
@@ -320,17 +322,24 @@ function resolve(issues: RawIssue[], meta: InstanceMeta): RawIssue[] {
   });
 }
 
-interface SearchResponse {
-  issues?: RawIssue[];
-  nextPageToken?: string;
-  isLast?: boolean;
-}
+const searchPageSchema = z.object({
+  issues: z.array(z.object({
+    key: z.string().refine(isJiraKey),
+    fields: z.object({
+      summary: z.string().nullish(), updated: z.string().nullish(), duedate: z.string().nullish(),
+      status: z.object({ name: z.string().nullish(), statusCategory: z.object({ key: z.enum(['new', 'indeterminate', 'done']).nullish() }).nullish() }).nullish(),
+      project: z.object({ key: z.string().nullish() }).nullish(),
+      issuetype: z.object({ name: z.string().nullish(), subtask: z.boolean().nullish(), hierarchyLevel: z.number().int().nullish() }).nullish(),
+      parent: z.object({ key: z.string().optional(), fields: z.object({summary:z.string().nullish()}).nullish() }).nullish(),
+      priority: z.object({id:z.string().nullish(),name:z.string().nullish()}).nullish(),
+    }).passthrough().nullish(),
+  }).passthrough()).max(PAGE_SIZE),
+  nextPageToken: z.string().min(1).max(4096).optional(),
+  isLast: z.boolean().optional(),
+}).passthrough();
 
 async function search(auth: JiraAuth, jql: string): Promise<RawIssue[]> {
-  const meta = await instanceMeta(auth);
-  const payload = { jql, fields: searchFields(meta), maxResults: PAGE_SIZE };
-  const data = (await request(auth, '/rest/api/3/search/jql', payload)) as SearchResponse;
-  return resolve(data.issues ?? [], meta);
+  return searchAll(auth, jql, await instanceMeta(auth));
 }
 
 const OPEN = 'statusCategory != Done';
@@ -563,15 +572,27 @@ async function searchAll(
   meta: InstanceMeta,
   extraFields: string[] = [],
 ): Promise<RawIssue[]> {
-  const issues: RawIssue[] = [];
+  const issues = new Map<string, RawIssue>();
   const fields = searchFields(meta, extraFields);
+  const tokens = new Set<string>();
   let nextPageToken: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
     const payload = { jql, fields, maxResults: PAGE_SIZE, ...(nextPageToken ? { nextPageToken } : {}) };
-    const data = (await request(auth, '/rest/api/3/search/jql', payload)) as SearchResponse;
-    issues.push(...resolve(data.issues ?? [], meta));
-    if (data.isLast !== false || !data.nextPageToken) return issues;
-    nextPageToken = data.nextPageToken;
+    const parsed = searchPageSchema.safeParse(await request(auth, '/rest/api/3/search/jql', payload));
+    if (!parsed.success) throw new Error('resposta de busca do Jira inválida');
+    const data = parsed.data;
+    for (const issue of resolve(data.issues, meta)) issues.set(issue.key, issue);
+    if (data.isLast === true) return [...issues.values()];
+    if (data.nextPageToken) {
+      if (tokens.has(data.nextPageToken)) throw new Error('paginação do Jira repetiu um cursor');
+      tokens.add(data.nextPageToken);
+      nextPageToken = data.nextPageToken;
+      continue;
+    }
+    if (data.isLast === false || data.issues.length === PAGE_SIZE) {
+      throw new Error('resposta incompleta do Jira sem cursor de continuação');
+    }
+    return [...issues.values()];
   }
   throw new Error(`a busca do Jira passou de ${MAX_PAGES * PAGE_SIZE} issues`);
 }
@@ -580,7 +601,7 @@ export async function startDateField(auth: JiraAuth): Promise<{ meta: InstanceMe
   const meta = await instanceMeta(auth);
   // Sem o campo, toda história em andamento pareceria sem início. Melhor dizer
   // que não dá para checar do que acusar a lista inteira.
-  if (!meta.startField) throw new Error('campo "Start date" não encontrado no Jira');
+  if (!meta.startField) throw new ProviderRefusal('campo "Start date" não encontrado no Jira');
   return { meta, startField: meta.startField };
 }
 
@@ -685,7 +706,7 @@ interface IssueCreated {
  *
  *  O dia é o do horário gravado pelo Jira, que já vem no fuso do perfil. */
 export async function suggestStartDate(conn: Connection, key: string): Promise<StartDateSuggestion | null> {
-  if (!isJiraKey(key)) throw new Error('chave inválida');
+  if (!isJiraKey(key)) throw new ProviderRefusal('chave inválida');
   const auth = jiraAuth(conn);
   const issuePath = `/rest/api/3/issue/${encodeURIComponent(key)}`;
 
@@ -732,8 +753,8 @@ export async function suggestStartDate(conn: Connection, key: string): Promise<S
 /** Grava a data de início. A data chega da tela, então é conferida aqui: só
  *  um dia que existe no calendário vai para o Jira. */
 export async function setStartDate(conn: Connection, key: string, date: string): Promise<void> {
-  if (!isJiraKey(key)) throw new Error('chave inválida');
-  if (!isCalendarDate(date)) throw new Error('data inválida — use AAAA-MM-DD');
+  if (!isJiraKey(key)) throw new ProviderRefusal('chave inválida');
+  if (!isCalendarDate(date)) throw new ProviderRefusal('data inválida — use AAAA-MM-DD');
   const auth = jiraAuth(conn);
   const { startField } = await startDateField(auth);
   await request(auth, `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: { [startField]: date } }, 'PUT');
@@ -770,12 +791,12 @@ export function isJiraProjectKey(value: unknown): value is string {
  *  existir, ser um épico e ser do mesmo projeto — o Jira aceitaria um épico
  *  de outro projeto, e a história sumiria do quadro do time. */
 export async function setEpic(conn: Connection, key: string, epicKey: string): Promise<void> {
-  if (!isJiraKey(key) || !isJiraKey(epicKey)) throw new Error('chave inválida');
+  if (!isJiraKey(key) || !isJiraKey(epicKey)) throw new ProviderRefusal('chave inválida');
   const auth = jiraAuth(conn);
   const [epic] = await search(auth, `key = "${epicKey}"`);
   const item = epic ? toJiraItem(epic, auth.baseUrl, 'assignee') : null;
-  if (!item || item.hierarchyLevel !== EPIC_LEVEL) throw new Error(`${epicKey} não é um épico`);
-  if (item.project !== key.split('-')[0]) throw new Error(`${epicKey} é de outro projeto`);
+  if (!item || item.hierarchyLevel !== EPIC_LEVEL) throw new ProviderRefusal(`${epicKey} não é um épico`);
+  if (item.project !== key.split('-')[0]) throw new ProviderRefusal(`${epicKey} é de outro projeto`);
   await request(auth, `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: { parent: { key: epicKey } } }, 'PUT');
 }
 

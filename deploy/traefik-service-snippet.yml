@@ -3,3 +3,7 @@
       loadBalancer:
         servers:
           - url: "http://127.0.0.1:8010"
+    daily-web-oauth:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:8011"

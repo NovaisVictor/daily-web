@@ -112,6 +112,9 @@ export function removeUser(username: string): boolean {
     for (const table of USER_SCOPED_TABLES) {
       db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(target.id);
     }
+    for (const table of ['tb_agent_activity', 'tb_agent_task', 'tb_agent_session', 'tb_agent', 'tb_api_credential', 'tb_mutation_receipt', 'tb_oauth_record']) {
+      db.prepare(`DELETE FROM main.${table} WHERE uid_user = ?`).run(target.id);
+    }
     return db.prepare('DELETE FROM users WHERE id = ?').run(target.id).changes > 0;
   })();
 }

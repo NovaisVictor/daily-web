@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings2 } from 'lucide-react';
+import { Bot, Columns3, KeyRound, LayoutDashboard, Settings2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem {
@@ -10,7 +10,10 @@ export interface NavItem {
 
 /** Flat on purpose: no nesting, no collapsible sections. */
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/', label: 'Painel', icon: LayoutDashboard },
+  { href: '/', label: 'Kanban', icon: Columns3 },
+  { href: '/agents', label: 'Agentes', icon: Bot },
+  { href: '/workspace', label: 'Meus painéis', icon: LayoutDashboard },
+  { href: '/access', label: 'Acesso dos agentes', icon: KeyRound, group: 'Ajustes' },
   { href: '/config', label: 'Configuração', icon: Settings2, group: 'Ajustes' },
 ];
 

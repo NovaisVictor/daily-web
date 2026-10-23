@@ -1,3 +1,4 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import { githubRequest, isRecord, unexpected } from './client';
 
 export interface PullRef {
@@ -49,7 +50,7 @@ const RERUNNABLE: readonly RunConclusion[] = ['failure', 'timed_out', 'cancelled
 
 /** GitHub said no for a reason the app checked itself before writing (the PR
  *  changed since the user looked). The route answers 409, not 502. */
-export class PullStateRefusal extends Error {}
+export class PullStateRefusal extends ProviderRefusal {}
 
 function repoPath({ owner, repo }: PullRef): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
