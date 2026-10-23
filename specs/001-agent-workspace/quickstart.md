@@ -37,8 +37,8 @@ build and production dependency audit at the critical threshold.
   and executed by real Claude Code, Codex and Antigravity agy (Gemini family).
   The reporting token was supplied through each child process environment only.
   Each run created a working task with progress, then verified revocation and
-  HTTP 401. Measured elapsed time: Claude **18.101 s**, Codex **9.058 s**, agy
-  **46.190 s**, including agy's one-shot command approval. Artifact:
+  HTTP 401. Measured elapsed time: Claude **13.092 s**, Codex **13.081 s**, agy
+  **81.575 s**, including agy's one-shot command approval. Artifact:
   `validation/reporting-clients.json`; reproduction: `scripts/validation/README.md`.
 - Actual OAuth clients completed DCR, PKCE, browser-bound consent and a real
   `agents_sessions_list` invocation. Natural-expiry testing found and fixed
@@ -71,10 +71,13 @@ build and production dependency audit at the critical threshold.
 - Core retention passed bounded expiry/cleanup and logical restore tests,
   including a 1,200-event history, 500-row cleanup batches, content-free tombstones,
   secure deletion and WAL checkpointing. No filesystem/SSD forensic erase claim.
-- Initial React Doctor 0.9.14: zero errors, 51 advisory warnings, no baseline
-  increase. React Scan offers instrumentation/init rather than a static gate;
-  unrequested runtime instrumentation was not installed. A final stack scan and
-  integrated gates follow the last source changes.
+- Final React Doctor changed-source scan: zero errors, 53 advisory warnings.
+  Full-repository scan: seven errors, all in files byte-identical to current
+  `origin/main`; 198 warnings. The warning delta from the earlier 51 is a bounded
+  serial Jira receipt loop and a guarded canonical-origin URL parse; Zod helper
+  warnings moved without increasing their total. No baseline/allowlist was changed.
+  React Scan offers instrumentation/init rather than a static gate; unrequested
+  runtime instrumentation was not installed.
 
 ## Release gates still being executed
 

@@ -8,6 +8,7 @@ import {saveConnection} from '@/lib/vault/connections';
 import {taskOperations} from '@/lib/operations/tasks';
 import {ExternalPartialOutcome} from '@/lib/access/receipts';
 import * as local from '@/lib/tasks/local';
+import * as board from '@/lib/tasks/boardStatus';
 import * as mstodo from '@/lib/cli/mstodo';
 import {parseTasks} from '@/lib/parsers/mstodo';
 import type {Principal} from '@/lib/access/principal';
@@ -29,6 +30,51 @@ beforeEach(()=>{
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();rmSync(directory,{recursive:true,force:true});});
 
 describe('personal task creation metadata',()=>{
+  it.each(['todo','doing'] as const)('creates a local task in %s within its creation receipt',async status=>{
+    const input={provider:'local',title:'Initial column',status,...metadata,...mutation()};
+    const result=await run('tasks_create',input) as {id:string};
+    expect(await run('tasks_create',input)).toEqual(result);
+    expect(local.listTasks('owner')).toHaveLength(1);
+    expect(await run('tasks_get',{provider:'local',id:result.id})).toMatchObject({task:{id:result.id,doing:status==='doing',completed:false}});
+  });
+  it('defaults new tasks to todo and rejects done before any provider effect',async()=>{
+    const created=await run('tasks_create',{provider:'local',title:'Default column',...mutation()}) as {id:string};
+    expect(await run('tasks_get',{provider:'local',id:created.id})).toMatchObject({task:{doing:false,completed:false}});
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-id');
+    for(const provider of ['local','mstodo'])await expect(run('tasks_create',{provider,connectionId,title:'Invalid column',status:'done',...mutation()})).rejects.toMatchObject({status:400});
+    expect(add).not.toHaveBeenCalled();expect(local.listTasks('owner')).toHaveLength(1);
+  });
+  it('rolls back local creation when its initial board status cannot be written',async()=>{
+    const input={provider:'local',title:'Initial column',status:'doing',...mutation()};
+    const mark=vi.spyOn(board,'markDoing').mockImplementationOnce(()=>{throw new Error('board write failed');});
+    await expect(run('tasks_create',input)).rejects.toMatchObject({code:'upstream_failed'});
+    expect(local.listTasks('owner')).toEqual([]);
+    mark.mockRestore();
+    await run('tasks_create',input);
+    expect(local.listTasks('owner')).toHaveLength(1);
+  });
+  it('creates a remote task in doing after metadata and replays without duplicate effects',async()=>{
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-id');
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    const mark=vi.spyOn(board,'markDoing');
+    const input={provider:'mstodo',connectionId,title:'Initial column',status:'doing',...metadata,...mutation()};
+    const result=await run('tasks_create',input);
+    expect(await run('tasks_create',input)).toEqual(result);
+    expect(add).toHaveBeenCalledTimes(1);expect(edit).toHaveBeenCalledTimes(1);expect(mark).toHaveBeenCalledTimes(1);
+    expect(mark.mock.invocationCallOrder[0]).toBeGreaterThan(edit.mock.invocationCallOrder[0]);
+    vi.mocked(mstodo.fetchTasks).mockResolvedValue([{...parseTasks(JSON.stringify(fixture))[0],id:'created-id',completed:false}]);
+    expect(await run('tasks_get',{provider:'mstodo',connectionId,id:'created-id'})).toMatchObject({task:{doing:true}});
+  });
+  it('retains the created remote task ID if the initial board write fails and blocks duplicate creation',async()=>{
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-id');
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    const mark=vi.spyOn(board,'markDoing').mockImplementation(()=>{throw new Error('private board failure');});
+    const input={provider:'mstodo',connectionId,title:'Initial column',status:'doing',...metadata,...mutation()};
+    for(let attempt=0;attempt<2;attempt++)await expect(run('tasks_create',input)).rejects.toMatchObject({code:'uncertain_outcome',cause:{outcome:{id:'created-id',code:'task_board_unconfirmed'}}});
+    expect(add).toHaveBeenCalledTimes(1);expect(edit).toHaveBeenCalledTimes(1);expect(mark).toHaveBeenCalledTimes(1);
+    expect(getDb().prepare('SELECT typ_state AS state FROM tb_mutation_receipt').get()).toEqual({state:'unknown'});
+  });
+
   it('creates local scheduling and priority atomically and replays the same task',async()=>{
     const input={provider:'local',title:'Scheduled',...metadata,...mutation()};
     const result=await run('tasks_create',input) as {id:string};

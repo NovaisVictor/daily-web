@@ -143,7 +143,7 @@ describe.each(ROUTES)('POST /api/pulls/[owner]/[repo]/[number]/%s', (_name, [han
     stubFetch(reply(422, { message: 'Validation Failed', errors: [{ message: 'nope' }] }), reply(422, {}));
     const res = await post(handler, body);
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('GitHub refused the operation; no write was accepted');
+    expect((await res.json()).error).toBe('O GitHub recusou a operação; nenhuma alteração foi aceita');
   });
 
   it("uses the logged-in user's own token", async () => {
@@ -154,6 +154,14 @@ describe.each(ROUTES)('POST /api/pulls/[owner]/[repo]/[number]/%s', (_name, [han
 });
 
 describe('POST .../reviews', () => {
+  it('explains the draft refusal in Portuguese without submitting a review', async () => {
+    const fetchMock=stubFetch(reply(200,openPull({draft:true})));
+    const res=await post(reviews,{event:'APPROVE'});
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({error:'O PR ainda é um rascunho',code:'draft_pull'});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['an unknown event', { event: 'COMMENT' }],
     ['a missing event', {}],
@@ -188,6 +196,19 @@ describe('POST .../reviews', () => {
 });
 
 describe('POST .../comments', () => {
+  it('explains an uncertain outcome in Portuguese and preserves safe replay guidance', async () => {
+    const fetchMock=vi.fn().mockRejectedValue(new Error('private provider response'));
+    vi.stubGlobal('fetch',fetchMock);
+    const headers={'Idempotency-Key':crypto.randomUUID(),'X-Request-Timestamp':new Date().toISOString()};
+    const submit=()=>comments(new NextRequest('http://localhost/api/pulls/acme/repo-4/42/comments',{method:'POST',headers,body:JSON.stringify({body:'test'})}),{params:Promise.resolve(PR)});
+    for(let attempt=0;attempt<2;attempt++){
+      const res=await submit();
+      expect(res.status).toBe(502);
+      expect(await res.json()).toEqual({error:'Não foi possível confirmar a operação no GitHub. Confira o resultado antes de tentar novamente',code:'uncertain_outcome',retry:'reconcile'});
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['a missing body', {}],
     ['a blank body', { body: '  ' }],
@@ -288,7 +309,7 @@ describe('POST .../merge', () => {
     stubFetch(reply(200, openPull()), reply(405, { message: 'Required status check "ci" is expected.' }));
     const res = await post(merge, { method: 'squash', headSha: SHA });
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('GitHub refused the operation; no write was accepted');
+    expect((await res.json()).error).toBe('O GitHub recusou a operação; nenhuma alteração foi aceita');
   });
 });
 
@@ -351,7 +372,7 @@ describe('POST .../rerun', () => {
     expect(await res.json()).toEqual({
       ok: true,
       rerun: 1,
-      failed: [{ id: second.id, error: 'The provider outcome was not confirmed' }],
+      failed: [{ id: second.id, error: 'Não foi possível confirmar a reexecução no GitHub' }],
     });
     expect(invalidate).toHaveBeenCalledWith(ME.id);
   });
@@ -361,7 +382,7 @@ describe('POST .../rerun', () => {
     stubFetch(reply(200, openPull()), reply(200, { total_count: 1, workflow_runs: [first] }), reply(422, { message: 'nope' }));
     const res = await post(rerun, { headSha: SHA });
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('The provider outcome was not confirmed');
+    expect((await res.json()).error).toBe('Não foi possível confirmar a reexecução no GitHub');
     expect(invalidate).not.toHaveBeenCalled();
   });
 });

@@ -73,12 +73,13 @@ export const taskOperations=[
     return i.groupBy==='due'?{...result,groups:groupTasksByDueWindow(result.items)}:result;
   }),
   operation('tasks_get','Read a personal task and its subtasks','tasks:read','read',taskShape,async(p,i)=>({task:await readPersonalTask(p,i)})),
-  operation('tasks_create','Create a personal task with optional scheduling, priority and recurrence','tasks:write','write',{...sourceShape,...mutationShape,title,...metadataShape},async(p,i)=>{
+  operation('tasks_create','Create a personal task with optional scheduling, priority and recurrence','tasks:write','write',{...sourceShape,...mutationShape,title,...metadataShape,status:z.enum(['todo','doing']).default('todo')},async(p,i)=>{
     const edit=metadataEdit(i,null);
     const metadataFields=Object.values(edit).filter(value=>value!==undefined);
     return writePersonal(p,i,'tasks_create',()=>{
       const id=local.addTask(p.userId,i.title);
       if(metadataFields.length)local.editTask(p.userId,id,edit);
+      if(i.status==='doing')markDoing(p.userId,id);
       return {ok:true,id};
     },async env=>{
       const id:unknown=await mstodo.addTask(env,i.title);
@@ -86,6 +87,10 @@ export const taskOperations=[
       if(metadataFields.length){
         try{await mstodo.editTask(env,id,edit);}
         catch{throw new ExternalPartialOutcome({id,code:'task_metadata_unconfirmed'});}
+      }
+      if(i.status==='doing'){
+        try{markDoing(p.userId,id);}
+        catch{throw new ExternalPartialOutcome({id,code:'task_board_unconfirmed'});}
       }
       return {ok:true,id};
     });

@@ -9,6 +9,15 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- A task-based home kanban for agent work, with a detailed agents workspace,
+  reporting API, personal API credentials and generated onboarding instructions.
+  Agent history expires 30 days after its last accepted activity; the original
+  integrations dashboard remains available under `/workspace`.
+- An OAuth-authorized remote MCP endpoint with 58 tools for agent work, personal
+  tasks, Jira, GitHub, connections and shared focus actions. Browser and MCP use
+  shared Jira/GitHub operations; integration secrets are entered only in the browser.
+- Persistent mutation receipts, bounded retention cleanup, a private OAuth companion,
+  first-upgrade service installation and daily logical backups excluding agent data.
 - An optional board view for the tasks panel. A "Lista / Quadro" toggle in the
   panel header switches between the grouped list, which stays the default, and
   three columns, "A fazer", "Fazendo" and "Feito", with each task drawn as a

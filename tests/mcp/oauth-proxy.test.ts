@@ -1,5 +1,13 @@
 import {createServer,type Server} from 'node:http';
-import {randomBytes} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {getDb} from '@/lib/db';
+import {OAuthStore} from '@/lib/oauth/adapter';
+import {createProvider} from '@/lib/oauth/provider';
+import {createPublicServer} from '@/lib/oauth/runtime';
+import {BROWSER_BINDING_COOKIE} from '@/lib/oauth/interaction';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {proxyOAuth} from '@/lib/oauth/http';
 let server:Server,requests:{path:string;host:string|undefined;forwarded:string|undefined;spoofed:string|undefined;cookie:string|undefined;authorization:string|undefined;body:string}[]=[];
@@ -60,4 +68,40 @@ describe('bounded OAuth route proxy',()=>{
   const response=await proxyOAuth(new Request('https://daily.example/oauth/auth'));
   expect(response.status).toBe(413);
  });
+});
+
+
+it('preserves canonical HTTPS and secure authorization cookies through the real companion despite spoofed proxy headers',async()=>{
+ await new Promise<void>(resolve=>server.close(()=>resolve()));
+ const directory=mkdtempSync(path.join(tmpdir(),'daily-https-proxy-'));
+ vi.stubEnv('DAILY_WEB_DB_PATH',path.join(directory,'oauth.db'));
+ vi.stubEnv('DAILY_WEB_SECRET_KEY',randomBytes(32).toString('base64'));
+ const db=getDb();
+ try {
+  const store=new OAuthStore(db);
+  const provider=createProvider(store);
+  server=createPublicServer(provider,store);
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  vi.stubEnv('DAILY_WEB_OAUTH_PORT',String((server.address() as {port:number}).port));
+  const spoofed={'x-forwarded-proto':'http','x-forwarded-host':'attacker.invalid'};
+  const registration=await proxyOAuth(new Request('https://daily.example/oauth/reg',{
+   method:'POST',headers:{...spoofed,'content-type':'application/json'},
+   body:JSON.stringify({client_name:'HTTPS proxy regression',application_type:'native',redirect_uris:['http://127.0.0.1:18181/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'}),
+  }));
+  expect(registration.status).toBe(201);
+  const client=await registration.json();
+  const verifier=randomBytes(32).toString('base64url');
+  const challenge=createHash('sha256').update(verifier).digest('base64url');
+  const parameters=new URLSearchParams({client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',response_type:'code',scope:'openid agents:read',resource:'https://daily.example/mcp',code_challenge:challenge,code_challenge_method:'S256',state:randomBytes(16).toString('hex')});
+  const authorization=await proxyOAuth(new Request(`https://daily.example/oauth/auth?${parameters}`,{headers:spoofed}));
+  expect(authorization.status).toBe(303);
+  const location=new URL(authorization.headers.get('location')!);
+  expect(location.origin).toBe('https://daily.example');
+  expect(location.pathname).toBe('/access/consent');
+  expect(location.searchParams.get('interaction')).toBeTruthy();
+  const cookies=authorization.headers.getSetCookie();
+  expect(cookies.length).toBeGreaterThan(0);
+  expect(cookies.some(cookie=>cookie.startsWith(`${BROWSER_BINDING_COOKIE}=`))).toBe(true);
+  for(const cookie of cookies){expect(cookie).toMatch(/; secure(?:;|$)/i);expect(cookie).toMatch(/; httponly(?:;|$)/i);}
+ } finally {db.close();rmSync(directory,{recursive:true,force:true});}
 });

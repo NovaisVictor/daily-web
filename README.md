@@ -337,7 +337,9 @@ The companion implements authorization code + PKCE, scoped consent, rotating
 refresh tokens, persistent encrypted grants and revocation. Configure a compatible
 remote MCP client with the canonical HTTPS `/mcp` URL and complete its browser login.
 Headless use requires previously completed authorization. Reporting tokens and MCP
-OAuth tokens are different credentials and are not interchangeable.
+OAuth tokens are different credentials and are not interchangeable. Clients
+authorized against an earlier preview that advertised `offline_access` must
+authorize once again; application refresh scopes remain strictly consented.
 
 ### Backup and restore
 
