@@ -4,9 +4,9 @@ import { findUserById } from '@/lib/auth/users';
 import { findConnection } from '@/lib/vault/connections';
 import { AccessError } from '@/lib/access/principal';
 import { findReceipt, insertReceipt } from '@/lib/access/receipts';
-import { freshness, RETENTION_MS, type Activity, type Agent, type AgentSession, type AgentTask, type CreateTask, type ListQuery, type Mutation, type Page, type SourceLink, type TaskStatus, type UpdateTask } from './model';
+import { freshness, RETENTION_MS, type Activity, type Agent, type AgentSession, type AgentTask, type CreateTask, type ListQuery, type Mutation, type Page, type SourceLink, type SubtaskProgress, type TaskStatus, type UpdateTask } from './model';
 import * as schema from './schemas';
-export type { Activity, Agent, AgentSession, AgentTask, CreateTask, ListQuery, Mutation, Page, UpdateTask } from './model';
+export type { Activity, Agent, AgentSession, AgentTask, CreateTask, ListQuery, Mutation, Page, SubtaskProgress, UpdateTask } from './model';
 
 type Row = Record<string, string | number | null>;
 const cutoff = (now=Date.now()) => new Date(now-RETENTION_MS).toISOString();
@@ -36,6 +36,14 @@ export function listTasks(userId:string,query:ListQuery={}):Page<AgentTask> {
  const order=asc?'ASC':'DESC';args.push(limit+1);
  const rows=(getDb().prepare(`${TASK_SELECT} WHERE ${clauses.join(' AND ')} ORDER BY t.tsz_update ${order},t.uid_task ${order} LIMIT ?`).all(...args) as Row[]).map(taskOf);
  return page(rows,limit,row=>({at:row.lastActivityAt,id:row.id}));
+}
+export function summarizeSubtasks(userId:string,parentIds:string[]):Record<string,SubtaskProgress> {
+ owner(userId); if(parentIds.length===0)return {};
+ const marks=parentIds.map(()=>'?').join(','); const args=[userId,cutoff(),...parentIds];
+ const result:Record<string,SubtaskProgress>={};
+ for(const row of getDb().prepare(`SELECT uid_parent_task AS parentId,COUNT(*) AS total,SUM(typ_status='completed') AS completed FROM main.tb_agent_task WHERE uid_user=? AND tsz_update>? AND uid_parent_task IN (${marks}) GROUP BY uid_parent_task`).all(...args) as Row[])result[String(row.parentId)]={total:Number(row.total),completed:Number(row.completed),active:[]};
+ for(const row of getDb().prepare(`SELECT parentId,id,title,status FROM (SELECT uid_parent_task AS parentId,uid_task AS id,nam_title AS title,typ_status AS status,ROW_NUMBER() OVER (PARTITION BY uid_parent_task ORDER BY tsz_update DESC,uid_task DESC) AS position FROM main.tb_agent_task WHERE uid_user=? AND tsz_update>? AND uid_parent_task IN (${marks}) AND typ_status IN ('working','blocked','queued')) WHERE position<=3 ORDER BY parentId,position`).all(...args) as Row[])result[String(row.parentId)]?.active.push({id:String(row.id),title:String(row.title),status:row.status as TaskStatus});
+ return result;
 }
 const SESSION_SELECT=`SELECT s.uid_session AS id,s.uid_agent AS agentId,s.ref_external AS externalId,s.num_version AS version,s.tsz_insert AS startedAt,s.tsz_update AS lastActivityAt,a.ref_external AS agentExternalId,a.typ_provider AS provider,a.nam_display AS displayName,a.tsz_insert AS agentCreated,a.tsz_update AS agentActivity FROM main.tb_agent_session s JOIN main.tb_agent a ON a.uid_agent=s.uid_agent AND a.uid_user=s.uid_user`;
 const SESSION_LIVE=`(s.tsz_update>? OR EXISTS(SELECT 1 FROM main.tb_agent_task t WHERE t.uid_session=s.uid_session AND t.uid_user=s.uid_user AND t.tsz_update>?))`;

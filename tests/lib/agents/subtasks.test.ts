@@ -211,3 +211,22 @@ it('permits version 16 cleanup to delete an expired parent first without extendi
  expect(()=>ops.getTask('a',subtask.id)).toThrowError(expect.objectContaining({status:404}));
  expect(ops.listTasks('a').items).toEqual([]);
 });
+
+describe('agent subtask progress summary',()=>{
+ it('counts children per root and lists only the latest active ones for the owner',()=>{
+  vi.useFakeTimers();
+  const parent=task(),empty=task(),foreign=task('b');
+  const done=child(parent.id,{title:'Done step'});advance();
+  ops.transitionTask('a',done.id,{status:'working',expectedVersion:1},mutation());advance();
+  ops.transitionTask('a',done.id,{status:'completed',expectedVersion:2},mutation());advance();
+  const steps=Array.from({length:4},(_,index)=>{advance();return child(parent.id,{title:`Step ${index}`});});
+  advance();ops.transitionTask('a',steps[0].id,{status:'working',expectedVersion:1},mutation());
+  task('b',{parentTaskId:foreign.id});
+  const summary=ops.summarizeSubtasks('a',[parent.id,empty.id,foreign.id]);
+  expect(Object.keys(summary)).toEqual([parent.id]);
+  expect(summary[parent.id]).toMatchObject({total:5,completed:1});
+  expect(summary[parent.id].active.map(item=>item.title)).toEqual(['Step 0','Step 3','Step 2']);
+  expect(summary[parent.id].active[0].status).toBe('working');
+  expect(ops.summarizeSubtasks('a',[])).toEqual({});
+ });
+});

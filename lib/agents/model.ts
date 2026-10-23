@@ -8,6 +8,7 @@ export interface AgentSession { id: string; agentId: string; externalId: string;
 export interface SourceLink { provider: 'personal' | 'jira' | 'github'; connectionId?: string; resource: string }
 export interface Assignment { sessionId: string; agentId: string; provider: Provider; displayName: string; freshness: Freshness }
 export interface AgentTask { id: string; parentTaskId: string | null; externalId: string; title: string; description: string; status: TaskStatus; assignment: Assignment | null; source: SourceLink | null; version: number; createdAt: string; lastActivityAt: string }
+export interface SubtaskProgress { total: number; completed: number; active: { id: string; title: string; status: TaskStatus }[] }
 export interface Activity { id: string; taskId: string; kind: 'progress' | 'transition' | 'created' | 'updated'; summary: string; receivedAt: string; occurredAt: string | null }
 export interface Page<T> { items: T[]; nextCursor: string | null; complete: true }
 export interface ListQuery { status?: TaskStatus; agentId?: string; sessionId?: string; q?: string; cursor?: string; limit?: number; sort?: 'newest' | 'oldest'; parentTaskId?: string; scope?: 'all' | 'roots' }

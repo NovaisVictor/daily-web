@@ -5,7 +5,7 @@ import { ArrowLeft, Bot, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/data/ErrorState';
 import { EmptyState } from '@/components/data/EmptyState';
-import { formatTime, parseTaskDetail, STATUS_LABELS } from './contracts';
+import { formatTime, parseTaskDetail, STATUS_LABELS, STATUS_TONES } from './contracts';
 import { TaskCard } from './TaskCard';
 import { TaskActions } from './TaskActions';
 import { useAgentPolling } from './useAgentPolling';
@@ -32,7 +32,7 @@ export function TaskDetail({ id }: { id: string }) {
     {error && <ErrorState title={data ? 'Último estado recebido' : 'Tarefa indisponível'} description={error} onRetry={refresh} />}
     {!data && !error && <p role="status" className="p-10 text-center text-ink-mid">Carregando tarefa…</p>}
     {task && <>
-      <header className="rounded-2xl border border-line bg-surface-1 p-6">{task.parentTaskId && <Link href={`/agents/tasks/${encodeURIComponent(task.parentTaskId)}`} className="mb-4 flex items-center gap-2 text-sm text-primary underline underline-offset-4"><ArrowLeft className="size-4" />Ver tarefa principal</Link>}<span className="mb-3 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">{STATUS_LABELS[task.status]}</span><h1 className="break-words text-2xl font-semibold">{task.title}</h1>{task.description && <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-mid">{task.description}</p>}<p className="mt-4 text-xs text-ink-dim">Referência: {task.externalId} · Versão {task.version}</p><TaskActions task={task} onChanged={refresh} /></header>
+      <header className="rounded-2xl border border-line bg-surface-1 p-6">{task.parentTaskId && <Link href={`/agents/tasks/${encodeURIComponent(task.parentTaskId)}`} className="mb-4 flex items-center gap-2 text-sm text-primary underline underline-offset-4"><ArrowLeft className="size-4" />Ver tarefa principal</Link>}<span className={`mb-3 inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_TONES[task.status]}`}>{STATUS_LABELS[task.status]}</span><h1 className="break-words text-2xl font-semibold">{task.title}</h1>{task.description && <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-mid">{task.description}</p>}<p className="mt-4 text-xs text-ink-dim">Referência: {task.externalId} · Versão {task.version}</p><TaskActions task={task} onChanged={refresh} /></header>
       {task.parentTaskId === null && <section aria-labelledby="subtasks-title" className="rounded-2xl border border-line bg-surface-1 p-5">
         <h2 id="subtasks-title" className="font-semibold">Subtarefas</h2>
         <p className="mt-2 text-xs leading-relaxed text-ink-mid">Cada subtarefa tem seu próprio status e histórico. O status da tarefa principal é definido separadamente.</p>

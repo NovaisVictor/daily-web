@@ -1,17 +1,17 @@
 import { Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
-import { formatTime, STATUS_LABELS, TASK_STATUSES, type AgentTask, type AgentSession } from './contracts';
+import { formatTime, STATUS_LABELS, TASK_STATUSES, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
 import { TaskCard } from './TaskCard';
 
-export function KanbanColumns({ tasks, status }: { tasks: AgentTask[]; status: string | null }) {
+export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress> }) {
   const columns = TASK_STATUSES.filter(value => !status || status === value);
   return <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
     {columns.map(value => {
       const cards = tasks.filter(task => task.status === value);
-      return <section key={value} aria-label={STATUS_LABELS[value]} className="min-w-0 rounded-xl border border-line bg-surface-1/80 p-3">
-        <h2 className="mb-4 flex items-center justify-between gap-2 text-sm font-semibold"><span>{STATUS_LABELS[value]}</span><span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-ink-mid">{cards.length}</span></h2>
-        <div className="flex flex-col gap-3">{cards.map(task => <TaskCard key={task.id} task={task} />)}{cards.length === 0 && <p className="py-6 text-center text-xs text-ink-dim">Nenhuma tarefa</p>}</div>
+      return <section key={value} aria-label={STATUS_LABELS[value]} className="min-w-0 rounded-xl border border-line bg-surface-1/80 p-2">
+        <h2 className="mb-2 flex px-1 pt-1 items-center justify-between gap-2 text-sm font-semibold"><span>{STATUS_LABELS[value]}</span><span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-ink-mid">{cards.length}</span></h2>
+        <div className="flex flex-col gap-2">{cards.map(task => <TaskCard key={task.id} task={task} progress={progress[task.id]} />)}{cards.length === 0 && <p className="py-4 text-center text-xs text-ink-dim">Nenhuma tarefa</p>}</div>
       </section>;
     })}
   </div>;

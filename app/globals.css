@@ -1712,3 +1712,11 @@
 [data-density='compact'] .board-notes {
   gap: 1rem;
 }
+
+@keyframes subtask-sweep {
+  to { transform: translateX(200%); }
+}
+@keyframes subtask-roll {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
