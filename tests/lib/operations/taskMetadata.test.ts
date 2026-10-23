@@ -9,6 +9,7 @@ import {taskOperations} from '@/lib/operations/tasks';
 import {ExternalPartialOutcome} from '@/lib/access/receipts';
 import * as local from '@/lib/tasks/local';
 import * as board from '@/lib/tasks/boardStatus';
+import {NOTE_PAPERS,PIN_COLORS} from '@/lib/taskBoard';
 import * as mstodo from '@/lib/cli/mstodo';
 import {parseTasks} from '@/lib/parsers/mstodo';
 import type {Principal} from '@/lib/access/principal';
@@ -174,5 +175,97 @@ describe('effective task scheduling validation',()=>{
     expect(await run('tasks_get',{provider:'mstodo',connectionId,id:task.id})).toMatchObject({task:{recur:'monthly'}});
     vi.mocked(mstodo.fetchTasks).mockResolvedValue(parseTasks(JSON.stringify([{...task,recur:'future-pattern'}])));
     await expect(run('tasks_get',{provider:'mstodo',connectionId,id:task.id})).rejects.toMatchObject({code:'invalid_result'});
+  });
+});
+
+describe('task note colour parity',()=>{
+  it('accepts every colour in the maintained paper and pin palettes',async()=>{
+    const id=local.addTask('owner','Palette');
+    for(const paper of NOTE_PAPERS){
+      await run('tasks_edit',{provider:'local',id,boardStyle:{paper},...mutation()});
+      expect(await run('tasks_get',{provider:'local',id})).toMatchObject({task:{paper}});
+    }
+    for(const pin of PIN_COLORS){
+      await run('tasks_edit',{provider:'local',id,boardStyle:{pin},...mutation()});
+      expect(await run('tasks_get',{provider:'local',id})).toMatchObject({task:{pin}});
+    }
+  });
+  it('rolls back local detail edits when a composite style write fails',async()=>{
+    const styles=await import('@/lib/tasks/boardStyle');
+    const id=local.addTask('owner','Original');
+    vi.spyOn(styles,'setBoardStyle').mockImplementationOnce(()=>{throw new Error('write failure');});
+    await expect(run('tasks_edit',{provider:'local',id,title:'Changed',boardStyle:{pin:'blue'},...mutation()})).rejects.toMatchObject({code:'upstream_failed'});
+    expect(local.listTasks('owner')[0]).toMatchObject({title:'Original'});
+    expect(styles.boardStyleOf('owner',id)).toEqual({paper:null,pin:null});
+  });
+
+  it.each(['local','mstodo'] as const)('creates %s tasks with typed paper and pin colours and stable replay',async provider=>{
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-style');
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    const input={provider,...(provider==='mstodo'?{connectionId}:{}),title:'Coloured task',boardStyle:{paper:'blue',pin:'red'},...mutation()};
+    const result=await run('tasks_create',input) as {id:string};
+    expect(await run('tasks_create',input)).toEqual(result);
+    if(provider==='mstodo')vi.mocked(mstodo.fetchTasks).mockResolvedValue([{...parseTasks(JSON.stringify(fixture))[0],id:result.id}]);
+    expect(await run('tasks_get',{provider,...(provider==='mstodo'?{connectionId}:{}),id:result.id})).toMatchObject({task:{paper:'blue',pin:'red'}});
+    expect((await run('tasks_list',{provider,...(provider==='mstodo'?{connectionId}:{})}) as {items:unknown[]}).items).toMatchObject([{paper:'blue',pin:'red'}]);
+    expect(add).toHaveBeenCalledTimes(provider==='mstodo'?1:0);expect(edit).not.toHaveBeenCalled();
+  });
+  it.each(['local','mstodo'] as const)('updates and resets %s note colours without a provider write',async provider=>{
+    const id=provider==='local'?local.addTask('owner','Coloured task'):parseTasks(JSON.stringify(fixture))[0].id;
+    const target={provider,...(provider==='mstodo'?{connectionId}:{}),id};
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    const paper={...target,boardStyle:{paper:'pink'},...mutation()};
+    await run('tasks_edit',paper);await run('tasks_edit',paper);
+    await run('tasks_edit',{...target,boardStyle:{pin:'green'},...mutation()});
+    expect(await run('tasks_get',target)).toMatchObject({task:{paper:'pink',pin:'green'}});
+    await run('tasks_edit',{...target,boardStyle:{paper:null},...mutation()});
+    expect(await run('tasks_get',target)).toMatchObject({task:{paper:null,pin:'green'}});
+    await run('tasks_edit',{...target,boardStyle:{pin:null},...mutation()});
+    expect(await run('tasks_get',target)).toMatchObject({task:{paper:null,pin:null}});
+    expect(edit).not.toHaveBeenCalled();
+    expect(getDb().prepare('SELECT DISTINCT typ_class AS kind FROM tb_mutation_receipt').all()).toEqual([{kind:'local'}]);
+  });
+  it.each([{paper:'purple'},{pin:'pink'},{paper:42},{unknown:'red'},{}])('rejects invalid colours before effects (%j)',async boardStyle=>{
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-style');
+    for(const name of ['tasks_create','tasks_edit'])await expect(run(name,{provider:'mstodo',connectionId,...(name==='tasks_create'?{title:'New'}:{id:'T1'}),boardStyle,...mutation()})).rejects.toMatchObject({status:400});
+    expect(add).not.toHaveBeenCalled();expect(mstodo.fetchTasks).not.toHaveBeenCalled();
+  });
+  it('fails closed for scope, foreign connections and absent local or remote tasks',async()=>{
+    const input={provider:'mstodo',connectionId,id:'T1',boardStyle:{paper:'white'},...mutation()};
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    await expect(run('tasks_edit',input,{...principal,scopes:['tasks:read']})).rejects.toMatchObject({status:403});
+    await expect(run('tasks_edit',input,{...principal,userId:'other'})).rejects.toMatchObject({status:404});
+    expect(mstodo.fetchTasks).not.toHaveBeenCalled();
+    await expect(run('tasks_edit',{...input,id:'absent'})).rejects.toMatchObject({status:404});
+    await expect(run('tasks_edit',{...input,provider:'local',id:'absent'})).rejects.toMatchObject({status:404});
+    expect(edit).not.toHaveBeenCalled();
+    expect(getDb().prepare('SELECT COUNT(*) AS count FROM task_board_style').get()).toEqual({count:0});
+  });
+  it('rolls back local task creation if its colour cannot be saved',async()=>{
+    const styles=await import('@/lib/tasks/boardStyle');
+    const save=vi.spyOn(styles,'setBoardStyle').mockImplementationOnce(()=>{throw new Error('write failure');});
+    const input={provider:'local',title:'New',boardStyle:{paper:'yellow'},...metadata,...mutation()};
+    await expect(run('tasks_create',input)).rejects.toMatchObject({code:'upstream_failed'});
+    expect(local.listTasks('owner')).toEqual([]);
+    save.mockRestore();await run('tasks_create',input);expect(local.listTasks('owner')).toHaveLength(1);
+  });
+  it.each(['tasks_create','tasks_edit'])('retains a safe outcome when remote details succeed but %s styling fails',async name=>{
+    const styles=await import('@/lib/tasks/boardStyle');
+    const save=vi.spyOn(styles,'setBoardStyle').mockImplementation(()=>{throw new Error('private storage error');});
+    const add=vi.spyOn(mstodo,'addTask').mockResolvedValue('created-style');
+    const edit=vi.spyOn(mstodo,'editTask').mockResolvedValue(undefined);
+    const input={provider:'mstodo',connectionId,...(name==='tasks_edit'?{id:'T1'}:{}),title:'Updated',boardStyle:{paper:'grey'},...mutation()};
+    for(let attempt=0;attempt<2;attempt++)await expect(run(name,input)).rejects.toMatchObject({code:'uncertain_outcome',cause:{outcome:{id:name==='tasks_create'?'created-style':'T1',code:'task_style_unconfirmed'}}});
+    expect(add).toHaveBeenCalledTimes(name==='tasks_create'?1:0);expect(edit).toHaveBeenCalledTimes(name==='tasks_edit'?1:0);expect(save).toHaveBeenCalledTimes(1);
+  });
+  it.each(['local','mstodo'] as const)('clears %s style on deletion and keeps owner styles isolated',async provider=>{
+    const styles=await import('@/lib/tasks/boardStyle');
+    const id=provider==='local'?local.addTask('owner','Delete task'):'T1';
+    styles.setBoardStyle('owner',id,{paper:'green',pin:'yellow'});
+    styles.setBoardStyle('other',id,{paper:'blue'});
+    vi.spyOn(mstodo,'deleteTask').mockResolvedValue(undefined);
+    await run('tasks_delete',{provider,...(provider==='mstodo'?{connectionId}:{}),id,...mutation()});
+    expect(styles.boardStyleOf('owner',id)).toEqual({paper:null,pin:null});
+    expect(styles.boardStyleOf('other',id)).toEqual({paper:'blue',pin:null});
   });
 });

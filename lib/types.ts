@@ -281,6 +281,13 @@ export interface SubTask {
 
 export type TaskPriority = 'low' | 'normal' | 'high';
 
+/** The paper colours a board note can have. A fixed palette rather than any
+ *  colour: every one is a token per theme, so its contrast with the note's ink
+ *  is checked once, in tests, instead of left to chance. */
+export type NotePaper = 'yellow' | 'pink' | 'blue' | 'green' | 'white' | 'grey';
+
+export type PinColor = 'red' | 'blue' | 'yellow' | 'green';
+
 export interface TodoTask {
   id: string;
   title: string;
@@ -295,10 +302,15 @@ export interface TodoTask {
    *  has no "in progress" — so it is overlaid from this app's own database
    *  and is always false for a completed task. */
   doing: boolean;
+  /** The paper and pin colour chosen for the task's note, or null for the
+   *  automatic one (paper from priority and completion, pin varied without
+   *  clashing). Overlaid from this app's database like `doing`. */
+  paper: NotePaper | null;
+  pin: PinColor | null;
 }
 
 /** A task as a provider returns it, before the board overlay is applied. */
-export type ProviderTask = Omit<TodoTask, 'doing'>;
+export type ProviderTask = Omit<TodoTask, 'doing' | 'paper' | 'pin'>;
 
 /** How the tasks panel is laid out: the grouped list, or the kanban board. */
 export type TasksView = 'list' | 'board';

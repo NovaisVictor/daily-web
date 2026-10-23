@@ -36,6 +36,7 @@ import {
   setSubtaskCompleted,
   setTaskCompleted,
   setTaskDoing,
+  setTaskStyle,
 } from '@/lib/statePatches';
 
 export default function DashboardPage() {
@@ -121,6 +122,7 @@ export default function DashboardPage() {
             mutate((s) => setSubtaskCompleted(s, taskId, itemId, completed))
           }
           onDoingChanged={(id, doing) => mutate((s) => setTaskDoing(s, id, doing))}
+          onStyleChanged={(id, style) => mutate((s) => setTaskStyle(s, id, style))}
           view={state?.tasksView ?? 'board'}
           onViewChanged={(tasksView) => mutate((s) => ({ ...s, tasksView }))}
           loading={booting}

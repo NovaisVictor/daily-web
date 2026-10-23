@@ -13,14 +13,15 @@ import {
   neighbours,
   noteCurls,
   notePin,
+  notePaper,
   noteTilt,
-  noteTone,
   type BoardColumn,
 } from '@/lib/taskBoard';
 import { isOverdue } from '@/lib/taskGrouping';
 import { PushPin } from './PushPin';
 import { SubtaskList } from './SubtaskList';
 import { TaskActionsMenu } from './TaskActionsMenu';
+import type { NoteStyle } from './NoteColourPicker';
 import { segmentedGroup, segmentedItem } from './segmented';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
@@ -48,6 +49,7 @@ interface Props {
   onMove: (task: TodoTask, to: BoardColumn) => Promise<boolean>;
   onOpen: (task: TodoTask) => void;
   onRemove: (task: TodoTask) => void;
+  onStyleChange: (task: TodoTask, patch: Partial<NoteStyle>) => void;
   /** Resolves false when nothing was created, so the field keeps the text. */
   onCreate: (title: string, column: NewNoteColumn) => Promise<boolean>;
   onChanged: () => void;
@@ -68,6 +70,7 @@ function NoteCard({
   onMove,
   onOpen,
   onRemove,
+  onStyleChange,
   onChanged,
   onError,
   onSubtaskChanged,
@@ -122,7 +125,7 @@ function NoteCard({
           and a shadow on the masked element would be cut with it. Keeping the
           pin outside also keeps it from getting a second shadow. */}
       <div className="postit-paper">
-        <div className="postit" data-tone={noteTone(task)} data-done={task.completed || undefined} style={style}>
+        <div className="postit" data-paper={notePaper(task)} data-done={task.completed || undefined} style={style}>
           <div className="postit-head">
             <button
               ref={titleRef}
@@ -142,6 +145,7 @@ function NoteCard({
               onEdit={() => onOpen(task)}
               onAddSubtask={startAddingSubtask}
               onMove={(to) => onMove(task, to)}
+              onStyleChange={(patch) => onStyleChange(task, patch)}
               onDelete={() => onRemove(task)}
             />
           </div>

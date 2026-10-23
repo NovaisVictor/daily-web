@@ -10,6 +10,8 @@ function task(over: Partial<TodoTask>): TodoTask {
     due: over.due ?? '', priority: over.priority ?? 'normal', time: '', recur: '', notes: '',
     subtasks: [],
     doing: false,
+    paper: null,
+    pin: null,
   };
 }
 

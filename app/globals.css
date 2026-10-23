@@ -99,11 +99,15 @@
 
   /* Sticky notes on the tasks board. Paper carries its own ink rather than
      --ink: the note stays light paper in every theme, so page ink (white in
-     dark) would vanish on it. Every ink/paper pair here is at least 4.5:1. */
+     dark) would vanish on it. Every ink/paper pair here is at least 4.5:1, down
+     to the darker end of the note's gradient; tests/components/PostitContrast.test.ts
+     checks it for every theme. */
   --postit-yellow: oklch(0.95 0.11 98);
   --postit-pink: oklch(0.925 0.055 355);
   --postit-blue: oklch(0.93 0.045 235);
   --postit-green: oklch(0.935 0.065 150);
+  --postit-white: oklch(0.985 0.004 95);
+  --postit-grey: oklch(0.9 0.008 260);
   --postit-ink: oklch(0.27 0.03 70);
   --postit-ink-mid: oklch(0.42 0.03 70);
   --postit-shadow: oklch(0.3 0.04 70 / 30%);
@@ -259,6 +263,10 @@
     --postit-pink: oklch(0.8 0.065 355);
     --postit-blue: oklch(0.8 0.055 235);
     --postit-green: oklch(0.81 0.075 150);
+    --postit-white: oklch(0.86 0.004 95);
+    /* L 0.76, not 0.74: ink-mid sits at 4.7:1 on the gradient's dark end
+       otherwise, too close to the 4.5 floor. */
+    --postit-grey: oklch(0.76 0.008 260);
     --postit-ink: oklch(0.2 0.02 70);
     --postit-ink-mid: oklch(0.33 0.02 70);
     --postit-shadow: oklch(0 0 0 / 55%);
@@ -341,6 +349,10 @@
   --postit-pink: oklch(0.8 0.065 355);
   --postit-blue: oklch(0.8 0.055 235);
   --postit-green: oklch(0.81 0.075 150);
+  --postit-white: oklch(0.86 0.004 95);
+  /* L 0.76, not 0.74: ink-mid sits at 4.7:1 on the gradient's dark end
+     otherwise, too close to the 4.5 floor. */
+  --postit-grey: oklch(0.76 0.008 260);
   --postit-ink: oklch(0.2 0.02 70);
   --postit-ink-mid: oklch(0.33 0.02 70);
   --postit-shadow: oklch(0 0 0 / 55%);
@@ -435,6 +447,8 @@
     --postit-pink: var(--ctp-pink);
     --postit-blue: var(--ctp-blue);
     --postit-green: var(--ctp-green);
+    --postit-white: var(--ctp-text);
+    --postit-grey: var(--ctp-subtext0);
     --postit-ink: var(--ctp-crust);
     --postit-ink-mid: var(--ctp-base);
   }
@@ -489,6 +503,8 @@
   --postit-pink: var(--ctp-pink);
   --postit-blue: var(--ctp-blue);
   --postit-green: var(--ctp-green);
+  --postit-white: var(--ctp-text);
+  --postit-grey: var(--ctp-subtext0);
   --postit-ink: var(--ctp-crust);
   --postit-ink-mid: var(--ctp-base);
 }
@@ -1233,8 +1249,12 @@
     opacity: 0.45;
   }
 
-  .postit {
+  .postit,
+  .paper-swatch,
+  .paper-dot {
     --postit-paper: var(--postit-yellow);
+  }
+  .postit {
     /* The hover wash for controls on the paper: ink at low alpha reads on
        every paper colour, where the app's grey would smudge the pastel. */
     --postit-wash: oklch(from var(--postit-ink) l c h / 10%);
@@ -1263,14 +1283,30 @@
       transform var(--dur) var(--ease),
       box-shadow var(--dur) var(--ease);
   }
-  .postit[data-tone='pink'] {
+  .postit[data-paper='pink'],
+  .paper-swatch[data-paper='pink'],
+  .paper-dot[data-paper='pink'] {
     --postit-paper: var(--postit-pink);
   }
-  .postit[data-tone='blue'] {
+  .postit[data-paper='blue'],
+  .paper-swatch[data-paper='blue'],
+  .paper-dot[data-paper='blue'] {
     --postit-paper: var(--postit-blue);
   }
-  .postit[data-tone='green'] {
+  .postit[data-paper='green'],
+  .paper-swatch[data-paper='green'],
+  .paper-dot[data-paper='green'] {
     --postit-paper: var(--postit-green);
+  }
+  .postit[data-paper='white'],
+  .paper-swatch[data-paper='white'],
+  .paper-dot[data-paper='white'] {
+    --postit-paper: var(--postit-white);
+  }
+  .postit[data-paper='grey'],
+  .paper-swatch[data-paper='grey'],
+  .paper-dot[data-paper='grey'] {
+    --postit-paper: var(--postit-grey);
   }
   .postit-slot:hover .postit,
   .postit:focus-within {
@@ -1306,17 +1342,104 @@
     --pin-light: oklch(from var(--pin) calc(l + 0.24) calc(c * 0.55) h);
     --pin-shade: oklch(from var(--pin) calc(l - 0.22) c h);
   }
-  .postit-pin[data-pin='red'] {
+  .postit-pin[data-pin='red'],
+  .pin-swatch[data-pin='red'] {
     --pin: oklch(0.6 0.21 27);
   }
-  .postit-pin[data-pin='blue'] {
+  .postit-pin[data-pin='blue'],
+  .pin-swatch[data-pin='blue'] {
     --pin: oklch(0.6 0.17 255);
   }
-  .postit-pin[data-pin='yellow'] {
+  .postit-pin[data-pin='yellow'],
+  .pin-swatch[data-pin='yellow'] {
     --pin: oklch(0.82 0.16 85);
   }
-  .postit-pin[data-pin='green'] {
+  .postit-pin[data-pin='green'],
+  .pin-swatch[data-pin='green'] {
     --pin: oklch(0.7 0.19 142);
+  }
+  /* The colour picker. Paper swatches read the same --postit-* tokens as the
+     notes and pin swatches the same --pin, so a swatch is the colour the note
+     will be in the current theme, not an approximation of it. */
+  .colour-swatch {
+    position: relative;
+    display: inline-grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border-radius: 9999px;
+    transition: background-color var(--dur-fast) var(--ease);
+  }
+  .colour-swatch:hover {
+    background: var(--muted);
+  }
+  .colour-swatch[aria-checked='true'] {
+    box-shadow: inset 0 0 0 2px var(--brand);
+  }
+  .colour-swatch-check {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 9999px;
+    background: var(--brand);
+    padding: 2px;
+    color: var(--brand-ink);
+    stroke-width: 3;
+  }
+  /* A clashing pin stays choosable, so it is marked rather than disabled: a
+     small slash says "this one may vanish", and the label says it in words. */
+  .colour-swatch[data-clash]::after {
+    content: '';
+    position: absolute;
+    width: 1.6rem;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--ink-mid);
+    transform: rotate(-45deg);
+    pointer-events: none;
+  }
+  .paper-swatch,
+  .pin-swatch {
+    display: grid;
+    place-items: center;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+  /* --postit-paper comes from the [data-paper] rules shared with .postit. */
+  .paper-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 3px;
+    border: 1px solid oklch(from var(--postit-ink) l c h / 22%);
+    background: var(--postit-paper);
+    color: var(--postit-ink);
+    box-shadow: 1px 2px 3px -1px var(--postit-shadow);
+  }
+  .pin-swatch {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    --pin-light: oklch(from var(--pin) calc(l + 0.24) calc(c * 0.55) h);
+    --pin-shade: oklch(from var(--pin) calc(l - 0.22) c h);
+    background: radial-gradient(circle at 35% 30%, var(--pin-light), var(--pin) 55%, var(--pin-shade));
+    box-shadow: 0 0 0 1px var(--pin-shade);
+  }
+  .pin-swatch[data-auto] {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    color: var(--ink-mid);
+  }
+  /* The list's small mark of a chosen paper, beside the title. */
+  .paper-dot {
+    display: inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--postit-paper);
+    box-shadow: 0 0 0 1px oklch(from var(--postit-ink) l c h / 35%);
   }
   .postit-pin-shadow {
     stroke: var(--postit-shadow);

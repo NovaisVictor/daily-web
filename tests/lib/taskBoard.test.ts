@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLASHES,
+  NOTE_PAPERS,
+  PIN_COLORS,
   columnOf,
+  derivedPaper,
   groupByColumn,
   neighbours,
   noteCurls,
+  notePaper,
   notePin,
   noteTilt,
-  noteTone,
   planMove,
 } from '@/lib/taskBoard';
 import type { TodoTask } from '@/lib/types';
@@ -14,7 +18,7 @@ import type { TodoTask } from '@/lib/types';
 function task(over: Partial<TodoTask>): TodoTask {
   return {
     id: 'x', title: 't', completed: false, due: '', priority: 'normal', time: '', recur: '',
-    notes: '', subtasks: [], doing: false, ...over,
+    notes: '', subtasks: [], doing: false, paper: null, pin: null, ...over,
   };
 }
 
@@ -89,10 +93,10 @@ describe('aparência da nota', () => {
   });
 
   it('a cor segue a prioridade e a concluída fica verde', () => {
-    expect(noteTone(task({}))).toBe('yellow');
-    expect(noteTone(task({ priority: 'high' }))).toBe('pink');
-    expect(noteTone(task({ priority: 'low' }))).toBe('blue');
-    expect(noteTone(task({ priority: 'high', completed: true }))).toBe('green');
+    expect(notePaper(task({}))).toBe('yellow');
+    expect(notePaper(task({ priority: 'high' }))).toBe('pink');
+    expect(notePaper(task({ priority: 'low' }))).toBe('blue');
+    expect(notePaper(task({ priority: 'high', completed: true }))).toBe('green');
   });
 
   it('o alfinete nunca tem a cor que o papel esconderia', () => {
@@ -115,5 +119,53 @@ describe('aparência da nota', () => {
     const curled = ids.filter(noteCurls).length;
     expect(curled).toBeGreaterThan(0);
     expect(curled).toBeLessThan(ids.length);
+  });
+});
+
+describe('cores escolhidas para a nota', () => {
+  const ids = Array.from({ length: 40 }, (_, i) => `t-${i}`);
+
+  it('o papel escolhido vale mais que a prioridade', () => {
+    expect(notePaper(task({ priority: 'high', paper: 'grey' }))).toBe('grey');
+    expect(derivedPaper(task({ priority: 'high', paper: 'grey' }))).toBe('pink');
+  });
+
+  // A coluna Feito e o tachado já dizem que acabou; forçar verde apagaria a
+  // cor justo onde as notas se acumulam.
+  it('o papel escolhido vale mais que o verde da concluída', () => {
+    expect(notePaper(task({ completed: true, paper: 'white' }))).toBe('white');
+  });
+
+  it('o alfinete automático foge do papel escolhido, não do da prioridade', () => {
+    for (const id of ids) {
+      // Prioridade normal daria papel amarelo; o papel rosa escolhido é o que
+      // está na tela, então é o vermelho que precisa sumir das opções.
+      expect(notePin(task({ id, paper: 'pink' }))).not.toBe('red');
+      expect(notePin(task({ id, paper: 'white' }))).not.toBe('yellow');
+      expect(notePin(task({ id, paper: 'grey' }))).not.toBe('yellow');
+    }
+    // E o amarelo, proibido no papel amarelo da prioridade normal, volta a
+    // ser opção no papel azul escolhido.
+    expect(new Set(ids.map((id) => notePin(task({ id, paper: 'blue' }))))).toContain('yellow');
+  });
+
+  it('o alfinete escolhido é respeitado, mesmo quando some no papel', () => {
+    expect(notePin(task({ pin: 'yellow' }))).toBe('yellow');
+    expect(notePin(task({ paper: 'pink', pin: 'red' }))).toBe('red');
+  });
+
+  it('a tabela de conflitos cobre todo papel e deixa sempre alfinete disponível', () => {
+    expect(CLASHES).toEqual({
+      yellow: ['yellow'],
+      pink: ['red'],
+      blue: ['blue'],
+      green: ['green'],
+      white: ['yellow'],
+      grey: ['yellow'],
+    });
+    for (const paper of NOTE_PAPERS) {
+      expect(PIN_COLORS.filter((c) => !CLASHES[paper].includes(c)).length).toBeGreaterThan(0);
+      for (const id of ids) expect(CLASHES[paper]).not.toContain(notePin(task({ id, paper })));
+    }
   });
 });

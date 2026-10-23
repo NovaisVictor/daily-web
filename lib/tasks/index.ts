@@ -4,9 +4,11 @@ import type { TodoTask } from '@/lib/types';
 import type { EditTaskInput } from './types';
 import * as local from './local';
 import * as mstodo from '@/lib/cli/mstodo';
-import { clearBoardStatus, markDoing, withBoardStatus } from './boardStatus';
+import { clearBoardStatus, markDoing, withBoardOverlay } from './boardStatus';
+import { clearBoardStyle, setBoardStyle, type BoardStyle, type BoardStylePatch } from './boardStyle';
 
 export type { EditTaskInput, Recur } from './types';
+export type { BoardStyle, BoardStylePatch } from './boardStyle';
 
 /** Sem conexão cadastrada as tarefas ficam no banco da app. É o que faz o
  *  painel funcionar no primeiro login, antes de configurar coisa alguma. */
@@ -30,7 +32,7 @@ export async function fetchTasks(userId: string): Promise<TodoTask[]> {
   const tasks = usesMstodo(userId)
     ? await mstodo.fetchTasks(mstodoEnv(userId))
     : local.listTasks(userId);
-  return withBoardStatus(userId, tasks);
+  return withBoardOverlay(userId, tasks);
 }
 
 export async function addTask(userId: string, title: string): Promise<string> {
@@ -63,6 +65,12 @@ export function setDoing(userId: string, id: string, doing: boolean): void {
   else clearBoardStatus(userId, id);
 }
 
+/** The note's paper and pin colour. Like "Fazendo" it lives beside the
+ *  provider's task, so it never costs a call to Microsoft To Do. */
+export function setTaskStyle(userId: string, id: string, patch: BoardStylePatch): BoardStyle {
+  return setBoardStyle(userId, id, patch);
+}
+
 export async function editTask(
   userId: string,
   id: string,
@@ -82,6 +90,7 @@ export async function deleteTask(userId: string, id: string): Promise<void> {
     local.deleteTask(userId, id);
   }
   clearBoardStatus(userId, id);
+  clearBoardStyle(userId, id);
 }
 
 export async function addSubtask(userId: string, taskId: string, title: string): Promise<void> {

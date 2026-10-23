@@ -9,6 +9,7 @@ import {
   setSubtaskCompleted,
   setTaskCompleted,
   setTaskDoing,
+  setTaskStyle,
 } from '@/lib/statePatches';
 import { defaultLayout } from '@/lib/dashboardLayout';
 import type { DashboardState, EmailEnvelope, NotificationItem, TodoTask } from '@/lib/types';
@@ -43,6 +44,8 @@ function task(over: Partial<TodoTask>): TodoTask {
     notes: '',
     subtasks: [],
     doing: false,
+    paper: null,
+    pin: null,
     ...over,
   };
 }
@@ -198,6 +201,24 @@ describe('tarefas', () => {
   it('concluir tira a tarefa de Fazendo', () => {
     const feita = setTaskCompleted(setTaskDoing(state(), 't1', true), 't1', true);
     expect(feita.tasks.data?.[0]).toMatchObject({ completed: true, doing: false });
+  });
+
+  it('muda só a cor informada, e null volta ao automático', () => {
+    const rosa = setTaskStyle(state(), 't1', { paper: 'pink' });
+    expect(rosa.tasks.data?.[0]).toMatchObject({ paper: 'pink', pin: null });
+    const comAlfinete = setTaskStyle(rosa, 't1', { pin: 'blue' });
+    expect(comAlfinete.tasks.data?.[0]).toMatchObject({ paper: 'pink', pin: 'blue' });
+    expect(setTaskStyle(comAlfinete, 't1', { paper: null }).tasks.data?.[0]).toMatchObject({
+      paper: null,
+      pin: 'blue',
+    });
+    expect(comAlfinete.tasks.data?.[1]).toMatchObject({ paper: null, pin: null });
+  });
+
+  // A cor não é a coluna: concluir não pode apagar o que a pessoa escolheu.
+  it('concluir mantém a cor', () => {
+    const feita = setTaskCompleted(setTaskStyle(state(), 't1', { paper: 'grey' }), 't1', true);
+    expect(feita.tasks.data?.[0]).toMatchObject({ completed: true, paper: 'grey' });
   });
 
   it('remove a tarefa', () => {

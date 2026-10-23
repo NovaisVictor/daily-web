@@ -7,6 +7,9 @@ import { focusRing, selectClass } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { ChevronRight } from 'lucide-react';
 import { useConfirm } from '@/components/data/ConfirmDialog';
+import { NoteColourPicker, type NoteStyle } from '@/components/tasks/NoteColourPicker';
+import { readErrorMessage } from '@/components/tasks/readErrorMessage';
+import { derivedPaper } from '@/lib/taskBoard';
 import { Button } from './ui/button';
 import { Chip } from './ui/Chip';
 import { Input } from './ui/input';
@@ -21,7 +24,8 @@ import {
 interface Props {
   task: TodoTask | null;
   onClose: () => void;
-  onSaved: () => void;
+  /** `styleError` when the task was saved but its note colour was not. */
+  onSaved: (styleError?: string) => void;
   onDeleted: (id: string) => void;
 }
 
@@ -115,6 +119,7 @@ export function TaskFormModal({ task, onClose, onSaved, onDeleted }: Props) {
       time: day && task?.time && TIME_RE.test(task.time) ? task.time : '',
       recur: day ? initialRecur(task) : ('none' as Recur),
       priority: task?.priority ?? ('normal' as TaskPriority),
+      style: { paper: task?.paper ?? null, pin: task?.pin ?? null } as NoteStyle,
     };
   });
 
@@ -123,6 +128,7 @@ export function TaskFormModal({ task, onClose, onSaved, onDeleted }: Props) {
   const [time, setTime] = useState(initial.time);
   const [recur, setRecur] = useState<Recur>(initial.recur);
   const [priority, setPriority] = useState<TaskPriority>(initial.priority);
+  const [style, setStyle] = useState<NoteStyle>(initial.style);
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -158,7 +164,9 @@ export function TaskFormModal({ task, onClose, onSaved, onDeleted }: Props) {
       ? `Não reconheci "${typed.trim()}". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.`
       : null;
 
+  const styleChanged = style.paper !== initial.style.paper || style.pin !== initial.style.pin;
   const dirty =
+    styleChanged ||
     title !== initial.title ||
     day !== initial.day ||
     time !== initial.time ||
@@ -236,7 +244,30 @@ export function TaskFormModal({ task, onClose, onSaved, onDeleted }: Props) {
         setError(data.error ?? 'Não foi possível salvar. Tente de novo.');
         return;
       }
-      onSaved();
+      if (!styleChanged) {
+        onSaved();
+        return;
+      }
+      // A separate request, and only after the task is saved: the colour
+      // lives in this app's database while the task may live in Microsoft To
+      // Do, and one request doing both would have no clear meaning when only
+      // half of it failed. A new task's id comes back from the create.
+      // The task exists now whatever happens next, so the form closes even
+      // when the colour fails; staying open would make "Salvar" create the
+      // task a second time.
+      let styleError: string | undefined;
+      try {
+        const id = task ? task.id : ((await res.json()) as { id: string }).id;
+        const styleRes = await fetch(`/api/tasks/${encodeURIComponent(id)}/board`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(style),
+        });
+        if (!styleRes.ok) styleError = await readErrorMessage(styleRes, 'erro ao salvar a cor');
+      } catch {
+        styleError = 'verifique a conexão e escolha a cor de novo';
+      }
+      onSaved(styleError);
     } catch {
       setError('Não foi possível salvar. Verifique a conexão e tente de novo.');
     } finally {
@@ -441,6 +472,15 @@ export function TaskFormModal({ task, onClose, onSaved, onDeleted }: Props) {
                 )}
               </div>
             </div>
+
+            <fieldset className="flex flex-col">
+              <legend className={cn(labelClass, 'mb-2')}>Cor da nota</legend>
+              <NoteColourPicker
+                value={style}
+                automaticPaper={derivedPaper({ completed: task?.completed ?? false, priority })}
+                onChange={(patch) => setStyle((current) => ({ ...current, ...patch }))}
+              />
+            </fieldset>
 
             {error && (
               <p role="alert" className="text-sm text-danger">
