@@ -79,8 +79,8 @@
 
   /* Background atmosphere. Iridescent and fixed on purpose: the accent stays the
      color of action and of data. Background here is atmosphere, not signal.
-     The Catppuccin backdrop, chosen in the account menu, overrides these at
-     the end of the token blocks. */
+     The Catppuccin and Dracula backdrops, chosen in the account menu, override
+     these at the end of the token blocks. */
   --mesh-base: oklch(0.986 0.004 265);
   --mesh-1: oklch(0.957 0.017 255);
   --mesh-2: oklch(0.957 0.019 305);
@@ -442,6 +442,139 @@
   --chart-3: var(--ctp-yellow);
   --chart-4: var(--ctp-pink);
   --chart-5: var(--ctp-teal);
+}
+
+/* Dracula, dark theme only. The official palette names one background and one
+   "current line"; the darker and lighter surfaces are the ones Dracula's own
+   editor themes use for sidebars and raised panels. Comment (#6272a4) is 3:1
+   on the background, too dim for text, so it only draws strong lines and the
+   top surface; the two dimmer text tones are lightened from it and from
+   Foreground to stay above 4.5:1 on every surface text sits on. Unlike
+   Catppuccin there is no light base: on a light page the mesh stays, since
+   Dracula is a dark palette. The mapping is written twice, as the dark theme
+   is (system preference and explicit choice). */
+:root[data-backdrop='dracula'] {
+  --drc-darkest: oklch(0.22 0.014 278.803); /* #191a21 */
+  --drc-darker: oklch(0.255 0.019 280.488); /* #21222c */
+  --drc-background: oklch(0.288 0.022 277.509); /* #282a36 */
+  --drc-surface: oklch(0.34 0.027 276.046); /* #343746 */
+  --drc-current-line: oklch(0.403 0.032 277.832); /* #44475a */
+  --drc-surface-high: oklch(0.473 0.036 276.867); /* #565a70 */
+  --drc-comment: oklch(0.56 0.08 270.086); /* #6272a4 */
+  --drc-foreground-dim: oklch(0.752 0.051 273.789); /* #a4add0 */
+  --drc-foreground-mid: oklch(0.868 0.008 106.568); /* #d4d4ce */
+  --drc-foreground: oklch(0.977 0.008 106.545); /* #f8f8f2 */
+  --drc-purple: oklch(0.742 0.149 301.883); /* #bd93f9 */
+  --drc-pink: oklch(0.755 0.183 346.812); /* #ff79c6 */
+  --drc-red: oklch(0.682 0.206 24.431); /* #ff5555 */
+  --drc-orange: oklch(0.834 0.124 66.558); /* #ffb86c */
+  --drc-yellow: oklch(0.955 0.134 112.757); /* #f1fa8c */
+  --drc-green: oklch(0.871 0.22 148.025); /* #50fa7b */
+  --drc-cyan: oklch(0.883 0.093 212.846); /* #8be9fd */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-backdrop='dracula']:not(.light) {
+    --surface-0: var(--drc-background);
+    --surface-1: var(--drc-darker);
+    --surface-2: var(--drc-surface);
+    --surface-3: var(--drc-current-line);
+    --surface-4: var(--drc-surface-high);
+    --surface-5: var(--drc-comment);
+    --mesh-base: var(--drc-background);
+    --mesh-1: transparent;
+    --mesh-2: transparent;
+    --mesh-3: transparent;
+    --mesh-4: transparent;
+    --mesh-5: transparent;
+
+    --ink: var(--drc-foreground);
+    --ink-mid: var(--drc-foreground-mid);
+    --ink-dim: var(--drc-foreground-dim);
+
+    --line: var(--drc-current-line);
+    --line-soft: var(--drc-surface);
+    --line-strong: var(--drc-comment);
+    --glass-line: oklch(0.403 0.032 277.832 / 70%);
+
+    --brand: var(--drc-purple);
+    --brand-ink: var(--drc-darkest);
+    --brand-tint: oklch(0.742 0.149 301.883 / 14%);
+    --brand-edge: oklch(0.742 0.149 301.883 / 45%);
+
+    --signal-success: var(--drc-green);
+    --signal-warning: var(--drc-orange);
+    --signal-danger: var(--drc-red);
+    --signal-info: var(--drc-cyan);
+    --signal-success-tint: oklch(0.871 0.22 148.025 / 16%);
+    --signal-warning-tint: oklch(0.834 0.124 66.558 / 16%);
+    --signal-danger-tint: oklch(0.682 0.206 24.431 / 16%);
+    --signal-info-tint: oklch(0.883 0.093 212.846 / 16%);
+    --signal-neutral-tint: oklch(0.56 0.08 270.086 / 16%);
+
+    --secondary: var(--drc-foreground);
+    --secondary-foreground: var(--drc-background);
+    --muted: var(--drc-surface);
+    --accent: var(--drc-current-line);
+    --destructive-foreground: var(--drc-darkest);
+    --input: var(--drc-current-line);
+
+    --chart-2: var(--drc-cyan);
+    --chart-3: var(--drc-yellow);
+    --chart-4: var(--drc-pink);
+    --chart-5: var(--drc-orange);
+  }
+}
+
+:root.dark[data-backdrop='dracula'] {
+  --surface-0: var(--drc-background);
+  --surface-1: var(--drc-darker);
+  --surface-2: var(--drc-surface);
+  --surface-3: var(--drc-current-line);
+  --surface-4: var(--drc-surface-high);
+  --surface-5: var(--drc-comment);
+  --mesh-base: var(--drc-background);
+  --mesh-1: transparent;
+  --mesh-2: transparent;
+  --mesh-3: transparent;
+  --mesh-4: transparent;
+  --mesh-5: transparent;
+
+  --ink: var(--drc-foreground);
+  --ink-mid: var(--drc-foreground-mid);
+  --ink-dim: var(--drc-foreground-dim);
+
+  --line: var(--drc-current-line);
+  --line-soft: var(--drc-surface);
+  --line-strong: var(--drc-comment);
+  --glass-line: oklch(0.403 0.032 277.832 / 70%);
+
+  --brand: var(--drc-purple);
+  --brand-ink: var(--drc-darkest);
+  --brand-tint: oklch(0.742 0.149 301.883 / 14%);
+  --brand-edge: oklch(0.742 0.149 301.883 / 45%);
+
+  --signal-success: var(--drc-green);
+  --signal-warning: var(--drc-orange);
+  --signal-danger: var(--drc-red);
+  --signal-info: var(--drc-cyan);
+  --signal-success-tint: oklch(0.871 0.22 148.025 / 16%);
+  --signal-warning-tint: oklch(0.834 0.124 66.558 / 16%);
+  --signal-danger-tint: oklch(0.682 0.206 24.431 / 16%);
+  --signal-info-tint: oklch(0.883 0.093 212.846 / 16%);
+  --signal-neutral-tint: oklch(0.56 0.08 270.086 / 16%);
+
+  --secondary: var(--drc-foreground);
+  --secondary-foreground: var(--drc-background);
+  --muted: var(--drc-surface);
+  --accent: var(--drc-current-line);
+  --destructive-foreground: var(--drc-darkest);
+  --input: var(--drc-current-line);
+
+  --chart-2: var(--drc-cyan);
+  --chart-3: var(--drc-yellow);
+  --chart-4: var(--drc-pink);
+  --chart-5: var(--drc-orange);
 }
 
 @theme inline {

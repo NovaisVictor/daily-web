@@ -1,8 +1,8 @@
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
 export type SidebarState = 'expanded' | 'collapsed';
-/** The page background: the iridescent mesh, or a flat Catppuccin base. */
-export type Backdrop = 'mesh' | 'catppuccin';
+/** The page background: the iridescent mesh, or a flat Catppuccin or Dracula base. */
+export type Backdrop = 'mesh' | 'catppuccin' | 'dracula';
 
 export const THEME_COOKIE = 'theme';
 export const DENSITY_COOKIE = 'density';
@@ -50,17 +50,17 @@ export function applyDensity(d: Density, root: HTMLElement = document.documentEl
 
 /** The mesh is the absence of the cookie, like "comfortable" and "system". */
 export function parseBackdrop(raw: string | undefined): Backdrop {
-  return raw === 'catppuccin' ? 'catppuccin' : 'mesh';
+  return raw === 'catppuccin' || raw === 'dracula' ? raw : 'mesh';
 }
 
 export function applyBackdrop(b: Backdrop, root: HTMLElement = document.documentElement): void {
-  if (b === 'catppuccin') root.dataset.backdrop = 'catppuccin';
-  else delete root.dataset.backdrop;
+  if (b === 'mesh') delete root.dataset.backdrop;
+  else root.dataset.backdrop = b;
 
   document.cookie =
-    b === 'catppuccin'
-      ? `${BACKDROP_COOKIE}=catppuccin; path=/; max-age=31536000; samesite=lax`
-      : `${BACKDROP_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    b === 'mesh'
+      ? `${BACKDROP_COOKIE}=; path=/; max-age=0; samesite=lax`
+      : `${BACKDROP_COOKIE}=${b}; path=/; max-age=31536000; samesite=lax`;
 }
 
 /**

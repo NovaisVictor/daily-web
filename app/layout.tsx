@@ -62,7 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       // The client changes both after hydration.
       suppressHydrationWarning
       data-density={density === 'compact' ? 'compact' : undefined}
-      data-backdrop={backdrop === 'catppuccin' ? 'catppuccin' : undefined}
+      data-backdrop={backdrop === 'mesh' ? undefined : backdrop}
       className={`${GeistSans.variable} ${GeistMono.variable} ${forced}`.trim()}
     >
       {/* No background utility here: body paints --mesh-base from globals.css,

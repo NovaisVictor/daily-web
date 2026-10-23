@@ -9,6 +9,13 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- A Dracula choice under "Fundo" in the account menu, next to Gradiente and
+  Catppuccin. In the dark theme it applies the full Dracula palette:
+  background and sidebar, raised surfaces, text, borders, the accent (Purple)
+  and the status colors (Green, Orange for warnings, Red, Cyan). Like the
+  others it is stored in the `backdrop` cookie and stamped on `<html>` by the
+  server, so it paints on first load without a flash. Dracula is a dark
+  palette, so the light theme keeps the gradient.
 - A "Resumo para a daily" button in the Jira panel header opens a plain-text
   standup summary in three sections: Ontem (issues delivered or approved and
   PRs opened since the previous working day, Friday on a Monday), Hoje

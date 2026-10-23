@@ -11,9 +11,13 @@ describe('parseBackdrop', () => {
     expect(parseBackdrop('catppuccin')).toBe('catppuccin');
   });
 
+  it('reconhece o Dracula', () => {
+    expect(parseBackdrop('dracula')).toBe('dracula');
+  });
+
   // Cookie ausente, apagado ou escrito à mão cai no gradiente, que é o padrão.
   it('cai no gradiente para qualquer outro valor', () => {
-    for (const valor of [undefined, '', 'mesh', 'Catppuccin', 'lixo']) {
+    for (const valor of [undefined, '', 'mesh', 'Catppuccin', 'Dracula', 'lixo']) {
       expect(parseBackdrop(valor), String(valor)).toBe('mesh');
     }
   });
@@ -25,6 +29,21 @@ describe('applyBackdrop', () => {
 
     expect(document.documentElement.dataset.backdrop).toBe('catppuccin');
     expect(document.cookie).toContain(`${BACKDROP_COOKIE}=catppuccin`);
+  });
+
+  it('marca o elemento raiz e grava o cookie ao escolher o Dracula', () => {
+    applyBackdrop('dracula');
+
+    expect(document.documentElement.dataset.backdrop).toBe('dracula');
+    expect(document.cookie).toContain(`${BACKDROP_COOKIE}=dracula`);
+  });
+
+  it('troca do Catppuccin para o Dracula sem deixar as duas marcas', () => {
+    applyBackdrop('catppuccin');
+    applyBackdrop('dracula');
+
+    expect(document.documentElement.dataset.backdrop).toBe('dracula');
+    expect(document.cookie).not.toContain(`${BACKDROP_COOKIE}=catppuccin`);
   });
 
   it('volta ao gradiente tirando a marca e o cookie', () => {
