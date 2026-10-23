@@ -155,6 +155,7 @@ export default function DashboardPage() {
           onChanged={reload}
           loading={booting}
           pulls={jiraPulls}
+          myPulls={state?.myPulls.data?.items}
         />
       ),
     },

@@ -1,4 +1,4 @@
-import { matchesQuery } from '@/lib/filters';
+import { matchesQuery, type ActiveFilter } from '@/lib/filters';
 import { isJiraKey } from '@/lib/jiraKey';
 import type { JiraItem } from '@/lib/types';
 
@@ -14,7 +14,11 @@ export const JIRA_TIER_LABEL: Record<JiraTier, string> = {
   story: 'Histórias',
 };
 
-const TIER_LEVEL: Record<JiraTier, number> = { initiative: 2, epic: 1, story: 0 };
+const TIER_LEVEL: Record<JiraTier, number> = {
+  initiative: 2,
+  epic: 1,
+  story: 0,
+};
 
 export function tierOf(item: JiraItem): JiraTier | null {
   return JIRA_TIERS.find((tier) => TIER_LEVEL[tier] === item.hierarchyLevel) ?? null;
@@ -46,26 +50,28 @@ export interface JiraFilterState {
 
 export const EMPTY_JIRA_FILTERS: JiraFilterState = {
   query: '',
-  status: { values: [], mode: 'include' },
-  tier: { values: [], mode: 'include' },
-  initiative: { values: [], mode: 'include' },
-  epic: { values: [], mode: 'include' },
-  story: { values: [], mode: 'include' },
+  status: groupOf(),
+  tier: groupOf(),
+  initiative: groupOf(),
+  epic: groupOf(),
+  story: groupOf(),
 };
 
-const PARAMS = {
-  query: 'jiraBusca',
-  status: 'jiraStatus',
-  statusMode: 'jiraStatusModo',
-  tier: 'jiraTipo',
-  tierMode: 'jiraTipoModo',
-  initiative: 'jiraIniciativa',
-  initiativeMode: 'jiraIniciativaModo',
-  epic: 'jiraEpico',
-  epicMode: 'jiraEpicoModo',
-  story: 'jiraHistoria',
-  storyMode: 'jiraHistoriaModo',
-} as const;
+/** Os seletores do painel, na ordem em que aparecem. */
+export type JiraFilterField = Exclude<keyof JiraFilterState, 'query'>;
+
+type HierarchyField = 'initiative' | 'epic' | 'story';
+
+type ValueOf<F extends JiraFilterField> = JiraFilterState[F]['values'][number];
+
+interface FieldSpec<T> {
+  label: string;
+  param: string;
+  modeParam: string;
+  validate: (raw: string) => T | null;
+}
+
+const QUERY_PARAM = 'jiraBusca';
 
 const MAX_TEXT = 200;
 
@@ -74,45 +80,84 @@ function text(raw: string | null): string {
   return raw.length > MAX_TEXT ? '' : raw;
 }
 
-function keyValidator(raw: string | null): string | null {
-  return raw && isJiraKey(raw) ? raw.toUpperCase() : null;
+function validateKey(raw: string): string | null {
+  return isJiraKey(raw) ? raw.toUpperCase() : null;
 }
 
-function tierValidator(raw: string | null): JiraTier | null {
+function validateTier(raw: string): JiraTier | null {
   return JIRA_TIERS.find((t) => t === raw) ?? null;
 }
 
-function statusValidator(raw: string | null): string | null {
-  const t = text(raw);
-  return t ? t : null;
+function validateStatus(raw: string): string | null {
+  return text(raw) || null;
 }
 
-function parseGroup<T>(
-  params: URLSearchParams,
-  paramKey: string,
-  modeKey: string,
-  validator: (raw: string) => T | null,
-): JiraFilterGroup<T> {
-  const modeParam = params.get(modeKey);
-  let mode: FilterMode = modeParam === 'exclude' ? 'exclude' : 'include';
+const FIELDS: { [F in JiraFilterField]: FieldSpec<ValueOf<F>> } = {
+  status: {
+    label: 'Status',
+    param: 'jiraStatus',
+    modeParam: 'jiraStatusModo',
+    validate: validateStatus,
+  },
+  tier: {
+    label: 'Tipo',
+    param: 'jiraTipo',
+    modeParam: 'jiraTipoModo',
+    validate: validateTier,
+  },
+  initiative: {
+    label: 'Iniciativa',
+    param: 'jiraIniciativa',
+    modeParam: 'jiraIniciativaModo',
+    validate: validateKey,
+  },
+  epic: {
+    label: 'Épico',
+    param: 'jiraEpico',
+    modeParam: 'jiraEpicoModo',
+    validate: validateKey,
+  },
+  story: {
+    label: 'História',
+    param: 'jiraHistoria',
+    modeParam: 'jiraHistoriaModo',
+    validate: validateKey,
+  },
+};
 
-  const rawValues = params.getAll(paramKey);
-  const tokens = rawValues
+export const JIRA_FILTER_FIELDS = Object.keys(FIELDS) as JiraFilterField[];
+
+export function isJiraFilterField(id: string): id is JiraFilterField {
+  return Object.hasOwn(FIELDS, id);
+}
+
+// O degrau de cima recorta as opções dos de baixo: o que foi escolhido neles
+// só fazia sentido dentro dele.
+const BELOW: Record<JiraFilterField, HierarchyField[]> = {
+  status: [],
+  tier: [],
+  initiative: ['epic', 'story'],
+  epic: ['story'],
+  story: [],
+};
+
+function parseGroup<T>(params: URLSearchParams, spec: FieldSpec<T>): JiraFilterGroup<T> {
+  let mode: FilterMode = params.get(spec.modeParam) === 'exclude' ? 'exclude' : 'include';
+  const values: T[] = [];
+  const tokens = params
+    .getAll(spec.param)
     .flatMap((val) => val.split(','))
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const values: T[] = [];
   for (const token of tokens) {
     let clean = token;
     if (clean.startsWith('!')) {
       mode = 'exclude';
       clean = clean.slice(1).trim();
     }
-    const validated = validator(clean);
-    if (validated !== null && !values.includes(validated)) {
-      values.push(validated);
-    }
+    const validated = clean ? spec.validate(clean) : null;
+    if (validated !== null && !values.includes(validated)) values.push(validated);
   }
 
   return { values, mode };
@@ -122,12 +167,12 @@ function parseGroup<T>(
  *  no padrão em vez de virar estado. */
 export function parseJiraFilters(params: URLSearchParams): JiraFilterState {
   return {
-    query: text(params.get(PARAMS.query)),
-    status: parseGroup(params, PARAMS.status, PARAMS.statusMode, statusValidator),
-    tier: parseGroup(params, PARAMS.tier, PARAMS.tierMode, tierValidator),
-    initiative: parseGroup(params, PARAMS.initiative, PARAMS.initiativeMode, keyValidator),
-    epic: parseGroup(params, PARAMS.epic, PARAMS.epicMode, keyValidator),
-    story: parseGroup(params, PARAMS.story, PARAMS.storyMode, keyValidator),
+    query: text(params.get(QUERY_PARAM)),
+    status: parseGroup(params, FIELDS.status),
+    tier: parseGroup(params, FIELDS.tier),
+    initiative: parseGroup(params, FIELDS.initiative),
+    epic: parseGroup(params, FIELDS.epic),
+    story: parseGroup(params, FIELDS.story),
   };
 }
 
@@ -138,43 +183,77 @@ export function jiraFiltersToParams(
   filters: JiraFilterState,
 ): URLSearchParams {
   const params = new URLSearchParams(current);
-  const putText = (name: string, value: string) => {
-    if (value) params.set(name, value);
-    else params.delete(name);
-  };
+  if (filters.query) params.set(QUERY_PARAM, filters.query);
+  else params.delete(QUERY_PARAM);
 
-  const putGroup = <T>(paramKey: string, modeKey: string, group: JiraFilterGroup<T>) => {
-    if (group.values.length === 0) {
-      params.delete(paramKey);
-      params.delete(modeKey);
-    } else {
-      params.set(paramKey, group.values.join(','));
-      if (group.mode === 'exclude') {
-        params.set(modeKey, 'exclude');
-      } else {
-        params.delete(modeKey);
-      }
-    }
-  };
-
-  putText(PARAMS.query, filters.query);
-  putGroup(PARAMS.status, PARAMS.statusMode, filters.status);
-  putGroup(PARAMS.tier, PARAMS.tierMode, filters.tier);
-  putGroup(PARAMS.initiative, PARAMS.initiativeMode, filters.initiative);
-  putGroup(PARAMS.epic, PARAMS.epicMode, filters.epic);
-  putGroup(PARAMS.story, PARAMS.storyMode, filters.story);
+  for (const field of JIRA_FILTER_FIELDS) {
+    const { param, modeParam } = FIELDS[field];
+    const group: JiraFilterGroup<string> = filters[field];
+    if (group.values.length === 0) params.delete(param);
+    else params.set(param, group.values.join(','));
+    if (group.values.length > 0 && group.mode === 'exclude') params.set(modeParam, 'exclude');
+    else params.delete(modeParam);
+  }
   return params;
 }
 
 export function hasJiraFilters(filters: JiraFilterState): boolean {
   return (
     filters.query.trim() !== '' ||
-    filters.status.values.length > 0 ||
-    filters.tier.values.length > 0 ||
-    filters.initiative.values.length > 0 ||
-    filters.epic.values.length > 0 ||
-    filters.story.values.length > 0
+    JIRA_FILTER_FIELDS.some((field) => filters[field].values.length > 0)
   );
+}
+
+function clearedBelow(field: JiraFilterField): Partial<JiraFilterState> {
+  return Object.fromEntries(BELOW[field].map((below) => [below, groupOf()]));
+}
+
+/** Tirar um filtro. Tirar um degrau de cima solta os de baixo. */
+export function clearJiraFilter(field: JiraFilterField | 'query'): Partial<JiraFilterState> {
+  if (field === 'query') return { query: '' };
+  return { [field]: groupOf(), ...clearedBelow(field) };
+}
+
+/** Trocar a escolha de um seletor. Se nada do que estava escolhido continua,
+ *  o degrau mudou de assunto e os de baixo são soltos; acrescentar um valor ou
+ *  trocar o modo mantém o recorte de baixo. */
+export function changeJiraFilter<F extends JiraFilterField>(
+  filters: JiraFilterState,
+  field: F,
+  next: JiraFilterState[F],
+): Partial<JiraFilterState> {
+  const previous: string[] = filters[field].values;
+  const nextValues: string[] = next.values;
+  const switched = previous.length > 0 && !previous.some((v) => nextValues.includes(v));
+  return { [field]: next, ...(switched ? clearedBelow(field) : {}) };
+}
+
+/** Os chips do recorte ativo. `describeIssue` dá o rótulo de uma chave de
+ *  issue, que só o painel conhece. */
+export function activeJiraFilters(
+  filters: JiraFilterState,
+  describeIssue: (key: string) => string,
+): ActiveFilter[] {
+  const describe = (field: JiraFilterField, value: string) =>
+    field === 'status'
+      ? value
+      : field === 'tier'
+        ? JIRA_TIER_LABEL[value as JiraTier]
+        : describeIssue(value);
+
+  const query = filters.query.trim();
+  return [
+    ...(query ? [{ id: 'query', label: `Busca: ${query}` }] : []),
+    ...JIRA_FILTER_FIELDS.filter((field) => filters[field].values.length > 0).map((field) => {
+      const group: JiraFilterGroup<string> = filters[field];
+      const separator = group.mode === 'exclude' ? ' ≠ ' : ': ';
+      const values = group.values.map((value) => describe(field, value)).join(', ');
+      return {
+        id: field,
+        label: `${FIELDS[field].label}${separator}${values}`,
+      };
+    }),
+  ];
 }
 
 // Teto da subida: a hierarquia tem cinco degraus. O limite existe para um
@@ -196,12 +275,17 @@ export function lineageOf(item: JiraItem, byKey: Map<string, JiraItem>): JiraIte
   return lineage;
 }
 
-function underOrSelf(item: JiraItem, lineage: JiraItem[], selected: string): boolean {
-  return !selected || item.key === selected || lineage.some((a) => a.key === selected);
+function underAny(item: JiraItem, lineage: JiraItem[], keys: string[]): boolean {
+  return keys.some((key) => item.key === key || lineage.some((a) => a.key === key));
 }
 
 function sameStatus(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Grupo vazio deixa passar; senão, incluir pede que case e excluir, que não. */
+function passes(group: JiraFilterGroup<unknown>, matched: boolean): boolean {
+  return group.values.length === 0 || matched === (group.mode === 'include');
 }
 
 export function matchesJiraFilters(
@@ -209,32 +293,24 @@ export function matchesJiraFilters(
   filters: JiraFilterState,
   byKey: Map<string, JiraItem>,
 ): boolean {
-  if (filters.status.values.length > 0) {
-    const matched = filters.status.values.some((s) => sameStatus(item.status, s));
-    if (filters.status.mode === 'include' && !matched) return false;
-    if (filters.status.mode === 'exclude' && matched) return false;
+  if (
+    !passes(
+      filters.status,
+      filters.status.values.some((s) => sameStatus(item.status, s)),
+    )
+  ) {
+    return false;
   }
-
-  if (filters.tier.values.length > 0) {
-    const itemTier = tierOf(item);
-    const matched = itemTier !== null && filters.tier.values.includes(itemTier);
-    if (filters.tier.mode === 'include' && !matched) return false;
-    if (filters.tier.mode === 'exclude' && matched) return false;
+  const itemTier = tierOf(item);
+  if (!passes(filters.tier, itemTier !== null && filters.tier.values.includes(itemTier))) {
+    return false;
   }
 
   const lineage = lineageOf(item, byKey);
-
-  const matchesHierarchy = (group: JiraFilterGroup<string>): boolean => {
-    if (group.values.length === 0) return true;
-    const inHierarchy = group.values.some(
-      (selected) => item.key === selected || lineage.some((a) => a.key === selected),
-    );
-    return group.mode === 'include' ? inHierarchy : !inHierarchy;
-  };
-
-  if (!matchesHierarchy(filters.initiative)) return false;
-  if (!matchesHierarchy(filters.epic)) return false;
-  if (!matchesHierarchy(filters.story)) return false;
+  const hierarchy: HierarchyField[] = ['initiative', 'epic', 'story'];
+  const inHierarchy = (field: HierarchyField) =>
+    passes(filters[field], underAny(item, lineage, filters[field].values));
+  if (!hierarchy.every(inHierarchy)) return false;
 
   // A busca olha o caminho inteiro: procurar pelo nome da iniciativa traz o
   // que está debaixo dela, que é o que se quer ver ao lembrar só do tema.
@@ -278,17 +354,11 @@ export function jiraFilterOptions(
   const ofTier = (tier: JiraTier, withinInitiatives: string[], withinEpics: string[]) =>
     [...pool.values()]
       .filter(({ item }) => tierOf(item) === tier)
-      .filter(({ item, lineage }) => {
-        if (withinInitiatives.length > 0) {
-          const under = withinInitiatives.some((sel) => underOrSelf(item, lineage, sel));
-          if (!under) return false;
-        }
-        if (withinEpics.length > 0) {
-          const under = withinEpics.some((sel) => underOrSelf(item, lineage, sel));
-          if (!under) return false;
-        }
-        return true;
-      })
+      .filter(
+        ({ item, lineage }) =>
+          (withinInitiatives.length === 0 || underAny(item, lineage, withinInitiatives)) &&
+          (withinEpics.length === 0 || underAny(item, lineage, withinEpics)),
+      )
       .map(({ item }) => item)
       .sort((a, b) => a.summary.localeCompare(b.summary));
 

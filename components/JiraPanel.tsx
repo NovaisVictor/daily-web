@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
-import { CalendarPlus, Flag, GitPullRequest, Plus, X, UserPlus } from 'lucide-react';
+import { CalendarPlus, ChevronRight, Flag, GitPullRequest, Plus, X, UserPlus } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -24,7 +24,11 @@ import {
   EMPTY_JIRA_FILTERS,
   JIRA_TIERS,
   JIRA_TIER_LABEL,
+  activeJiraFilters,
+  changeJiraFilter,
+  clearJiraFilter,
   hasJiraFilters,
+  isJiraFilterField,
   jiraFilterOptions,
   jiraFiltersToParams,
   matchesJiraFilters,
@@ -73,6 +77,7 @@ import { TransitionAction } from './jira/actions/TransitionAction';
 import { ApprovalBadge } from './jira/actions/ApprovalAction';
 import { FlagIndicator } from './jira/actions/FlagAction';
 import { BulkStartDate } from './jira/actions/BulkStartDate';
+import { StandupDialog } from './jira/StandupDialog';
 
 /**
  * A panel that cannot reach its integration is information, not an alarm: the
@@ -171,6 +176,8 @@ interface Props {
   loading?: boolean;
   /** Os PRs do painel do GitHub. Os que citam uma issue aparecem sob ela. */
   pulls?: PullRequestItem[];
+  /** Os seus PRs abertos, de qualquer repositório, para o resumo da daily. */
+  myPulls?: PullRequestItem[];
 }
 
 const SEM_PRS = new Map<string, PullRequestItem[]>();
@@ -188,7 +195,10 @@ function JiraPullLinks({ issueKey }: { issueKey: string }) {
       {pulls.map((pr) => (
         <li key={pr.url} className="min-w-0">
           <a
-            className={cn('flex min-w-0 items-center gap-1.5 type-caption text-ink-dim hover:text-ink hover:underline', focusRing)}
+            className={cn(
+              'flex min-w-0 items-center gap-1.5 type-caption text-ink-dim hover:text-ink hover:underline',
+              focusRing,
+            )}
             href={pr.url}
             target="_blank"
             rel="noreferrer"
@@ -217,16 +227,20 @@ export function JiraPanel({
   onChanged,
   loading: meLoading = false,
   pulls,
+  myPulls,
 }: Props) {
   const prsPorChave = useMemo(() => (pulls ? pullsByJiraKey(pulls) : SEM_PRS), [pulls]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const rawPessoa = searchParams.get(PESSOA_PARAM);
-  const pessoaAtiva = rawPessoa && isJiraAccountId(rawPessoa) && people.some(p => p.accountId === rawPessoa) ? rawPessoa : null;
-  const pessoaAtivaObj = pessoaAtiva ? people.find(p => p.accountId === pessoaAtiva) : null;
-  
+  const pessoaAtiva =
+    rawPessoa && isJiraAccountId(rawPessoa) && people.some((p) => p.accountId === rawPessoa)
+      ? rawPessoa
+      : null;
+  const pessoaAtivaObj = pessoaAtiva ? people.find((p) => p.accountId === pessoaAtiva) : null;
+
   // Os filtros são da lista de quem está sendo olhado: trocar de pessoa
   // começa limpo, na mesma navegação, para o voltar desfazer as duas coisas.
   const setPessoa = (next: string) => {
@@ -242,11 +256,15 @@ export function JiraPanel({
     } else {
       router.push(dest, { scroll: false });
     }
-    
+
     setRamos(new Map());
   };
 
-  const { view, loading: personLoading, error: personError } = useJiraPersonView(pessoaAtiva, refreshedAt);
+  const {
+    view,
+    loading: personLoading,
+    error: personError,
+  } = useJiraPersonView(pessoaAtiva, refreshedAt);
 
   const fonte = pessoaAtiva
     ? (view ?? VISTA_VAZIA)
@@ -422,7 +440,9 @@ export function JiraPanel({
   // para o voltar não refazer cada tecla da busca.
   const trocarUrl = (params: URLSearchParams) => {
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   };
   const setFiltros = (next: Partial<JiraFilterState>) =>
     trocarUrl(jiraFiltersToParams(searchParams, { ...filtros, ...next }));
@@ -491,7 +511,10 @@ export function JiraPanel({
     () => sortJiraTree(buildJiraTree(visible, caminho), ordem),
     [visible, caminho, ordem],
   );
-  const situations = useMemo(() => groupByStatusCategory(sortJira(visible, ordem)), [visible, ordem]);
+  const situations = useMemo(
+    () => groupByStatusCategory(sortJira(visible, ordem)),
+    [visible, ordem],
+  );
 
   // Entregues e Aprovados repetem a estrutura de "Em aberto": hierarquia,
   // separada por projeto, para DAD e PDS não se misturarem só porque saíram no
@@ -543,97 +566,27 @@ export function JiraPanel({
     const issue = conhecidas.get(chave);
     return issue ? `${chave} ${issue.summary}` : chave;
   };
+  const issueOption = (item: JiraItem) => ({
+    value: item.key,
+    label: rotuloDe(item.key),
+    secondary: item.key,
+  });
 
   const activeFilters: ActiveFilter[] = [
-    ...(filtros.query.trim() ? [{ id: 'query', label: `Busca: ${filtros.query.trim()}` }] : []),
-    ...(filtros.status.values.length > 0
-      ? [
-          {
-            id: 'status',
-            label:
-              filtros.status.mode === 'exclude'
-                ? `Status ≠ ${filtros.status.values.join(', ')}`
-                : filtros.status.values.length === 1
-                  ? `Status: ${filtros.status.values[0]}`
-                  : `Status: ${filtros.status.values.join(', ')}`,
-          },
-        ]
-      : []),
-    ...(filtros.tier.values.length > 0
-      ? [
-          {
-            id: 'tier',
-            label:
-              filtros.tier.mode === 'exclude'
-                ? `Tipo ≠ ${filtros.tier.values.map((t) => JIRA_TIER_LABEL[t]).join(', ')}`
-                : filtros.tier.values.length === 1
-                  ? `Tipo: ${JIRA_TIER_LABEL[filtros.tier.values[0]]}`
-                  : `Tipo: ${filtros.tier.values.map((t) => JIRA_TIER_LABEL[t]).join(', ')}`,
-          },
-        ]
-      : []),
-    ...(filtros.initiative.values.length > 0
-      ? [
-          {
-            id: 'initiative',
-            label:
-              filtros.initiative.mode === 'exclude'
-                ? `Iniciativa ≠ ${filtros.initiative.values.map(rotuloDe).join(', ')}`
-                : filtros.initiative.values.length === 1
-                  ? `Iniciativa: ${rotuloDe(filtros.initiative.values[0])}`
-                  : `Iniciativa: ${filtros.initiative.values.map(rotuloDe).join(', ')}`,
-          },
-        ]
-      : []),
-    ...(filtros.epic.values.length > 0
-      ? [
-          {
-            id: 'epic',
-            label:
-              filtros.epic.mode === 'exclude'
-                ? `Épico ≠ ${filtros.epic.values.map(rotuloDe).join(', ')}`
-                : filtros.epic.values.length === 1
-                  ? `Épico: ${rotuloDe(filtros.epic.values[0])}`
-                  : `Épico: ${filtros.epic.values.map(rotuloDe).join(', ')}`,
-          },
-        ]
-      : []),
-    ...(filtros.story.values.length > 0
-      ? [
-          {
-            id: 'story',
-            label:
-              filtros.story.mode === 'exclude'
-                ? `História ≠ ${filtros.story.values.map(rotuloDe).join(', ')}`
-                : filtros.story.values.length === 1
-                  ? `História: ${rotuloDe(filtros.story.values[0])}`
-                  : `História: ${filtros.story.values.map(rotuloDe).join(', ')}`,
-          },
-        ]
-      : []),
+    ...activeJiraFilters(filtros, rotuloDe),
     ...(aba === 'abertas' && filter !== 'assignee'
-      ? [{ id: 'role', label: pessoaAtiva ? FILTER_LABEL_PESSOA[filter] : FILTER_LABEL[filter] }]
+      ? [
+          {
+            id: 'role',
+            label: pessoaAtiva ? FILTER_LABEL_PESSOA[filter] : FILTER_LABEL[filter],
+          },
+        ]
       : []),
   ];
 
   const clearFilter = (id: string) => {
     if (id === 'role') return setFilter('assignee');
-    if (id === 'query') return setFiltros({ query: '' });
-    if (id === 'status') return setFiltros({ status: { values: [], mode: 'include' } });
-    if (id === 'tier') return setFiltros({ tier: { values: [], mode: 'include' } });
-    // Tirar um degrau de cima solta os de baixo, que só faziam sentido nele.
-    if (id === 'initiative')
-      return setFiltros({
-        initiative: { values: [], mode: 'include' },
-        epic: { values: [], mode: 'include' },
-        story: { values: [], mode: 'include' },
-      });
-    if (id === 'epic')
-      return setFiltros({
-        epic: { values: [], mode: 'include' },
-        story: { values: [], mode: 'include' },
-      });
-    if (id === 'story') return setFiltros({ story: { values: [], mode: 'include' } });
+    if (id === 'query' || isJiraFilterField(id)) setFiltros(clearJiraFilter(id));
   };
 
   const clearAll = () => {
@@ -654,469 +607,508 @@ export function JiraPanel({
 
   return (
     <JiraActionsProvider value={{ viewer, onChanged }}>
-    <JiraPullsContext.Provider value={prsPorChave}>
-    <Section
-      eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
-      count={
-        aba === 'abertas' && activeFilters.length > 0
-          ? `${visible.length} de ${all.length}`
-          : undefined
-      }
-    >
-      <div className="flex min-w-0 items-start gap-2">
-        <Tabs
-          wrap
-          id="jira-pessoa"
-          label="de quem é o Jira"
-          active={pessoaAtiva ?? 'eu'}
-          onChange={setPessoa}
-          tabs={[
-            { id: 'eu', label: 'Eu' },
-            ...people.map((p) => ({ id: p.accountId, label: p.displayName })),
-          ]}
-        />
-        <IconAction
-          variant="outline"
-          size="icon"
-          label="Acompanhar pessoa"
-          onClick={() => setFormAberta(!formAberta)}
-          icon={<UserPlus className="size-4" />}
-        />
-        {pessoaAtivaObj && (
-          <IconAction
-            variant="outline"
-            size="icon"
-            className="text-danger hover:bg-danger-tint hover:text-danger"
-            label={`parar de acompanhar ${pessoaAtivaObj.displayName}`}
-            onClick={() => void pararPessoa(pessoaAtivaObj.accountId)}
-            icon={<X className="size-4" />}
-          />
-        )}
-      </div>
+      <JiraPullsContext.Provider value={prsPorChave}>
+        <Section
+          eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
+          count={
+            aba === 'abertas' && activeFilters.length > 0
+              ? `${visible.length} de ${all.length}`
+              : undefined
+          }
+          actions={
+            pessoaAtiva ? undefined : (
+              <StandupDialog
+                source={{
+                  open: meJira.data ?? [],
+                  delivered: meDelivered.data ?? [],
+                  approved: meApproved.data ?? [],
+                  myPulls: myPulls ?? [],
+                }}
+              />
+            )
+          }
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <Tabs
+              wrap
+              id="jira-pessoa"
+              label="de quem é o Jira"
+              active={pessoaAtiva ?? 'eu'}
+              onChange={setPessoa}
+              tabs={[
+                { id: 'eu', label: 'Eu' },
+                ...people.map((p) => ({
+                  id: p.accountId,
+                  label: p.displayName,
+                })),
+              ]}
+            />
+            <IconAction
+              variant="outline"
+              size="icon"
+              label="Acompanhar pessoa"
+              onClick={() => setFormAberta(!formAberta)}
+              icon={<UserPlus className="size-4" />}
+            />
+            {pessoaAtivaObj && (
+              <IconAction
+                variant="outline"
+                size="icon"
+                className="text-danger hover:bg-danger-tint hover:text-danger"
+                label={`parar de acompanhar ${pessoaAtivaObj.displayName}`}
+                onClick={() => void pararPessoa(pessoaAtivaObj.accountId)}
+                icon={<X className="size-4" />}
+              />
+            )}
+          </div>
 
-      {formAberta && (
-        <div className="mb-4 rounded-lg border border-line-soft bg-muted/30 p-4">
-          <Input
-            autoFocus
-            aria-label="buscar pessoa no Jira"
-            placeholder="nome da pessoa"
-            value={buscaNovaPessoa}
-            onChange={(e) => setBuscaNovaPessoa(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setFormAberta(false);
-            }}
-          />
-          {erroPessoas && <PanelError>{erroPessoas}</PanelError>}
-          {buscandoPessoas && <p className="mt-2 text-sm text-ink-dim">Buscando…</p>}
-          {!buscandoPessoas && resultadosPessoas.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {resultadosPessoas.map((p) => {
-                if (people.some((fp) => fp.accountId === p.accountId)) return null;
-                return (
-                  <li key={p.accountId}>
-                    <Button variant="outline" size="sm" onClick={() => void acompanharPessoa(p.accountId)}>
-                      {p.displayName}
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
+          {formAberta && (
+            <div className="mb-4 rounded-lg border border-line-soft bg-muted/30 p-4">
+              <Input
+                autoFocus
+                aria-label="buscar pessoa no Jira"
+                placeholder="nome da pessoa"
+                value={buscaNovaPessoa}
+                onChange={(e) => setBuscaNovaPessoa(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setFormAberta(false);
+                }}
+              />
+              {erroPessoas && <PanelError>{erroPessoas}</PanelError>}
+              {buscandoPessoas && <p className="mt-2 text-sm text-ink-dim">Buscando…</p>}
+              {!buscandoPessoas && resultadosPessoas.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {resultadosPessoas.map((p) => {
+                    if (people.some((fp) => fp.accountId === p.accountId)) return null;
+                    return (
+                      <li key={p.accountId}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void acompanharPessoa(p.accountId)}
+                        >
+                          {p.displayName}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {personError && pessoaAtiva && <PanelError>{personError}</PanelError>}
+          {personError && pessoaAtiva && <PanelError>{personError}</PanelError>}
 
-      <Tabs
-        id="jira"
-        label="listas do Jira"
-        active={aba}
-        onChange={(id) => setAba(parseAba(id))}
-        tabs={[
-          { id: 'abertas', label: 'Em aberto', count: all.length },
-          { id: 'entregues', label: 'Entregues', count: entregues.length },
-          { id: 'aprovados', label: 'Aprovados', count: aprovados.length },
-          { id: 'problemas', label: 'Problemas', count: problemas.length },
-        ]}
-      />
+          <div className="flex flex-wrap items-start justify-between gap-x-3">
+            <Tabs
+              id="jira"
+              label="listas do Jira"
+              active={aba}
+              onChange={(id) => setAba(parseAba(id))}
+              tabs={[
+                { id: 'abertas', label: 'Em aberto', count: all.length },
+                {
+                  id: 'entregues',
+                  label: 'Entregues',
+                  count: entregues.length,
+                },
+                {
+                  id: 'aprovados',
+                  label: 'Aprovados',
+                  count: aprovados.length,
+                },
+                {
+                  id: 'problemas',
+                  label: 'Problemas',
+                  count: problemas.length,
+                },
+              ]}
+            />
+            {/* Papel e exibição só valem para "Em aberto": dividem a linha das abas
+          em vez de ocupar uma própria. */}
+            {aba === 'abertas' && (
+              <div
+                role="group"
+                aria-label="Papel e exibição"
+                className="mb-4 flex flex-wrap items-center gap-2"
+              >
+                {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
+                  <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
+                    {pessoaAtiva ? FILTER_LABEL_PESSOA[f] : FILTER_LABEL[f]}
+                  </Chip>
+                ))}
+                <Chip active={!grouped} onClick={() => setGrouped((g) => !g)}>
+                  {grouped ? 'Lista simples' : 'Hierarquia'}
+                </Chip>
+              </div>
+            )}
+          </div>
 
-      {/* O período pertence às duas listas fechadas, e não a uma delas: ficar
+          {/* O período pertence às duas listas fechadas, e não a uma delas: ficar
           fora do painel da aba evita duas barras iguais e mantém o recorte
           visível ao trocar de aba. */}
-      {(aba === 'entregues' || aba === 'aprovados') && (
-        <FilterBar label="Período">
-          {(Object.keys(PERIODO_LABEL) as Periodo[]).map((p) => (
-            <Chip key={p} active={periodo === p} onClick={() => setPeriodo(p)}>
-              {PERIODO_LABEL[p]}
-            </Chip>
-          ))}
-        </FilterBar>
-      )}
-
-      <FilterBar label="Filtrar o Jira">
-        <SearchInput
-          value={filtros.query}
-          onChange={(query) => setFiltros({ query })}
-          label="buscar issues"
-          placeholder="chave ou resumo, até do épico"
-        />
-        <JiraMultiFilterDropdown
-          label="filtrar por status"
-          title="Filtrar por Status"
-          placeholder="Todos os status"
-          filter={filtros.status}
-          options={opcoes.statuses.map((status) => ({
-            value: status,
-            label: status,
-          }))}
-          onChange={(status) => setFiltros({ status })}
-        />
-        <JiraMultiFilterDropdown
-          label="filtrar por tipo"
-          title="Filtrar por Tipo"
-          placeholder="Todos os tipos"
-          filter={filtros.tier}
-          options={JIRA_TIERS.map((tier) => ({
-            value: tier,
-            label: JIRA_TIER_LABEL[tier],
-          }))}
-          onChange={(tier) => setFiltros({ tier })}
-        />
-        <JiraMultiFilterDropdown
-          label="filtrar por iniciativa"
-          title="Filtrar por Iniciativa"
-          placeholder="Todas as iniciativas"
-          filter={filtros.initiative}
-          options={opcoes.initiatives.map((item) => ({
-            value: item.key,
-            label: rotuloDe(item.key),
-            secondary: item.key,
-          }))}
-          formatLabel={rotuloDe}
-          onChange={(initiative) => {
-            const mantemAlguma = filtros.initiative.values.some((v) =>
-              initiative.values.includes(v),
-            );
-            if (!mantemAlguma && filtros.initiative.values.length > 0) {
-              setFiltros({
-                initiative,
-                epic: { values: [], mode: 'include' },
-                story: { values: [], mode: 'include' },
-              });
-            } else {
-              setFiltros({ initiative });
-            }
-          }}
-        />
-        <JiraMultiFilterDropdown
-          label="filtrar por épico"
-          title="Filtrar por Épico"
-          placeholder="Todos os épicos"
-          filter={filtros.epic}
-          options={opcoes.epics.map((item) => ({
-            value: item.key,
-            label: rotuloDe(item.key),
-            secondary: item.key,
-          }))}
-          formatLabel={rotuloDe}
-          onChange={(epic) => {
-            const mantemAlguma = filtros.epic.values.some((v) =>
-              epic.values.includes(v),
-            );
-            if (!mantemAlguma && filtros.epic.values.length > 0) {
-              setFiltros({
-                epic,
-                story: { values: [], mode: 'include' },
-              });
-            } else {
-              setFiltros({ epic });
-            }
-          }}
-        />
-        <JiraMultiFilterDropdown
-          label="filtrar por história"
-          title="Filtrar por História"
-          placeholder="Todas as histórias"
-          filter={filtros.story}
-          options={opcoes.stories.map((item) => ({
-            value: item.key,
-            label: rotuloDe(item.key),
-            secondary: item.key,
-          }))}
-          formatLabel={rotuloDe}
-          onChange={(story) => setFiltros({ story })}
-        />
-        <select
-          aria-label="ordenar issues"
-          className={cn(selectClass, 'border-line-strong')}
-          value={ordem}
-          onChange={(event) => setOrdem(parseJiraOrder(event.target.value))}
-        >
-          {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
-            <option key={o} value={o}>
-              Ordenar: {JIRA_ORDER_LABEL[o]}
-            </option>
-          ))}
-        </select>
-      </FilterBar>
-
-      <ActiveFilters filters={activeFilters} onRemove={clearFilter} onClearAll={clearAll} />
-
-      {aba === 'entregues' && (
-        <div id="jira-panel-entregues" role="tabpanel" aria-labelledby="jira-tab-entregues">
-          {delivered.error && <PanelError>{delivered.error}</PanelError>}
-
-          {loading && entregues.length === 0 && <SkeletonRows count={3} />}
-
-          {filtrando && noPeriodoEntregues.length > 0 && entregues.length === 0 && (
-            <EmptyState title="Nenhuma issue com esses filtros." />
+          {(aba === 'entregues' || aba === 'aprovados') && (
+            <FilterBar label="Período">
+              {(Object.keys(PERIODO_LABEL) as Periodo[]).map((p) => (
+                <Chip key={p} active={periodo === p} onClick={() => setPeriodo(p)}>
+                  {PERIODO_LABEL[p]}
+                </Chip>
+              ))}
+            </FilterBar>
           )}
 
-          {!loading && noPeriodoEntregues.length === 0 && !delivered.error && (
-            <EmptyState
-              title={
-                pessoaAtivaObj
-                  ? periodo === 'hoje'
-                    ? `Nenhuma issue entregue por ${nome} hoje.`
-                    : `Nenhuma issue entregue por ${nome} nos últimos 7 dias.`
-                  : periodo === 'hoje'
-                  ? 'Nenhuma issue entregue hoje.'
-                  : 'Nenhuma issue entregue nos últimos 7 dias.'
-              }
+          <FilterBar label="Filtrar o Jira">
+            <SearchInput
+              value={filtros.query}
+              onChange={(query) => setFiltros({ query })}
+              label="buscar issues"
+              placeholder="chave ou resumo, até do épico"
             />
-          )}
-
-          <JiraProjects
-            groups={entreguesProjects}
-            ramos={ramos}
-            abertura={abertura}
-            onAlternar={alternarRamo}
-            pessoaNome={nome}
-          />
-        </div>
-      )}
-
-      {aba === 'aprovados' && (
-        <div id="jira-panel-aprovados" role="tabpanel" aria-labelledby="jira-tab-aprovados">
-          {approved.error && <PanelError>{approved.error}</PanelError>}
-
-          {loading && aprovados.length === 0 && <SkeletonRows count={3} />}
-
-          {filtrando && noPeriodoAprovados.length > 0 && aprovados.length === 0 && (
-            <EmptyState title="Nenhuma issue com esses filtros." />
-          )}
-
-          {!loading && noPeriodoAprovados.length === 0 && !approved.error && (
-            <EmptyState
-              title={
-                pessoaAtivaObj
-                  ? periodo === 'hoje'
-                    ? `Nenhuma issue aprovada por ${nome} hoje.`
-                    : `Nenhuma issue aprovada por ${nome} nos últimos 7 dias.`
-                  : periodo === 'hoje'
-                  ? 'Nenhuma issue aprovada hoje.'
-                  : 'Nenhuma issue aprovada nos últimos 7 dias.'
-              }
+            <JiraMultiFilterDropdown
+              label="filtrar por status"
+              title="Filtrar por Status"
+              placeholder="Status"
+              name="Status"
+              filter={filtros.status}
+              options={opcoes.statuses.map((status) => ({
+                value: status,
+                label: status,
+              }))}
+              onChange={(status) => setFiltros({ status })}
             />
-          )}
-
-          <JiraProjects
-            groups={aprovadosProjects}
-            ramos={ramos}
-            abertura={abertura}
-            onAlternar={alternarRamo}
-            pessoaNome={nome}
-          />
-        </div>
-      )}
-
-      {aba === 'problemas' && (
-        <div id="jira-panel-problemas" role="tabpanel" aria-labelledby="jira-tab-problemas">
-          {problems.error && <PanelError>{problems.error}</PanelError>}
-
-          {loading && problemas.length === 0 && <SkeletonRows count={3} />}
-
-          {filtrando && (problems.data ?? []).length > 0 && problemas.length === 0 && (
-            <EmptyState title="Nenhuma issue com esses filtros." />
-          )}
-
-          {!loading && (problems.data ?? []).length === 0 && !problems.error && (
-            <EmptyState title={pessoaAtivaObj ? `Nenhuma história ou épico de ${nome} com problema.` : "Nenhuma história ou épico com problema."} />
-          )}
-
-          <BulkStartDate problems={problemas} />
-
-          <ul>
-            {problemas.map((issue) => (
-              <JiraProblemRow key={issue.key} issue={issue} onFixed={onChanged} />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {aba === 'abertas' && (
-        <div id="jira-panel-abertas" role="tabpanel" aria-labelledby="jira-tab-abertas">
-          <FilterBar label="Papel e exibição">
-            {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-              <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
-                {pessoaAtiva ? FILTER_LABEL_PESSOA[f] : FILTER_LABEL[f]}
-              </Chip>
-            ))}
-            <Chip active={!grouped} onClick={() => setGrouped((g) => !g)}>
-              {grouped ? 'Lista simples' : 'Hierarquia'}
-            </Chip>
+            <JiraMultiFilterDropdown
+              label="filtrar por tipo"
+              title="Filtrar por Tipo"
+              placeholder="Tipo"
+              name="Tipo"
+              filter={filtros.tier}
+              options={JIRA_TIERS.map((tier) => ({
+                value: tier,
+                label: JIRA_TIER_LABEL[tier],
+              }))}
+              onChange={(tier) => setFiltros({ tier })}
+            />
+            {/* Os três degraus descem em cascata, e a seta diz isso: cada um
+            recorta as opções do seguinte. */}
+            <div
+              role="group"
+              aria-label="hierarquia do Jira"
+              className="inline-flex max-w-full flex-wrap items-center gap-0.5"
+            >
+              <JiraMultiFilterDropdown
+                label="filtrar por iniciativa"
+                title="Filtrar por Iniciativa"
+                placeholder="Iniciativa"
+                name="Iniciativa"
+                filter={filtros.initiative}
+                options={opcoes.initiatives.map(issueOption)}
+                formatLabel={rotuloDe}
+                onChange={(initiative) =>
+                  setFiltros(changeJiraFilter(filtros, 'initiative', initiative))
+                }
+              />
+              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
+              <JiraMultiFilterDropdown
+                label="filtrar por épico"
+                title="Filtrar por Épico"
+                placeholder="Épico"
+                name="Épico"
+                filter={filtros.epic}
+                options={opcoes.epics.map(issueOption)}
+                formatLabel={rotuloDe}
+                onChange={(epic) => setFiltros(changeJiraFilter(filtros, 'epic', epic))}
+              />
+              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
+              <JiraMultiFilterDropdown
+                label="filtrar por história"
+                title="Filtrar por História"
+                placeholder="História"
+                name="História"
+                filter={filtros.story}
+                options={opcoes.stories.map(issueOption)}
+                formatLabel={rotuloDe}
+                onChange={(story) => setFiltros({ story })}
+              />
+            </div>
+            <select
+              aria-label="ordenar issues"
+              className={cn(selectClass, 'border-line-strong')}
+              value={ordem}
+              onChange={(event) => setOrdem(parseJiraOrder(event.target.value))}
+            >
+              {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
+                <option key={o} value={o}>
+                  Ordenar: {JIRA_ORDER_LABEL[o]}
+                </option>
+              ))}
+            </select>
           </FilterBar>
 
-          {/* Acompanhar uma issue que não é sua: o Jira do time vizinho que trava
-              o seu, ou o que você abriu para outra pessoa. */}
-          {!pessoaAtiva && (
-              <div className="mb-4 border-b border-line-soft pb-4">
-                <h3 className={groupLabel}>
-                Acompanhando
-                {acompanhadas.length > 0 && (
-                  <span className={cn('font-normal text-ink-dim', tabular)}>
-                    {' '}
-                    {acompanhadas.length}
-                  </span>
-                )}
-              </h3>
-  
-              <div className="my-2 flex gap-2">
-                <Input
-                  className="max-w-48"
-                  aria-label="acompanhar issue do Jira"
-                  placeholder="ABC-123"
-                  value={novaChave}
-                  onChange={(e) => setNovaChave(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void acompanhar();
-                  }}
-                />
-                <IconAction
-                  variant="outline"
-                  size="icon"
-                  label={salvando ? 'Buscando…' : 'Acompanhar issue'}
-                  disabled={salvando || novaChave.trim().length === 0}
-                  onClick={() => void acompanhar()}
-                  icon={<Plus className={cn('size-4', salvando && 'animate-pulse')} />}
-                />
-              </div>
-  
-              {watchError && <PanelError>{watchError}</PanelError>}
-              {watched.error && <PanelError>{watched.error}</PanelError>}
-  
-              {acompanhadas.length === 0 && !watchError && (
-                <p className={emptyNote}>Nenhuma issue acompanhada.</p>
+          <ActiveFilters filters={activeFilters} onRemove={clearFilter} onClearAll={clearAll} />
+
+          {aba === 'entregues' && (
+            <div id="jira-panel-entregues" role="tabpanel" aria-labelledby="jira-tab-entregues">
+              {delivered.error && <PanelError>{delivered.error}</PanelError>}
+
+              {loading && entregues.length === 0 && <SkeletonRows count={3} />}
+
+              {filtrando && noPeriodoEntregues.length > 0 && entregues.length === 0 && (
+                <EmptyState title="Nenhuma issue com esses filtros." />
               )}
-  
+
+              {!loading && noPeriodoEntregues.length === 0 && !delivered.error && (
+                <EmptyState
+                  title={
+                    pessoaAtivaObj
+                      ? periodo === 'hoje'
+                        ? `Nenhuma issue entregue por ${nome} hoje.`
+                        : `Nenhuma issue entregue por ${nome} nos últimos 7 dias.`
+                      : periodo === 'hoje'
+                        ? 'Nenhuma issue entregue hoje.'
+                        : 'Nenhuma issue entregue nos últimos 7 dias.'
+                  }
+                />
+              )}
+
+              <JiraProjects
+                groups={entreguesProjects}
+                ramos={ramos}
+                abertura={abertura}
+                onAlternar={alternarRamo}
+                pessoaNome={nome}
+              />
+            </div>
+          )}
+
+          {aba === 'aprovados' && (
+            <div id="jira-panel-aprovados" role="tabpanel" aria-labelledby="jira-tab-aprovados">
+              {approved.error && <PanelError>{approved.error}</PanelError>}
+
+              {loading && aprovados.length === 0 && <SkeletonRows count={3} />}
+
+              {filtrando && noPeriodoAprovados.length > 0 && aprovados.length === 0 && (
+                <EmptyState title="Nenhuma issue com esses filtros." />
+              )}
+
+              {!loading && noPeriodoAprovados.length === 0 && !approved.error && (
+                <EmptyState
+                  title={
+                    pessoaAtivaObj
+                      ? periodo === 'hoje'
+                        ? `Nenhuma issue aprovada por ${nome} hoje.`
+                        : `Nenhuma issue aprovada por ${nome} nos últimos 7 dias.`
+                      : periodo === 'hoje'
+                        ? 'Nenhuma issue aprovada hoje.'
+                        : 'Nenhuma issue aprovada nos últimos 7 dias.'
+                  }
+                />
+              )}
+
+              <JiraProjects
+                groups={aprovadosProjects}
+                ramos={ramos}
+                abertura={abertura}
+                onAlternar={alternarRamo}
+                pessoaNome={nome}
+              />
+            </div>
+          )}
+
+          {aba === 'problemas' && (
+            <div id="jira-panel-problemas" role="tabpanel" aria-labelledby="jira-tab-problemas">
+              {problems.error && <PanelError>{problems.error}</PanelError>}
+
+              {loading && problemas.length === 0 && <SkeletonRows count={3} />}
+
+              {filtrando && (problems.data ?? []).length > 0 && problemas.length === 0 && (
+                <EmptyState title="Nenhuma issue com esses filtros." />
+              )}
+
+              {!loading && (problems.data ?? []).length === 0 && !problems.error && (
+                <EmptyState
+                  title={
+                    pessoaAtivaObj
+                      ? `Nenhuma história ou épico de ${nome} com problema.`
+                      : 'Nenhuma história ou épico com problema.'
+                  }
+                />
+              )}
+
+              <BulkStartDate problems={problemas} />
+
               <ul>
-                {acompanhadas.map((issue) => (
-                  <li key={issue.key} className={rowShell}>
-                    <span className="shrink-0 type-caption leading-6 text-ink-dim">
-                      {issueMarker(issue)}
-                    </span>
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <div className="flex min-w-0 items-baseline gap-3">
-                        <a
-                          className={cn(
-                            'shrink-0 font-mono text-sm text-brand hover:underline',
-                            focusRing,
-                          )}
-                          href={issue.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {issue.key}
-                        </a>
-                        <span
-            className={cn(
-              'min-w-0 flex-1 truncate',
-              origin === 'ancestor' ? 'text-ink-dim' : 'text-ink',
-            )}
-          >
-            {issue.summary}
-          </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
-                        <JiraStatus issue={issue} />
-                        {stalenessLabel(issue) && (
-                          <span className="whitespace-nowrap text-warning">
-                            {stalenessLabel(issue)}
-                          </span>
-                        )}
-                        {issue.dueDate && dueLabel(issue.dueDate) && (
-                          <span
-                            className={cn(
-                              'whitespace-nowrap',
-                              isOverdue(issue.dueDate) ? 'is-overdue text-danger' : 'text-ink-dim',
-                            )}
-                          >
-                            {dueLabel(issue.dueDate)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <IconAction
-                      className="shrink-0 text-ink-dim hover:bg-danger-tint hover:text-danger"
-                      label={`parar de acompanhar ${issue.key}`}
-                      onClick={() => void parar(issue.key)}
-                      icon={<X className="size-4" />}
-                    />
-                  </li>
+                {problemas.map((issue) => (
+                  <JiraProblemRow key={issue.key} issue={issue} onFixed={onChanged} />
                 ))}
               </ul>
             </div>
           )}
 
-          {jira.error && <PanelError>{jira.error}</PanelError>}
+          {aba === 'abertas' && (
+            <div id="jira-panel-abertas" role="tabpanel" aria-labelledby="jira-tab-abertas">
+              {/* Acompanhar uma issue que não é sua: o Jira do time vizinho que trava
+              o seu, ou o que você abriu para outra pessoa. */}
+              {!pessoaAtiva && (
+                <div className="mb-4 border-b border-line-soft pb-4">
+                  <h3 className={groupLabel}>
+                    Acompanhando
+                    {acompanhadas.length > 0 && (
+                      <span className={cn('font-normal text-ink-dim', tabular)}>
+                        {' '}
+                        {acompanhadas.length}
+                      </span>
+                    )}
+                  </h3>
 
-          {loading && all.length === 0 && <SkeletonRows count={5} />}
+                  <div className="my-2 flex gap-2">
+                    <Input
+                      className="max-w-48"
+                      aria-label="acompanhar issue do Jira"
+                      placeholder="ABC-123"
+                      value={novaChave}
+                      onChange={(e) => setNovaChave(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void acompanhar();
+                      }}
+                    />
+                    <IconAction
+                      variant="outline"
+                      size="icon"
+                      label={salvando ? 'Buscando…' : 'Acompanhar issue'}
+                      disabled={salvando || novaChave.trim().length === 0}
+                      onClick={() => void acompanhar()}
+                      icon={<Plus className={cn('size-4', salvando && 'animate-pulse')} />}
+                    />
+                  </div>
 
-          {!loading && all.length === 0 && !jira.error && (
-            <EmptyState title={pessoaAtivaObj ? `Nenhuma issue atribuída a ${nome}.` : "Nenhuma issue atribuída."} />
+                  {watchError && <PanelError>{watchError}</PanelError>}
+                  {watched.error && <PanelError>{watched.error}</PanelError>}
+
+                  {acompanhadas.length === 0 && !watchError && (
+                    <p className={emptyNote}>Nenhuma issue acompanhada.</p>
+                  )}
+
+                  <ul>
+                    {acompanhadas.map((issue) => (
+                      <li key={issue.key} className={rowShell}>
+                        <span className="shrink-0 type-caption leading-6 text-ink-dim">
+                          {issueMarker(issue)}
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <div className="flex min-w-0 items-baseline gap-3">
+                            <a
+                              className={cn(
+                                'shrink-0 font-mono text-sm text-brand hover:underline',
+                                focusRing,
+                              )}
+                              href={issue.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {issue.key}
+                            </a>
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 truncate',
+                                origin === 'ancestor' ? 'text-ink-dim' : 'text-ink',
+                              )}
+                            >
+                              {issue.summary}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-dim">
+                            <JiraStatus issue={issue} />
+                            {stalenessLabel(issue) && (
+                              <span className="whitespace-nowrap text-warning">
+                                {stalenessLabel(issue)}
+                              </span>
+                            )}
+                            {issue.dueDate && dueLabel(issue.dueDate) && (
+                              <span
+                                className={cn(
+                                  'whitespace-nowrap',
+                                  isOverdue(issue.dueDate)
+                                    ? 'is-overdue text-danger'
+                                    : 'text-ink-dim',
+                                )}
+                              >
+                                {dueLabel(issue.dueDate)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <IconAction
+                          className="shrink-0 text-ink-dim hover:bg-danger-tint hover:text-danger"
+                          label={`parar de acompanhar ${issue.key}`}
+                          onClick={() => void parar(issue.key)}
+                          icon={<X className="size-4" />}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {jira.error && <PanelError>{jira.error}</PanelError>}
+
+              {loading && all.length === 0 && <SkeletonRows count={5} />}
+
+              {!loading && all.length === 0 && !jira.error && (
+                <EmptyState
+                  title={
+                    pessoaAtivaObj
+                      ? `Nenhuma issue atribuída a ${nome}.`
+                      : 'Nenhuma issue atribuída.'
+                  }
+                />
+              )}
+
+              {all.length > 0 && visible.length === 0 && (
+                <EmptyState title="Nenhuma issue com esses filtros." />
+              )}
+
+              {grouped &&
+                visible.length > 0 &&
+                situations.map((group) => (
+                  <div key={group.category} className="mt-5 first:mt-0">
+                    <h3 className={groupLabel}>
+                      {group.label}
+                      <span className={cn('font-normal text-ink-dim', tabular)}>
+                        {' '}
+                        {group.issues.length}
+                      </span>
+                    </h3>
+                    <ul>
+                      {group.issues.map((issue) => (
+                        <JiraRow
+                          key={issue.key}
+                          issue={issue}
+                          showRole={filter === 'both'}
+                          depth={0}
+                          pessoaNome={nome}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+
+              {!grouped && visible.length > 0 && (
+                <JiraProjects
+                  groups={projects}
+                  showRole={filter === 'both'}
+                  ramos={ramos}
+                  abertura={abertura}
+                  onAlternar={alternarRamo}
+                  pessoaNome={nome}
+                />
+              )}
+            </div>
           )}
-
-          {all.length > 0 && visible.length === 0 && (
-            <EmptyState title="Nenhuma issue com esses filtros." />
-          )}
-
-          {grouped &&
-            visible.length > 0 &&
-            situations.map((group) => (
-              <div key={group.category} className="mt-5 first:mt-0">
-                <h3 className={groupLabel}>
-                  {group.label}
-                  <span className={cn('font-normal text-ink-dim', tabular)}>
-                    {' '}
-                    {group.issues.length}
-                  </span>
-                </h3>
-                <ul>
-                  {group.issues.map((issue) => (
-                    <JiraRow key={issue.key} issue={issue} showRole={filter === 'both'} depth={0} pessoaNome={nome} />
-                  ))}
-                </ul>
-              </div>
-            ))}
-
-          {!grouped && visible.length > 0 && (
-            <JiraProjects
-              groups={projects}
-              showRole={filter === 'both'}
-              ramos={ramos}
-              abertura={abertura}
-              onAlternar={alternarRamo}
-              pessoaNome={nome}
-            />
-          )}
-        </div>
-      )}
-    </Section>
-    </JiraPullsContext.Provider>
+        </Section>
+      </JiraPullsContext.Provider>
     </JiraActionsProvider>
   );
 }
-
 
 /** A bandeira vermelha do Jira: a issue está impedida. É a marca que mais pede
  *  atenção na linha, então fica colada à chave. */
@@ -1397,7 +1389,11 @@ function JiraRow({
                 roleBadge,
                 'border-warning/45 bg-warning-tint font-semibold text-warning',
               )}
-              title={pessoaNome ? `aguardando a aprovação de ${pessoaNome}` : "aguardando a sua aprovação"}
+              title={
+                pessoaNome
+                  ? `aguardando a aprovação de ${pessoaNome}`
+                  : 'aguardando a sua aprovação'
+              }
             />
           )}
         </div>

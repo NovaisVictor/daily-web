@@ -933,6 +933,12 @@ describe('Visão de Pessoa (pessoaAtiva)', () => {
     render(<Panel people={people} watched={{ data: [issue({ key: 'WATCH-1' })], error: null }} />);
     expect(screen.queryByText('WATCH-1')).not.toBeInTheDocument();
   });
+
+  it('não oferece o resumo da daily na visão de terceiro', () => {
+    nav.search = 'jiraPessoa=123:abc';
+    render(<Panel people={people} />);
+    expect(screen.queryByRole('button', { name: 'Resumo para a daily' })).not.toBeInTheDocument();
+  });
 });
 
 describe('filtros do Jira', () => {
@@ -1018,6 +1024,40 @@ describe('filtros do Jira', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /modo não é igual a para filtrar por status/i }));
     expect(params().get('jiraStatusModo')).toBe('exclude');
+  });
+
+  it('remove um valor de uma seleção múltipla e mostra a dimensão com a contagem', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: /abrir menu filtrar por status/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Aberto' }));
+
+    const gatilho = screen.getByRole('button', { name: /abrir menu filtrar por status/i });
+    expect(gatilho).toHaveTextContent('Status (2)');
+    expect(gatilho).toHaveAccessibleName('abrir menu filtrar por status, incluindo Status (2)');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
+    expect(params().get('jiraStatus')).toBe('Aberto');
+  });
+
+  it('fecha o menu de filtro com Escape e devolve o foco ao gatilho', async () => {
+    montar();
+    const gatilho = screen.getByRole('button', { name: /abrir menu filtrar por status/i });
+    gatilho.focus();
+    fireEvent.click(gatilho);
+    const marcar = screen.getByRole('checkbox', { name: 'Backlog' });
+
+    fireEvent.keyDown(marcar, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'Backlog' })).not.toBeInTheDocument(),
+    );
+    expect(gatilho).toHaveFocus();
+  });
+
+  it('deixa o trio da hierarquia quebrar linha em telas estreitas', () => {
+    montar();
+    expect(screen.getByRole('group', { name: 'hierarquia do Jira' })).toHaveClass('flex-wrap', 'max-w-full');
   });
 
   it('oferece só os status que existem na lista', () => {
@@ -1462,5 +1502,19 @@ describe('PRs sob a issue', () => {
   it('sem PRs o painel não muda', () => {
     render(<Panel jira={{ data: [issue({ key: 'A-1' })], error: null }} />);
     expect(screen.queryByRole('list', { name: /^PRs de/ })).toBeNull();
+  });
+
+  it('monta o resumo da daily com as suas issues e os seus PRs', () => {
+    render(
+      <Panel
+        jira={{ data: [issue({ key: 'A-1', summary: 'Andando', statusCategory: 'indeterminate' })], error: null }}
+        myPulls={[pr({ repo: 'acme/api', number: 3, title: 'Travado', ci: 'failing' })]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Resumo para a daily' }));
+
+    const texto = (screen.getByRole('textbox', { name: 'texto do resumo' }) as HTMLTextAreaElement).value;
+    expect(texto).toContain('Hoje\n- A-1 — Andando');
+    expect(texto).toContain('Bloqueios\n- acme/api#3 — Travado (CI falhou)');
   });
 });

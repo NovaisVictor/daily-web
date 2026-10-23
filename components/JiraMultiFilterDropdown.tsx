@@ -18,6 +18,8 @@ interface Props<T extends string = string> {
   label: string;
   title: string;
   placeholder: string;
+  /** Dimension name shown next to the count when several values are selected. */
+  name?: string;
   filter: JiraFilterGroup<T>;
   options: JiraMultiFilterOption<T>[];
   onChange: (next: JiraFilterGroup<T>) => void;
@@ -29,6 +31,7 @@ export function JiraMultiFilterDropdown<T extends string = string>({
   label,
   title,
   placeholder,
+  name,
   filter,
   options,
   onChange,
@@ -87,8 +90,13 @@ export function JiraMultiFilterDropdown<T extends string = string>({
     const opt = allOptions.find((o) => o.value === filter.values[0]);
     triggerText = opt?.label ?? (formatLabel ? formatLabel(filter.values[0]) : filter.values[0]);
   } else if (filter.values.length > 1) {
-    triggerText = `${filter.values.length} selecionados`;
+    triggerText = name
+      ? `${name} (${filter.values.length})`
+      : `${filter.values.length} selecionados`;
   }
+  const triggerState = hasValues
+    ? `, ${isExclude ? 'excluindo' : 'incluindo'} ${triggerText}`
+    : '';
 
   return (
     <div className={cn('relative inline-flex items-center', className)}>
@@ -121,7 +129,7 @@ export function JiraMultiFilterDropdown<T extends string = string>({
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label={`abrir menu ${label}`}
+            aria-label={`abrir menu ${label}${triggerState}`}
             className={cn(
               selectClass,
               'inline-flex items-center gap-1.5 text-left transition-colors cursor-pointer',

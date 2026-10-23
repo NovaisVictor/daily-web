@@ -5,7 +5,7 @@ import { PanelError } from '@/components/data/PanelError';
 import { EmptyState } from '@/components/data/EmptyState';
 import { SkeletonRows } from '@/components/ui/legacy-skeleton';
 import { tabular } from '@/lib/theme';
-import { groupMyPulls, myPullBlockers, type MyPullBlocker, type MyPullGroup } from '@/lib/myPulls';
+import { MY_PULL_BLOCKER_LABEL, groupMyPulls, myPullBlockers, type MyPullGroup } from '@/lib/myPulls';
 import { PullRow } from './PullRow';
 
 const GROUP_LABEL: Record<MyPullGroup, string> = {
@@ -15,15 +15,9 @@ const GROUP_LABEL: Record<MyPullGroup, string> = {
   draft: 'Rascunho',
 };
 
-const BLOCKER_LABEL: Record<MyPullBlocker, string> = {
-  'ci-failing': 'CI falhou',
-  'changes-requested': 'pediram mudanças',
-  conflict: 'conflito',
-};
-
 function blockerReason(item: PullRequestItem): string {
   return myPullBlockers(item)
-    .map((blocker) => BLOCKER_LABEL[blocker])
+    .map((blocker) => MY_PULL_BLOCKER_LABEL[blocker])
     .join(', ');
 }
 
