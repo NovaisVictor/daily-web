@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
-import type { ComponentProps } from 'react';
+import { describe, expect, it, vi, afterEach, beforeAll } from 'vitest';
+import { useState, type ComponentProps } from 'react';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { TasksPanel, formatDue } from '@/components/TasksPanel';
 import type { TodoTask } from '@/lib/types';
@@ -21,10 +21,34 @@ function task(over: Partial<TodoTask>): TodoTask {
   };
 }
 
+// The actions menu hands the focus back to its trigger, an IconAction, and
+// that opens its tooltip, which Radix measures with ResizeObserver. jsdom has
+// none.
+beforeAll(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
+// Radix opens its menus on pointerdown, not click.
+async function openActions(title: string) {
+  fireEvent.pointerDown(screen.getByRole('button', { name: `ações de ${title}` }), {
+    button: 0,
+    ctrlKey: false,
+    pointerType: 'mouse',
+  });
+  return screen.findByRole('menu');
+}
 
 describe('formatDue', () => {
   it('mostra dia/mês sem o ano', () => {
@@ -46,11 +70,11 @@ describe('TasksPanel', () => {
       onCompletedChanged: () => {}, onRemoved: () => {}, onSubtaskChanged: () => {},
       tasks: { data: [task({ title: 'Planejar entrega' })], error: null }, onChanged: () => {},
     };
-    const { rerender } = render(<TasksPanel {...props} />);
+    const { rerender } = render(<TasksPanel view="list" {...props} />);
     expect(screen.queryByLabelText('agendar foco para Planejar entrega')).not.toBeInTheDocument();
     rerender(
       <FocusBlockProvider calendars={[{ id: 'c', label: 'Google', account: 'a@b.com', canWrite: true }]} onCreated={() => {}}>
-        <TasksPanel {...props} />
+        <TasksPanel view="list" {...props} />
       </FocusBlockProvider>,
     );
     expect(screen.getByLabelText('agendar foco para Planejar entrega')).toBeInTheDocument();
@@ -59,6 +83,7 @@ describe('TasksPanel', () => {
   it('lista as tarefas agrupadas por faixa de prazo', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -73,6 +98,7 @@ describe('TasksPanel', () => {
   it('filtra por busca textual', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -91,6 +117,7 @@ describe('TasksPanel', () => {
   it('filtra por prioridade alta', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -112,7 +139,7 @@ describe('TasksPanel', () => {
   it('conclui uma tarefa e avisa onChanged', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'));
     const onChanged = vi.fn();
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={onChanged} />);
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={onChanged} />);
     fireEvent.click(screen.getByLabelText('concluir Tarefa'));
     await waitFor(() =>
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -126,9 +153,9 @@ describe('TasksPanel', () => {
   it('apagar pede confirmação e só apaga depois do sim', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
     const onRemoved = vi.fn();
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={onRemoved} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={onRemoved} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'apagar Tarefa' }));
+    fireEvent.click(within(await openActions('Tarefa')).getByRole('menuitem', { name: 'Apagar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Apagar a tarefa?' });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(onRemoved).not.toHaveBeenCalled();
@@ -142,9 +169,9 @@ describe('TasksPanel', () => {
 
   it('cancelar a confirmação não apaga', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'apagar Tarefa' }));
+    fireEvent.click(within(await openActions('Tarefa')).getByRole('menuitem', { name: 'Apagar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Apagar a tarefa?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -161,6 +188,7 @@ describe('TasksPanel', () => {
     const onCompletedChanged = vi.fn();
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={onCompletedChanged}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -181,6 +209,7 @@ describe('TasksPanel', () => {
     const onCompletedChanged = vi.fn();
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={onCompletedChanged}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -199,6 +228,7 @@ describe('TasksPanel', () => {
     const onCompletedChanged = vi.fn();
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={onCompletedChanged}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -214,6 +244,7 @@ describe('TasksPanel', () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'));
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -234,18 +265,27 @@ describe('TasksPanel', () => {
     );
   });
 
-  it('o campo de subtarefa só aparece depois de clicar no +', () => {
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+  // The always-visible red "Apagar" and the 18px "+" read as "new task" and
+  // sat right next to the title; both live in the row's menu now.
+  it('apagar e adicionar subtarefa ficam no menu da linha, não soltos nela', () => {
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'apagar Tarefa' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'adicionar subtarefa em Tarefa' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'ações de Tarefa' })).toBeInTheDocument();
+  });
+
+  it('o campo de subtarefa só aparece depois de pedir pelo menu', async () => {
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
     expect(screen.queryByLabelText('nova subtarefa de Tarefa')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'adicionar subtarefa em Tarefa' }));
-    expect(screen.getByLabelText('nova subtarefa de Tarefa')).toBeInTheDocument();
+    fireEvent.click(within(await openActions('Tarefa')).getByRole('menuitem', { name: 'Adicionar subtarefa' }));
+    expect(await screen.findByLabelText('nova subtarefa de Tarefa')).toBeInTheDocument();
   });
 
   it('adiciona uma subtarefa pela API certa', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'));
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: 'adicionar subtarefa em Tarefa' }));
-    fireEvent.change(screen.getByLabelText('nova subtarefa de Tarefa'), {
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+    fireEvent.click(within(await openActions('Tarefa')).getByRole('menuitem', { name: 'Adicionar subtarefa' }));
+    fireEvent.change(await screen.findByLabelText('nova subtarefa de Tarefa'), {
       target: { value: 'Etapa nova' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar subtarefa' }));
@@ -260,6 +300,7 @@ describe('TasksPanel', () => {
   it('esconde tarefas concluídas por padrão', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -280,6 +321,7 @@ describe('TasksPanel', () => {
   it('mostra as concluídas quando o filtro é ligado', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -300,6 +342,7 @@ describe('TasksPanel', () => {
   it('mantém as subtarefas escondidas até clicarem na seta', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -324,6 +367,7 @@ describe('TasksPanel', () => {
   it('mostra o quanto das subtarefas já foi feito mesmo recolhido', () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -345,14 +389,15 @@ describe('TasksPanel', () => {
   });
 
   it('não oferece seta em tarefa sem subtarefa', () => {
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [task({})], error: null }} onChanged={() => {}} />);
     expect(screen.queryByRole('button', { name: /subtarefas de Tarefa/ })).toBeNull();
   });
 
-  // Quem clica no "+" quer ver o campo — e o que já existe ali junto.
-  it('o + abre o campo e revela as subtarefas existentes', () => {
+  // Quem pede para adicionar quer ver o campo — e o que já existe ali junto.
+  it('adicionar subtarefa abre o campo e revela as subtarefas existentes', async () => {
     render(
       <TasksPanel
+        view="list"
         onCompletedChanged={() => {}}
         onRemoved={() => {}}
         onSubtaskChanged={() => {}}
@@ -363,13 +408,94 @@ describe('TasksPanel', () => {
         onChanged={() => {}}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'adicionar subtarefa em Tarefa' }));
-    expect(screen.getByLabelText('nova subtarefa de Tarefa')).toBeInTheDocument();
+    fireEvent.click(within(await openActions('Tarefa')).getByRole('menuitem', { name: 'Adicionar subtarefa' }));
+    expect(await screen.findByLabelText('nova subtarefa de Tarefa')).toBeInTheDocument();
     expect(screen.getByText('Etapa')).toBeInTheDocument();
   });
 
+  // "Fazendo" is a board column; without the tag, a task someone is working
+  // on looks in the list exactly like one nobody started.
+  it('marca na lista a tarefa que está em Fazendo', () => {
+    render(
+      <TasksPanel
+        view="list"
+        onCompletedChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        tasks={{ data: [task({ id: '1', title: 'Revisar PR', doing: true }), task({ id: '2', title: 'Comum' })], error: null }}
+        onChanged={() => {}}
+      />,
+    );
+    expect(screen.getAllByText('Fazendo')).toHaveLength(1);
+  });
+
+  it('pelo menu da linha, move a tarefa para Fazendo pelo mesmo caminho do quadro', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    const onDoingChanged = vi.fn();
+    render(
+      <TasksPanel
+        view="list"
+        onCompletedChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        onDoingChanged={onDoingChanged}
+        tasks={{ data: [task({ title: 'Escrever proposta' })], error: null }}
+        onChanged={() => {}}
+      />,
+    );
+    const menu = await openActions('Escrever proposta');
+    expect(within(menu).getByRole('menuitemradio', { name: 'A fazer' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: 'Fazendo' }));
+    expect(onDoingChanged).toHaveBeenCalledWith('1', true);
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/tasks/1/board',
+        expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ status: 'doing' }) }),
+      ),
+    );
+  });
+
+  it('diz que a tarefa está atrasada com glifo e texto, não só com cor', () => {
+    render(
+      <TasksPanel
+        view="list"
+        onCompletedChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        tasks={{ data: [task({ title: 'Pagar fatura', due: '2020-01-10' })], error: null }}
+        onChanged={() => {}}
+      />,
+    );
+    expect(screen.getByText('atrasada, prazo', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('▲')).toBeInTheDocument();
+  });
+
+  it('o menu só oferece agendar foco quando há agenda Google e a tarefa está aberta', async () => {
+    render(
+      <FocusBlockProvider calendars={[{ id: 'c', label: 'Google', account: 'a@b.com', canWrite: true }]} onCreated={() => {}}>
+        <TasksPanel
+          view="list"
+          onCompletedChanged={() => {}}
+          onRemoved={() => {}}
+          onSubtaskChanged={() => {}}
+          tasks={{ data: [task({ id: '1', title: 'Aberta' }), task({ id: '2', title: 'Feita', completed: true })], error: null }}
+          onChanged={() => {}}
+        />
+      </FocusBlockProvider>,
+    );
+    expect(within(await openActions('Aberta')).getByRole('menuitem', { name: 'Agendar foco' })).toBeInTheDocument();
+  });
+
+  it('o estado vazio da lista oferece criar a primeira tarefa', () => {
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [], error: null }} onChanged={() => {}} />);
+    // The header's "+" carries the same name; the empty state's is the second.
+    const [, fromEmptyState] = screen.getAllByRole('button', { name: 'Nova tarefa' });
+    fireEvent.click(fromEmptyState);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('mostra o estado vazio quando não há tarefas', () => {
-    render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [], error: null }} onChanged={() => {}} />);
+    render(<TasksPanel view="list" onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [], error: null }} onChanged={() => {}} />);
     expect(screen.getByText(/nenhuma tarefa/i)).toBeInTheDocument();
   });
 });
@@ -409,7 +535,7 @@ describe('TasksPanel em quadro', () => {
     return spy.mock.calls.map(([url, init]) => [url, JSON.parse(String(init?.body))]);
   }
 
-  it('a lista continua sendo a visualização padrão', () => {
+  it('o quadro é a visualização padrão', () => {
     render(
       <TasksPanel
         onCompletedChanged={() => {}}
@@ -419,8 +545,8 @@ describe('TasksPanel em quadro', () => {
         onChanged={() => {}}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Lista' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByRole('region', { name: /^A fazer/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Quadro' })).toHaveAttribute('aria-pressed', 'true');
+    expect(column('A fazer')).toBeInTheDocument();
   });
 
   it('trocar para Quadro mostra as colunas e guarda a escolha', async () => {
@@ -550,6 +676,152 @@ describe('TasksPanel em quadro', () => {
     );
   });
 
+  // The board used to have no columns at all with zero tasks, which left no
+  // way to add a note to a column.
+  it('mostra as três colunas mesmo sem nenhuma tarefa', () => {
+    renderBoard({ tasks: { data: [], error: null } });
+    expect(column('A fazer')).toHaveTextContent('Arraste uma nota para cá ou adicione');
+    expect(column('Fazendo')).toBeInTheDocument();
+    expect(column('Feito')).toBeInTheDocument();
+  });
+
+  it('adicionar em Fazendo cria a tarefa já em Fazendo, numa só requisição, e deixa o campo aberto', async () => {
+    const fetchSpy = okFetch();
+    const props = renderBoard();
+
+    fireEvent.click(within(column('Fazendo')).getByRole('button', { name: 'adicionar tarefa em Fazendo' }));
+    const field = screen.getByRole('textbox', { name: 'nova tarefa em Fazendo' });
+    expect(field).toHaveFocus();
+    fireEvent.change(field, { target: { value: 'Testar deploy' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks', { title: 'Testar deploy', status: 'doing' }]]),
+    );
+    await waitFor(() => expect(field).toHaveValue(''));
+    expect(screen.getByRole('textbox', { name: 'nova tarefa em Fazendo' })).toHaveFocus();
+    expect(props.onChanged).toHaveBeenCalled();
+  });
+
+  it('Feito não oferece adicionar: uma tarefa não nasce concluída', () => {
+    renderBoard();
+    expect(within(column('A fazer')).getByRole('button', { name: 'adicionar tarefa em A fazer' })).toBeInTheDocument();
+    expect(within(column('Feito')).queryByRole('button', { name: /adicionar/ })).toBeNull();
+  });
+
+  it('Esc fecha o campo sem criar e devolve o foco ao botão Adicionar', async () => {
+    const fetchSpy = okFetch();
+    renderBoard();
+    fireEvent.click(screen.getByRole('button', { name: 'adicionar tarefa em A fazer' }));
+    const field = screen.getByRole('textbox', { name: 'nova tarefa em A fazer' });
+    fireEvent.change(field, { target: { value: 'Rascunho' } });
+    fireEvent.keyDown(field, { key: 'Escape' });
+
+    expect(screen.queryByRole('textbox', { name: 'nova tarefa em A fazer' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'adicionar tarefa em A fazer' })).toHaveFocus();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('quando criar falha, mostra o erro e mantém o texto no campo', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ error: 'mstodo falhou' }), { status: 502 }),
+    );
+    renderBoard();
+    fireEvent.click(screen.getByRole('button', { name: 'adicionar tarefa em A fazer' }));
+    const field = screen.getByRole('textbox', { name: 'nova tarefa em A fazer' });
+    fireEvent.change(field, { target: { value: 'Comprar café' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('mstodo falhou'));
+    expect(field).toHaveValue('Comprar café');
+  });
+
+  it('a nota tem o mesmo menu da lista, com a coluna atual marcada', async () => {
+    renderBoard();
+    const menu = await openActions('Revisar PR');
+    expect(within(menu).getByRole('menuitem', { name: 'Editar' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Adicionar subtarefa' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitemradio', { name: 'Fazendo' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(menu).getByRole('menuitem', { name: 'Apagar' })).toBeInTheDocument();
+  });
+
+  it('apagar uma nota pede confirmação antes', async () => {
+    const fetchSpy = okFetch();
+    renderBoard();
+    fireEvent.click(within(await openActions('Escrever proposta')).getByRole('menuitem', { name: 'Apagar' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Apagar a tarefa?' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apagar' }));
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith('/api/tasks/1', expect.objectContaining({ method: 'DELETE' })),
+    );
+  });
+
+  it('o progresso das subtarefas abre a lista delas dentro da nota', async () => {
+    const fetchSpy = okFetch();
+    renderBoard({
+      tasks: {
+        data: [task({ id: '1', title: 'Escrever proposta', subtasks: [{ id: 's1', title: 'Rascunho', completed: false }] })],
+        error: null,
+      },
+    });
+    const progress = screen.getByRole('button', { name: 'subtarefas de Escrever proposta: 0 de 1 concluídas' });
+    expect(progress).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('concluir subtarefa Rascunho')).toBeNull();
+
+    fireEvent.click(progress);
+    expect(progress).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByLabelText('concluir subtarefa Rascunho'));
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks/1/subtasks/s1', { completed: true }]]),
+    );
+  });
+
+  it('adiciona subtarefa numa nota que ainda não tem nenhuma', async () => {
+    const fetchSpy = okFetch();
+    renderBoard();
+    fireEvent.click(within(await openActions('Escrever proposta')).getByRole('menuitem', { name: 'Adicionar subtarefa' }));
+    const field = await screen.findByRole('textbox', { name: 'nova subtarefa de Escrever proposta' });
+    fireEvent.change(field, { target: { value: 'Levantar números' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks/1/subtasks', { title: 'Levantar números' }]]),
+    );
+  });
+
+  it('a nota atrasada diz que está atrasada', () => {
+    renderBoard({ tasks: { data: [task({ id: '1', title: 'Pagar fatura', due: '2020-01-10' })], error: null } });
+    expect(within(column('A fazer')).getByText('atrasada, prazo', { exact: false })).toBeInTheDocument();
+  });
+
+  it('Feito mostra só as 10 primeiras notas até pedirem todas', () => {
+    const done = Array.from({ length: 12 }, (_, i) =>
+      task({ id: `d${i}`, title: `Feita ${i + 1}`, completed: true }),
+    );
+    renderBoard({ tasks: { data: done, error: null } });
+    expect(within(column('Feito')).getAllByRole('listitem')).toHaveLength(10);
+    // The column still counts everything, hidden or not.
+    expect(column('Feito')).toHaveAccessibleName('Feito, 12 tarefas');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar todas (12)' }));
+    expect(within(column('Feito')).getAllByRole('listitem')).toHaveLength(12);
+  });
+
+  it('no painel estreito, as abas dizem quantas notas há em cada coluna e escolhem qual mostrar', () => {
+    renderBoard();
+    const tabs = within(screen.getByRole('tablist', { name: 'Colunas do quadro' })).getAllByRole('tab');
+    expect(tabs.map((t) => t.textContent)).toEqual(['A fazer1', 'Fazendo1', 'Feito1']);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(tabs[1]);
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'false');
+
+    fireEvent.keyDown(tabs[1], { key: 'ArrowRight' });
+    expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[2]).toHaveFocus();
+  });
+
   it('quando mover falha, mostra o erro e recarrega para a nota voltar', async () => {
     vi.spyOn(global, 'fetch').mockImplementation(
       async () => new Response(JSON.stringify({ error: 'mstodo falhou' }), { status: 502 }),
@@ -561,5 +833,54 @@ describe('TasksPanel em quadro', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('mstodo falhou'));
     expect(screen.getByRole('status')).toHaveTextContent('Não foi possível mover Escrever proposta');
     expect(props.onChanged).toHaveBeenCalled();
+  });
+});
+
+describe('foco ao mover uma nota', () => {
+  // The page applies the optimistic move to its state; this stands in for it,
+  // so the note really is drawn again in its new column, as in the app.
+  function Board() {
+    const [tasks, setTasks] = useState<TodoTask[]>([
+      task({ id: '1', title: 'Escrever proposta' }),
+      task({ id: '2', title: 'Revisar PR', doing: true }),
+    ]);
+    const update = (id: string, change: Partial<TodoTask>) =>
+      setTasks((all) => all.map((t) => (t.id === id ? { ...t, ...change } : t)));
+    return (
+      <TasksPanel
+        view="board"
+        tasks={{ data: tasks, error: null }}
+        onChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        onDoingChanged={(id, doing) => update(id, { doing })}
+        onCompletedChanged={(id, completed) => update(id, { completed })}
+      />
+    );
+  }
+
+  function column(name: string) {
+    return screen.getByRole('region', { name: new RegExp(`^${name}`) });
+  }
+
+  // The note is unmounted and drawn again in the other column; the focus used
+  // to fall to the page, and the person lost their place on the board.
+  it('pelo botão, o foco vai para o título da nota na coluna nova', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    render(<Board />);
+    fireEvent.click(screen.getByRole('button', { name: 'mover Escrever proposta para Fazendo' }));
+
+    const title = within(column('Fazendo')).getByRole('button', { name: 'Escrever proposta' });
+    await waitFor(() => expect(title).toHaveFocus());
+  });
+
+  it('pelo menu, o foco também vai para o título da nota na coluna nova', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+    render(<Board />);
+    const menu = await openActions('Revisar PR');
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: 'Feito' }));
+
+    const title = await within(column('Feito')).findByRole('button', { name: 'Revisar PR' });
+    await waitFor(() => expect(title).toHaveFocus());
   });
 });

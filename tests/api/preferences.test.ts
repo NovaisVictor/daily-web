@@ -127,20 +127,20 @@ describe('disposição por tamanho de tela', () => {
 });
 
 describe('visualização das tarefas', () => {
-  it('grava o quadro para o usuário logado', async () => {
-    const res = await route(req({ tasksView: 'board' }));
+  it('grava a lista para o usuário logado', async () => {
+    const res = await route(req({ tasksView: 'list' }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ tasksView: 'board' });
+    expect(await res.json()).toEqual({ tasksView: 'list' });
 
     const { tasksView } = await import('@/lib/preferences');
-    expect(tasksView('u-1')).toBe('board');
-    expect(tasksView('u-2')).toBe('list');
+    expect(tasksView('u-1')).toBe('list');
+    expect(tasksView('u-2')).toBe('board');
   });
 
   it('recusa uma visualização que a tela não oferece', async () => {
     const res = await route(req({ tasksView: 'calendario' }));
     expect(res.status).toBe(400);
     const { tasksView } = await import('@/lib/preferences');
-    expect(tasksView('u-1')).toBe('list');
+    expect(tasksView('u-1')).toBe('board');
   });
 });

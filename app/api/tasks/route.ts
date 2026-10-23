@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { addTask, editTask } from '@/lib/tasks';
+import { addTask, editTask, setDoing } from '@/lib/tasks';
 import { parseDueInput } from '@/lib/dateParsing';
 import { isValidTaskPriority, isValidRecur, isSafePositionalValue } from '@/lib/api/validation';
 import { getCurrentUser } from '@/lib/auth/currentUser';
@@ -22,6 +22,15 @@ export async function POST(request: Request) {
   }
   if (body.recur !== undefined && !isValidRecur(body.recur)) {
     return NextResponse.json({ error: 'recorrência inválida' }, { status: 400 });
+  }
+  // The board's column, for a note added straight into "Fazendo". "Feito" is
+  // refused for the same reason the board route refuses it: completing goes
+  // through PATCH /api/tasks/[id], where a recurring task rolls over.
+  if (body.status !== undefined && body.status !== 'todo' && body.status !== 'doing') {
+    return NextResponse.json(
+      { error: 'coluna inválida: use "todo" ou "doing"; uma tarefa nova não nasce concluída' },
+      { status: 400 },
+    );
   }
 
   let due: string | undefined;
@@ -49,6 +58,9 @@ export async function POST(request: Request) {
     if (due !== undefined || body.priority !== undefined || body.recur !== undefined) {
       await editTask(user.id, id, { due, time, priority: body.priority, recur: body.recur });
     }
+    // Here rather than as a second request from the panel: two requests could
+    // leave a task created in "A fazer" when the person asked for "Fazendo".
+    if (body.status === 'doing') setDoing(user.id, id, true);
     await refreshTasks(user.id);
     return NextResponse.json({ id });
   } catch (err) {

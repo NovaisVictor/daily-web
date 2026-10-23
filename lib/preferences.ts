@@ -54,10 +54,11 @@ export function isTasksView(value: unknown): value is TasksView {
   return value === 'list' || value === 'board';
 }
 
-/** The board is opt-in: anyone who never picked keeps the list they had. */
+/** The board is the default now that it can do everything the list does.
+ *  Only an explicit choice is stored, so whoever picked the list keeps it. */
 export function tasksView(userId: string): TasksView {
   const stored = read(userId, TASKS_VIEW);
-  return isTasksView(stored) ? stored : 'list';
+  return isTasksView(stored) ? stored : 'board';
 }
 
 export function setTasksView(userId: string, view: TasksView): void {

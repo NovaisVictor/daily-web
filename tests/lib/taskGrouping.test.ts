@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupTasksByDueWindow } from '@/lib/taskGrouping';
+import { groupTasksByDueWindow, isOverdue } from '@/lib/taskGrouping';
 import type { TodoTask } from '@/lib/types';
 
 const today = new Date('2026-08-25T12:00:00Z');
@@ -68,5 +68,22 @@ describe('groupTasksByDueWindow', () => {
     } finally {
       process.env.TZ = originalTz;
     }
+  });
+});
+
+describe('isOverdue', () => {
+  const now = new Date(2026, 9, 23, 10, 0);
+
+  it('uma tarefa aberta com data passada está atrasada', () => {
+    expect(isOverdue(task({ due: '2026-10-22' }), now)).toBe(true);
+  });
+
+  it('vencer hoje ainda não é atraso', () => {
+    expect(isOverdue(task({ due: '2026-10-23' }), now)).toBe(false);
+  });
+
+  it('concluída ou sem data nunca está atrasada', () => {
+    expect(isOverdue(task({ due: '2026-10-01', completed: true }), now)).toBe(false);
+    expect(isOverdue(task({}), now)).toBe(false);
   });
 });

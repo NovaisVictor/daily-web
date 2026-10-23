@@ -121,7 +121,7 @@ export default function DashboardPage() {
             mutate((s) => setSubtaskCompleted(s, taskId, itemId, completed))
           }
           onDoingChanged={(id, doing) => mutate((s) => setTaskDoing(s, id, doing))}
-          view={state?.tasksView ?? 'list'}
+          view={state?.tasksView ?? 'board'}
           onViewChanged={(tasksView) => mutate((s) => ({ ...s, tasksView }))}
           loading={booting}
         />
