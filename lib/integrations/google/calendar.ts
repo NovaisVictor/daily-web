@@ -1,3 +1,4 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import { computeAgendaWindow } from '@/lib/agendaWindow';
 import { accessToken, googleClient } from './oauth';
 import type { Connection } from '@/lib/vault/connections';
@@ -106,7 +107,7 @@ export function toAgendaItem(
 
 export function refreshToken(conn: Connection): string {
   const token = conn.values.refreshToken ?? '';
-  if (!token) throw new Error(`${conn.label}: conexão com o Google incompleta — conecte de novo`);
+  if (!token) throw new ProviderRefusal(`${conn.label}: conexão com o Google incompleta — conecte de novo`);
   return token;
 }
 

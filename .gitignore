@@ -38,3 +38,9 @@ docs/superpowers/plans/
 verify-*.mjs
 
 .serena/
+
+# Agent coordination and generated companion output
+.claude-flow/
+.swarm/
+dist/
+*.log

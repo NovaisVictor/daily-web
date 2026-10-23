@@ -75,7 +75,7 @@ function call(fetchMock: ReturnType<typeof vi.fn>, index: number) {
 }
 
 function openPull(over: Record<string, unknown> = {}) {
-  return { number: 42, state: 'open', mergeable: true, head: { sha: SHA }, ...over };
+  return { number: 42, state: 'open', draft: false, user:{login:'author'}, mergeable: true, head: { sha: SHA }, ...over };
 }
 
 const VALID: Record<string, [Handler, unknown]> = {
@@ -94,7 +94,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   currentUser.mockResolvedValue(ME);
   const { getDb } = await import('@/lib/db');
-  getDb();
+  const {createUser}=await import('@/lib/auth/users');
+  ME.id=(await createUser('test-owner','test-only-password')).id;
+  OTHER.id=(await createUser('test-other','test-only-password')).id;
   saveConnection(ME.id, 'pulls', 'GitHub', { token: 'token-joao', repos: 'acme/repo-4' });
   setModuleEnabled(ME.id, 'pulls', true);
   saveConnection(OTHER.id, 'pulls', 'GitHub', { token: 'token-maria', repos: 'acme/repo-4' });
@@ -137,11 +139,11 @@ describe.each(ROUTES)('POST /api/pulls/[owner]/[repo]/[number]/%s', (_name, [han
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("502 with GitHub's own message when GitHub refuses", async () => {
+  it('502 with a safe provider refusal when GitHub refuses', async () => {
     stubFetch(reply(422, { message: 'Validation Failed', errors: [{ message: 'nope' }] }), reply(422, {}));
     const res = await post(handler, body);
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toContain('Validation Failed: nope');
+    expect((await res.json()).error).toBe('O GitHub recusou a operação; nenhuma alteração foi aceita');
   });
 
   it("uses the logged-in user's own token", async () => {
@@ -152,6 +154,14 @@ describe.each(ROUTES)('POST /api/pulls/[owner]/[repo]/[number]/%s', (_name, [han
 });
 
 describe('POST .../reviews', () => {
+  it('explains the draft refusal in Portuguese without submitting a review', async () => {
+    const fetchMock=stubFetch(reply(200,openPull({draft:true})));
+    const res=await post(reviews,{event:'APPROVE'});
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({error:'O PR ainda é um rascunho',code:'draft_pull'});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['an unknown event', { event: 'COMMENT' }],
     ['a missing event', {}],
@@ -166,26 +176,39 @@ describe('POST .../reviews', () => {
   });
 
   it('approves without a body when the comment is blank', async () => {
-    const fetchMock = stubFetch(reply(200, { id: 7, state: 'APPROVED' }));
+    const fetchMock = stubFetch(reply(200, openPull()),reply(200,{login:'viewer'}),reply(200, { id: 7, state: 'APPROVED' }));
     const res = await post(reviews, { event: 'APPROVE', body: '  ' });
     expect(await res.json()).toEqual({ ok: true, review: { id: 7, state: 'APPROVED' } });
-    expect(call(fetchMock, 0)).toMatchObject({ url: `${API}/pulls/42/reviews`, method: 'POST', body: { event: 'APPROVE' } });
+    expect(call(fetchMock, 2)).toMatchObject({ url: `${API}/pulls/42/reviews`, method: 'POST', body: { event: 'APPROVE' } });
   });
 
   it('requests changes with the trimmed comment', async () => {
-    const fetchMock = stubFetch(reply(200, { id: 8, state: 'CHANGES_REQUESTED' }));
+    const fetchMock = stubFetch(reply(200, openPull()),reply(200,{login:'viewer'}),reply(200, { id: 8, state: 'CHANGES_REQUESTED' }));
     await post(reviews, { event: 'REQUEST_CHANGES', body: '  falta teste  ' });
-    expect(call(fetchMock, 0).body).toEqual({ event: 'REQUEST_CHANGES', body: 'falta teste' });
+    expect(call(fetchMock, 2).body).toEqual({ event: 'REQUEST_CHANGES', body: 'falta teste' });
   });
 
   it('invalidates the cached dashboard after the write', async () => {
-    stubFetch(reply(200, { id: 7, state: 'APPROVED' }));
+    stubFetch(reply(200, openPull()),reply(200,{login:'viewer'}),reply(200, { id: 7, state: 'APPROVED' }));
     await post(reviews, { event: 'APPROVE' });
     expect(invalidate).toHaveBeenCalledWith(ME.id);
   });
 });
 
 describe('POST .../comments', () => {
+  it('explains an uncertain outcome in Portuguese and preserves safe replay guidance', async () => {
+    const fetchMock=vi.fn().mockRejectedValue(new Error('private provider response'));
+    vi.stubGlobal('fetch',fetchMock);
+    const headers={'Idempotency-Key':crypto.randomUUID(),'X-Request-Timestamp':new Date().toISOString()};
+    const submit=()=>comments(new NextRequest('http://localhost/api/pulls/acme/repo-4/42/comments',{method:'POST',headers,body:JSON.stringify({body:'test'})}),{params:Promise.resolve(PR)});
+    for(let attempt=0;attempt<2;attempt++){
+      const res=await submit();
+      expect(res.status).toBe(502);
+      expect(await res.json()).toEqual({error:'Não foi possível confirmar a operação no GitHub. Confira o resultado antes de tentar novamente',code:'uncertain_outcome',retry:'reconcile'});
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['a missing body', {}],
     ['a blank body', { body: '  ' }],
@@ -205,7 +228,7 @@ describe('POST .../comments', () => {
   });
 
   it('accepts a body of exactly 10000 characters', async () => {
-    stubFetch(reply(201, { id: 9, html_url: 'u' }));
+    stubFetch(reply(201, { id: 9, html_url: 'https://github.com/acme/repo-4/issues/42#issuecomment-9' }));
     expect((await post(comments, { body: 'a'.repeat(10000) })).status).toBe(200);
   });
 });
@@ -227,11 +250,12 @@ describe('POST .../reviewers', () => {
 
   it('sends teams as team_reviewers and users as reviewers, without duplicates', async () => {
     const fetchMock = stubFetch(
+      reply(200,openPull()),
       reply(201, { requested_reviewers: [{ login: 'user-1' }], requested_teams: [{ slug: 'team-1' }] }),
     );
     const res = await post(reviewers, { reviewers: ['user-1', 'team:team-1', 'user-1'] });
     expect(await res.json()).toEqual({ ok: true, requested: ['user-1', 'team:team-1'] });
-    expect(call(fetchMock, 0)).toMatchObject({
+    expect(call(fetchMock, 1)).toMatchObject({
       url: `${API}/pulls/42/requested_reviewers`,
       method: 'POST',
       body: { reviewers: ['user-1'], team_reviewers: ['team-1'] },
@@ -281,11 +305,11 @@ describe('POST .../merge', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("502 with GitHub's message when the merge itself is refused", async () => {
+  it('502 with a safe refusal when the merge itself is refused', async () => {
     stubFetch(reply(200, openPull()), reply(405, { message: 'Required status check "ci" is expected.' }));
     const res = await post(merge, { method: 'squash', headSha: SHA });
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('GitHub respondeu 405: Required status check "ci" is expected.');
+    expect((await res.json()).error).toBe('O GitHub recusou a operação; nenhuma alteração foi aceita');
   });
 });
 
@@ -348,7 +372,7 @@ describe('POST .../rerun', () => {
     expect(await res.json()).toEqual({
       ok: true,
       rerun: 1,
-      failed: [{ id: second.id, error: 'o token não tem permissão: run is too old' }],
+      failed: [{ id: second.id, error: 'Não foi possível confirmar a reexecução no GitHub' }],
     });
     expect(invalidate).toHaveBeenCalledWith(ME.id);
   });
@@ -358,7 +382,21 @@ describe('POST .../rerun', () => {
     stubFetch(reply(200, openPull()), reply(200, { total_count: 1, workflow_runs: [first] }), reply(422, { message: 'nope' }));
     const res = await post(rerun, { headSha: SHA });
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe('GitHub respondeu 422: nope');
+    expect((await res.json()).error).toBe('Não foi possível confirmar a reexecução no GitHub');
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('shared browser operation safety',()=>{
+  it('rejects a foreign Origin before any provider call',async()=>{
+    const fetch=stubFetch();
+    const request=new NextRequest('http://localhost/api/pulls/acme/repo-4/42/comments',{method:'POST',headers:{Origin:'https://untrusted.example'},body:JSON.stringify({body:'test'})});
+    expect((await comments(request,{params:Promise.resolve(PR)})).status).toBe(403);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('uses browser idempotency headers and replays the original comment contract',async()=>{
+    const fetch=stubFetch(reply(201,{id:9,html_url:'https://github.com/acme/repo-4/issues/42#issuecomment-9'}));
+    const headers={'Idempotency-Key':crypto.randomUUID(),'X-Request-Timestamp':new Date().toISOString()};
+    const call=()=>comments(new NextRequest('http://localhost/api/pulls/acme/repo-4/42/comments',{method:'POST',headers,body:JSON.stringify({body:'test'})}),{params:Promise.resolve(PR)});
+    const first=await(await call()).json();expect(await(await call()).json()).toEqual(first);expect(first).toEqual({ok:true,comment:{id:9,url:'https://github.com/acme/repo-4/issues/42#issuecomment-9'}});expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -13,6 +13,25 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23-agent-workspace',
+    date: '2026-10-23',
+    title: 'Seu trabalho com agentes, em um só lugar',
+    items: [
+      {
+        title: 'Um cartão por tarefa',
+        detail: 'A página inicial agora mostra o kanban do trabalho dos seus agentes. Abra um cartão para ver responsáveis, sessões e atividades. O painel com suas integrações continua disponível em Painel.',
+      },
+      {
+        title: 'Conecte seus agentes',
+        detail: 'Em Acesso dos agentes, gere um token pessoal e copie as instruções para Claude, Codex ou Gemini. O histórico dos agentes é mantido por 30 dias desde a última atividade; suas tarefas pessoais, issues e PRs continuam preservados.',
+      },
+      {
+        title: 'Trabalhe pelo MCP',
+        detail: 'Autorize seu cliente pelo navegador e use tarefas, Jira e GitHub com as suas permissões. Você pode revogar o acesso a qualquer momento. Senhas e tokens das integrações são cadastrados somente no navegador.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-modal-tarefa',
     date: '2026-10-23',
     title: 'Formulário de tarefa mais claro',

@@ -6,7 +6,7 @@ import { verifySessionToken, SESSION_MAX_AGE_MS, SESSION_COOKIE } from '@/lib/au
 // {"error":"não autenticado"} cru na tela do navegador no retorno do Google;
 // deixando passar, a própria rota redireciona para /config com uma mensagem
 // legível — e continua recusando quem não tem sessão.
-const PUBLIC_PATHS = ['/login', '/api/login', '/api/integrations/agenda/google/callback'];
+const PUBLIC_PATHS = ['/login', '/api/login', '/api/integrations/agenda/google/callback', '/mcp', '/.well-known/oauth-protected-resource/mcp', '/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server/oauth', '/.well-known/openid-configuration', '/.well-known/openid-configuration/oauth'];
 
 // O Chrome busca o manifest sem credenciais e registra o service worker antes
 // de qualquer sessão: atrás do login eles receberiam o HTML do redirect em vez
@@ -19,6 +19,8 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (
     PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith('/api/v1/agents/') ||
+    pathname.startsWith('/oauth/') ||
     PUBLIC_ASSETS.includes(pathname) ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   ) {

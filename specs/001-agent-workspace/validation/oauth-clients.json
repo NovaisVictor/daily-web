@@ -1,0 +1,293 @@
+{
+  "recordedAt": "2026-10-23",
+  "environment": {
+    "kind": "disposable local production build",
+    "canonicalOrigin": "http://127.0.0.1:8022",
+    "transport": "Streamable HTTP",
+    "authentication": "OAuth authorization code with PKCE and dynamic client registration",
+    "fixture": "disposable user and SQLite database; no production provider writes",
+    "routing": "During the recorded900-second proof, the canonical loopback origin forwarded every OAuth/discovery request through the Next.js fallback proxy to the real oidc-provider companion. Those OAuth/proxy source files are unchanged by the later note-appearance integration.",
+    "runtime": "Optimized local production build used for the recorded900-second client runs, restarted repeatedly with the same encrypted provider database and original grants. Later integration d094923 preserved published note-appearance migration15 and moved the additive agent workspace migration to16. The later whole-application build did not repeat another900-second wait; OAuth provider/adapter/runtime/config/interaction/http and MCP-auth source bytes remain identical to proof baseline acb5afc."
+  },
+  "clients": [
+    {
+      "name": "Claude Code",
+      "version": "2.1.309",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "full loopback callback URL pasted into CLI",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "tool unavailable; no direct post-revocation tool call observed",
+        "afterAutomaticRefresh": {
+          "revokedAt": "2026-10-23T21:59:05.606Z",
+          "httpStatus": 200,
+          "remainingAcceptanceGrants": 0,
+          "nextToolCall": "not repeated in this final cleanup; earlier negative-client results and provider tests remain recorded separately"
+        }
+      },
+      "cleanup": "fixture grant revoked through real authenticated browser API; temporary MCP configuration removed; local stored credentials logged out where the client exposes logout; all disposable drivers stopped",
+      "automaticRefresh": {
+        "result": "passed",
+        "accessTokenIssuedAt": "2026-10-23T21:40:15.092Z",
+        "refreshSucceededAt": "2026-10-23T21:56:13.171Z",
+        "secondsSinceIssuance": 958.079,
+        "configuredAccessTokenLifetimeSeconds": 900,
+        "proof": {
+          "client": "claude",
+          "mode": "call",
+          "requireRefresh": true,
+          "toolResults": [
+            {
+              "at": "2026-10-23T21:56:16.431Z",
+              "phase": "claude-call",
+              "kind": "mcp-tool-result",
+              "tool": "agents_sessions_list",
+              "httpStatus": 200,
+              "result": "success",
+              "itemCount": 1
+            }
+          ],
+          "startedAt": "2026-10-23T21:56:12.881Z",
+          "elapsedMs": 4009,
+          "outcome": "passed",
+          "consented": false,
+          "approvedOnce": false,
+          "refreshExchanges": [
+            {
+              "at": "2026-10-23T21:56:13.171Z",
+              "httpStatus": 200
+            }
+          ],
+          "authorizationCodeExchanges": 0,
+          "actualToolRequests": [
+            "agents_sessions_list"
+          ]
+        },
+        "reauthorization": "none",
+        "clockOrTokenStorageChanges": "none"
+      }
+    },
+    {
+      "name": "Codex CLI",
+      "version": "0.163.0",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "full loopback callback URL pasted into CLI",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "transport AuthRequired with Bearer invalid_token; tools unavailable",
+        "afterAutomaticRefresh": {
+          "revokedAt": "2026-10-23T21:59:05.606Z",
+          "httpStatus": 200,
+          "remainingAcceptanceGrants": 0,
+          "nextToolCall": "not repeated in this final cleanup; earlier negative-client results and provider tests remain recorded separately"
+        }
+      },
+      "cleanup": "fixture grant revoked through real authenticated browser API; temporary MCP configuration removed; local stored credentials logged out where the client exposes logout; all disposable drivers stopped",
+      "automaticRefresh": {
+        "result": "passed",
+        "accessTokenIssuedAt": "2026-10-23T21:39:41.814Z",
+        "refreshSucceededAt": "2026-10-23T21:56:00.997Z",
+        "secondsSinceIssuance": 979.183,
+        "configuredAccessTokenLifetimeSeconds": 900,
+        "proof": {
+          "client": "codex",
+          "mode": "call",
+          "requireRefresh": true,
+          "toolResults": [
+            {
+              "at": "2026-10-23T21:56:08.937Z",
+              "phase": "codex-call",
+              "kind": "mcp-tool-result",
+              "tool": "agents_sessions_list",
+              "httpStatus": 200,
+              "result": "success",
+              "itemCount": 1
+            }
+          ],
+          "startedAt": "2026-10-23T21:55:59.543Z",
+          "elapsedMs": 10012,
+          "outcome": "passed",
+          "consented": false,
+          "approvedOnce": false,
+          "refreshExchanges": [
+            {
+              "at": "2026-10-23T21:56:00.997Z",
+              "httpStatus": 200
+            }
+          ],
+          "authorizationCodeExchanges": 0,
+          "actualToolRequests": [
+            "agents_sessions_list"
+          ]
+        },
+        "reauthorization": "none",
+        "clockOrTokenStorageChanges": "none"
+      }
+    },
+    {
+      "name": "Google Antigravity CLI",
+      "alias": "agy",
+      "version": "1.4.6",
+      "model": "Gemini 4 Argon Medium",
+      "authorization": "passed",
+      "browserConsent": "passed",
+      "callback": "authorization code captured from declared HTTPS callback by isolated test browser and pasted into MCP manager",
+      "manager": "Authenticated; 58 tools discovered",
+      "tool": {
+        "name": "agents_sessions_list",
+        "limit": 1,
+        "permission": "approved once for this exact read-only operation",
+        "result": "passed",
+        "itemCount": 1
+      },
+      "revocation": {
+        "action": "browser authenticated grant DELETE",
+        "httpStatus": 200,
+        "reconnect": "final production build: initialize Unauthorized [Auth Needed]",
+        "afterAutomaticRefresh": {
+          "revokedAt": "2026-10-23T21:59:05.606Z",
+          "httpStatus": 200,
+          "remainingAcceptanceGrants": 0,
+          "nextToolCall": "not repeated in this final cleanup; earlier negative-client results and provider tests remain recorded separately"
+        }
+      },
+      "cleanup": "fixture grant revoked through real authenticated browser API; temporary MCP configuration removed; local stored credentials logged out where the client exposes logout; all disposable drivers stopped",
+      "automaticRefresh": {
+        "result": "passed",
+        "accessTokenIssuedAt": "2026-10-23T21:40:35.714Z",
+        "refreshSucceededAt": "2026-10-23T21:56:43.873Z",
+        "secondsSinceIssuance": 968.159,
+        "configuredAccessTokenLifetimeSeconds": 900,
+        "proof": {
+          "client": "agy",
+          "mode": "call",
+          "requireRefresh": true,
+          "toolResults": [
+            {
+              "at": "2026-10-23T21:56:57.022Z",
+              "phase": "agy-call",
+              "kind": "mcp-tool-result",
+              "tool": "agents_sessions_list",
+              "httpStatus": 200,
+              "result": "success",
+              "itemCount": 1
+            }
+          ],
+          "startedAt": "2026-10-23T21:56:41.237Z",
+          "elapsedMs": 16017,
+          "outcome": "passed",
+          "consented": false,
+          "approvedOnce": true,
+          "refreshExchanges": [
+            {
+              "at": "2026-10-23T21:56:43.867Z",
+              "httpStatus": 400
+            },
+            {
+              "at": "2026-10-23T21:56:43.873Z",
+              "httpStatus": 200
+            }
+          ],
+          "authorizationCodeExchanges": 0,
+          "actualToolRequests": [
+            "agents_sessions_list"
+          ]
+        },
+        "reauthorization": "none",
+        "clockOrTokenStorageChanges": "none",
+        "observedClientRetry": "The provider rejected the first refresh attempt with400invalid_request; its grant.error event had no parsed client_id/resource. The installed client automatically retried and received200 within6ms. No server validation was relaxed. This is observed client recovery; the precise wire-level cause of its first attempt was not investigated."
+      }
+    }
+  ],
+  "providerLibraryTests": {
+    "result": "passed",
+    "testCount": 17,
+    "coverage": [
+      "HTTP discovery and RFC8414 metadata location",
+      "DCR redirect restrictions and bounded registration",
+      "PKCE and audience enforcement",
+      "opaque token introspection",
+      "encrypted persistence and provider restart",
+      "refresh rotation and replay revocation",
+      "concurrent authorization-code consume",
+      "immediate grant and user revocation",
+      "browser-bound consent and handoff ownership",
+      "private Unix socket ownership and permissions",
+      "MCP refresh without advertised OIDC offline_access; scope expansion remains rejected",
+      "private validation fixture file/directory permissions and symlinks",
+      "strict structuredContent.result and contenttext session page observations"
+    ],
+    "command": "npm test -- tests/mcp/oauth-feasibility.test.ts tests/mcp/auth.test.ts tests/mcp/validation-runtime.test.ts tests/mcp/validation-results.test.ts"
+  },
+  "limitations": [
+    "The installed Gemini-family client is Antigravity agy1.4.6; a standalone official Gemini CLI was not installed.",
+    "The proof covers normal900s access-token expiry and real automatic refresh; actual30day/90day wall-clock lifetimes are covered by provider policy and focused tests rather than waiting those periods.",
+    "No production systemd, Traefik or remote TLS deployment, nor external Jira/GitHub production write, was performed."
+  ],
+  "finalBuildSmoke": {
+    "result": "passed",
+    "clientCount": 3,
+    "proof": "automatic refresh after natural900s expiry, zero authorization-code exchanges during refresh checks, real agents_sessions_list RPCsuccessHTTP200 and one item in each response",
+    "routing": "all OAuth routes through final Next.js fallback proxy",
+    "sourceRevisionAtRun": "d8b6a453b8962658ba28c5965400ba117db0c0fe",
+    "scope": "local production build with disposable data; external deployment is not claimed"
+  },
+  "refreshScopeCorrection": {
+    "observedBeforeFix": "Codex0.163.0 automatically requested agents:read offline_access on refresh and received invalid_scope after actual900s expiry; provider had removed offline_access from authorization without prompt=consent.",
+    "change": "Stop advertising offline_access; eligibility still uses the registered refresh_token grant type and established provider policy. No scope escalation or refresh request rewriting.",
+    "afterFix": "All three actual clients reauthorized once, naturally expired900s tokens and automatically refreshed successfully through Next.js after process restarts.",
+    "existingAffectedCredentials": "One interactive reauthorization is required to replace credentials retaining the previously advertised control scope."
+  },
+  "reproduction": [
+    "scripts/validation/README.md",
+    "scripts/validation/bootstrap.ts",
+    "scripts/validation/runtime.mjs",
+    "scripts/validation/oauth-client.mjs",
+    "scripts/validation/reporting-client.mjs"
+  ],
+  "cleanup": {
+    "result": "complete",
+    "revocation": {
+      "revokedAt": "2026-10-23T21:59:05.606Z",
+      "revoked": [
+        {
+          "client": "Codex",
+          "httpStatus": 200
+        },
+        {
+          "client": "Claude Code (daily_oauth_proof)",
+          "httpStatus": 200
+        },
+        {
+          "client": "Google Antigravity",
+          "httpStatus": 200
+        }
+      ],
+      "remainingAcceptanceGrants": 0
+    },
+    "temporaryClientConfigurationRemaining": {
+      "claude": false,
+      "codex": false,
+      "agy": false
+    },
+    "acceptancePorts8022_8023_8024": "no listeners",
+    "validationDrivers": "none active",
+    "privateAuditFiles": "preserved outside Git; no production database or account was deleted"
+  }
+}

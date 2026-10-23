@@ -1,0 +1,11 @@
+import { beforeEach,afterEach,it,expect } from 'vitest';
+import { mkdtempSync,rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { getDb } from '@/lib/db';
+import { createCredential,listCredentials,revokeCredential,authenticateCredential } from '@/lib/access/credentials';
+let dir:string;
+beforeEach(()=>{dir=mkdtempSync(path.join(tmpdir(),'daily-credentials-'));process.env.DAILY_WEB_DB_PATH=path.join(dir,'test.db');getDb().prepare("INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES('a','a','unused',1,'2026-01-01')").run();});
+afterEach(()=>rmSync(dir,{recursive:true,force:true}));
+it('shows the secret once and rejects next call after revocation',()=>{const {secret,credential}=createCredential('a',{label:'Agent',scopes:['agents:read','agents:write']});expect(JSON.stringify(listCredentials('a'))).not.toContain(secret);expect(JSON.stringify(getDb().prepare('SELECT txt_digest FROM main.tb_api_credential').get())).not.toContain(secret);expect(authenticateCredential('Bearer '+secret).userId).toBe('a');revokeCredential('a',credential.id);expect(()=>authenticateCredential('Bearer '+secret)).toThrow('revoked');});
+it('limits scopes and fails closed for deleted owner',()=>{expect(()=>createCredential('a',{label:'x',scopes:['github:write']})).toThrow();const {secret}=createCredential('a',{label:'x',scopes:['agents:read']});getDb().prepare("DELETE FROM users WHERE id='a'").run();expect(()=>authenticateCredential('Bearer '+secret)).toThrow();});

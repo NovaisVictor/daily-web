@@ -1,0 +1,20 @@
+import Database from 'better-sqlite3';
+import path from 'node:path';
+import { createProvider } from '../lib/oauth/provider';
+import { OAuthStore } from '../lib/oauth/adapter';
+import { oauthConfig } from '../lib/oauth/config';
+import { startInternal, createPublicServer } from '../lib/oauth/runtime';
+const config=oauthConfig();
+const db=new Database(process.env.DAILY_WEB_DB_PATH ?? path.join(process.cwd(),'data','daily-web.db'),{fileMustExist:true});
+db.pragma('busy_timeout = 5000');
+if(!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tb_oauth_record'").get())throw new Error('Application migration must complete before OAuth startup');
+const store=new OAuthStore(db);
+store.cleanup();
+const cleanup=setInterval(()=>store.cleanup(),3600000);cleanup.unref();
+const provider=createProvider(store);
+const internal=await startInternal(provider,store);
+const publicServer=createPublicServer(provider,store);
+publicServer.requestTimeout=5000;publicServer.headersTimeout=5000;
+publicServer.listen(config.port,'127.0.0.1');
+function close(){clearInterval(cleanup);internal.close();publicServer.close(()=>{db.close();process.exit(0);});setTimeout(()=>process.exit(1),5000).unref();}
+process.on('SIGTERM',close);process.on('SIGINT',close);

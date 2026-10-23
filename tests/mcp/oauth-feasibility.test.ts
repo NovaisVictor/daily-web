@@ -1,0 +1,115 @@
+// @vitest-environment node
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createServer, type Server } from 'node:http';
+import { createHash, randomBytes } from 'node:crypto';
+import { getDb } from '../../lib/db';
+import { OAuthStore } from '../../lib/oauth/adapter';
+import { createProvider } from '../../lib/oauth/provider';
+import type Provider from 'oidc-provider';
+import { inspectInteraction, decideInteraction,BROWSER_BINDING_COOKIE } from '../../lib/oauth/interaction';
+let server:Server;
+let dir:string;
+const env={...process.env};
+afterEach(async()=>{if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));if(dir)rmSync(dir,{recursive:true,force:true});process.env= {...env};});
+describe('official OAuth provider feasibility',()=>{
+ it('uses real HTTP discovery, DCR, PKCE, opaque tokens, persistence and revocation',async()=>{
+  dir=mkdtempSync(join(tmpdir(),'daily-oauth-'));
+  process.env.DAILY_WEB_DB_PATH=join(dir,'test.db');process.env.DAILY_WEB_SECRET_KEY=randomBytes(32).toString('base64');
+  const db=getDb();db.prepare('INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES(?,?,?,?,?)').run('test-owner','owner','unused',0,new Date().toISOString());
+  let provider:Provider;
+  server=createServer((req,res)=>{(req as typeof req & {originalUrl?:string}).originalUrl=req.url;req.url=(req.url??'/').replace(/^\/oauth/,'') || '/';provider.callback()(req,res);});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const address=server.address();if(!address||typeof address==='string')throw new Error('No port');
+  const origin=`http://127.0.0.1:${address.port}`;process.env.DAILY_WEB_ORIGIN=origin;
+  const store=new OAuthStore(db);provider=createProvider(store);
+  const cookies=new Map<string,string>();
+  const call=async(path:string,init:RequestInit={})=>{const response=await fetch(new URL(path,origin),{...init,headers:{...Object.fromEntries(new Headers(init.headers)),Cookie:[...cookies].map(([k,v])=>`${k}=${v}`).join('; ')},redirect:'manual',signal:AbortSignal.timeout(5000)});for(const cookie of response.headers.getSetCookie()){const first=cookie.split(';')[0];const index=first.indexOf('=');cookies.set(first.slice(0,index),first.slice(index+1));}return response;};
+  const metadata=await (await call('/oauth/.well-known/openid-configuration')).json();
+  expect(metadata.issuer).toBe(`${origin}/oauth`);expect(metadata.registration_endpoint).toBe(`${origin}/oauth/reg`);expect(metadata.code_challenge_methods_supported).toContain('S256');expect(metadata.scopes_supported).not.toContain('offline_access');
+  const registration=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Feasibility client',application_type:'native',redirect_uris:['http://127.0.0.1:18181/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'})});
+  expect(registration.status).toBe(201);const client=await registration.json();
+  const unsafeClient=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Unsafe callback',application_type:'web',redirect_uris:['http://external.invalid/callback'],grant_types:['authorization_code'],response_types:['code'],token_endpoint_auth_method:'none'})});
+  expect(unsafeClient.status).toBe(400);
+  const verifier=randomBytes(32).toString('base64url');const challenge=createHash('sha256').update(verifier).digest('base64url');
+  const params=new URLSearchParams({client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',response_type:'code',scope:'openid offline_access agents:read',resource:`${origin}/mcp`,code_challenge:challenge,code_challenge_method:'S256',state:'state',prompt:'consent'});
+  const authorization=await call(`/oauth/auth?${params}`);expect(authorization.status).toBe(303);
+  const interactionId=new URL(authorization.headers.get('location')!).searchParams.get('interaction')!;
+  const interaction=await provider.Interaction.find(interactionId);expect(interaction).toBeDefined();
+  const browserSecret=cookies.get(BROWSER_BINDING_COOKIE)!;
+  await expect(inspectInteraction(provider,store,interactionId,{userId:'test-owner',browserSecret:''})).rejects.toThrow('Browser binding required');
+  await expect(inspectInteraction(provider,store,interactionId,{userId:'test-owner',browserSecret:randomBytes(32).toString('base64url')})).rejects.toThrow('Browser binding required');
+  const consent=await inspectInteraction(provider,store,interactionId,{userId:'test-owner',browserSecret});
+  db.prepare('INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES(?,?,?,?,?)').run('test-other','other','unused',0,new Date().toISOString());
+  await expect(inspectInteraction(provider,store,interactionId,{userId:'test-other',browserSecret})).rejects.toThrow('Interaction account mismatch');
+  await expect(decideInteraction(provider,store,{id:interactionId,nonce:'wrong',userId:'test-owner',browserSecret,scopes:['agents:read'],decision:'approve'})).rejects.toThrow('Invalid consent');
+  await decideInteraction(provider,store,{id:interactionId,nonce:consent.nonce,userId:'test-owner',browserSecret,scopes:['agents:read'],decision:'approve'});
+  await expect(decideInteraction(provider,store,{id:interactionId,nonce:consent.nonce,userId:'test-owner',browserSecret,scopes:['agents:read'],decision:'approve'})).rejects.toThrow();
+  const resume=await call(interaction!.returnTo);expect(resume.status).toBe(303);const callback=new URL(resume.headers.get('location')!);expect(callback.searchParams.get('state')).toBe('state');
+  const code=callback.searchParams.get('code')!;expect(code).toBeTruthy();
+  const exchange=async(values:Record<string,string>)=>call('/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(values)});
+  const common={client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',resource:`${origin}/mcp`,code_verifier:verifier,grant_type:'authorization_code',code};
+  const tokenResponse=await exchange(common);expect(tokenResponse.status).toBe(200);const tokens=await tokenResponse.json();
+  expect(tokens.refresh_token).toBeTruthy();expect(tokens.access_token).toBeTruthy();expect(tokens.access_token.split('.')).toHaveLength(1);
+  expect((await provider.AccessToken.find(tokens.access_token))?.aud).toBe(`${origin}/mcp`);
+  provider=createProvider(new OAuthStore(db));expect(await provider.AccessToken.find(tokens.access_token)).toBeDefined();
+  const refreshed=await exchange({grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:`${origin}/mcp`});const rotated=await refreshed.json();expect(refreshed.status).toBe(200);expect(rotated.refresh_token).not.toBe(tokens.refresh_token);
+  const reused=await exchange({grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:`${origin}/mcp`});expect(reused.status).toBe(400);
+  expect(await provider.AccessToken.find(rotated.access_token)).toBeUndefined();
+  expect((await exchange(common)).status).toBe(400);
+  const invalidRedirect=await call(`/oauth/auth?${new URLSearchParams({...Object.fromEntries(params),redirect_uri:'https://attacker.invalid/callback'})}`);expect(invalidRedirect.status).toBe(400);
+  const wrongResource=await call(`/oauth/auth?${new URLSearchParams({...Object.fromEntries(params),resource:'https://attacker.invalid/mcp'})}`);expect(wrongResource.status).toBe(400);
+  const denied=await call(`/oauth/auth?${params}`);const deniedId=new URL(denied.headers.get('location')!).searchParams.get('interaction')!;
+  const deniedInfo=await inspectInteraction(provider,store,deniedId,{userId:'test-owner',browserSecret});const deniedOutcome=await decideInteraction(provider,store,{id:deniedId,nonce:deniedInfo.nonce,userId:'test-owner',browserSecret,scopes:[],decision:'deny'});
+  const deniedRedirect=await call(deniedOutcome.redirect);expect(new URL(deniedRedirect.headers.get('location')!).searchParams.get('error')).toBe('access_denied');
+  const attempt=await call(`/oauth/auth?${params}`);const attemptId=new URL(attempt.headers.get('location')!).searchParams.get('interaction')!;
+  const info=await inspectInteraction(provider,store,attemptId,{userId:'test-owner',browserSecret});
+  await expect(decideInteraction(provider,store,{id:attemptId,nonce:info.nonce,userId:'test-owner',browserSecret,scopes:['github:write'],decision:'approve'})).rejects.toThrow('Invalid consent');
+  const outcome=await decideInteraction(provider,store,{id:attemptId,nonce:info.nonce,userId:'test-owner',browserSecret,scopes:['agents:read'],decision:'approve'});
+  const next=await call(outcome.redirect);const wrongCode=new URL(next.headers.get('location')!).searchParams.get('code')!;
+  expect((await exchange({...common,code:wrongCode,code_verifier:randomBytes(32).toString('base64url')})).status).toBe(400);
+
+ },20000);
+});
+
+
+describe('MCP refresh without OIDC control scopes',()=>{
+ it('advertises application scopes and preserves strict scope narrowing on refresh',async()=>{
+  dir=mkdtempSync(join(tmpdir(),'daily-mcp-refresh-'));
+  process.env.DAILY_WEB_DB_PATH=join(dir,'test.db');process.env.DAILY_WEB_SECRET_KEY=randomBytes(32).toString('base64');
+  const db=getDb();db.prepare('INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES(?,?,?,?,?)').run('refresh-owner','refresh-owner','unused',0,new Date().toISOString());
+  let provider:Provider;
+  server=createServer((req,res)=>{(req as typeof req & {originalUrl?:string}).originalUrl=req.url;req.url=(req.url??'/').replace(/^\/oauth/,'') || '/';provider.callback()(req,res);});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const address=server.address();if(!address||typeof address==='string')throw new Error('No port');
+  const origin=`http://127.0.0.1:${address.port}`;process.env.DAILY_WEB_ORIGIN=origin;
+  const store=new OAuthStore(db);provider=createProvider(store);
+  const cookies=new Map<string,string>();
+  const call=async(path:string,init:RequestInit={})=>{
+   const response=await fetch(new URL(path,origin),{...init,headers:{Accept:'application/json',...Object.fromEntries(new Headers(init.headers)),Cookie:[...cookies].map(([key,value])=>`${key}=${value}`).join('; ')},redirect:'manual',signal:AbortSignal.timeout(5000)});
+   for(const cookie of response.headers.getSetCookie()){const first=cookie.split(';')[0];const index=first.indexOf('=');cookies.set(first.slice(0,index),first.slice(index+1));}
+   return response;
+  };
+  const metadata=await (await call('/oauth/.well-known/openid-configuration')).json();
+  expect(metadata.scopes_supported).toContain('agents:read');expect(metadata.scopes_supported).not.toContain('offline_access');expect(metadata.grant_types_supported).toContain('refresh_token');
+  const registration=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'MCP refresh client',application_type:'native',redirect_uris:['http://127.0.0.1:18181/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'})});
+  expect(registration.status).toBe(201);const client=await registration.json();
+  const verifier=randomBytes(32).toString('base64url');
+  const parameters=new URLSearchParams({client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',response_type:'code',scope:'agents:read',resource:`${origin}/mcp`,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});
+  const authorization=await call(`/oauth/auth?${parameters}`);expect(authorization.status).toBe(303);
+  const id=new URL(authorization.headers.get('location')!).searchParams.get('interaction')!;
+  const binding={userId:'refresh-owner',browserSecret:cookies.get(BROWSER_BINDING_COOKIE)!};
+  const consent=await inspectInteraction(provider,store,id,binding);
+  const decision=await decideInteraction(provider,store,{id,nonce:consent.nonce,...binding,decision:'approve',scopes:['agents:read']});
+  const resumed=await call(decision.redirect);const code=new URL(resumed.headers.get('location')!).searchParams.get('code')!;
+  const exchange=(values:Record<string,string>)=>call('/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(values)});
+  const issued=await exchange({grant_type:'authorization_code',client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',code_verifier:verifier,code,resource:`${origin}/mcp`});
+  expect(issued.status).toBe(200);const tokens=await issued.json();expect(tokens.refresh_token).toBeTruthy();expect(tokens.scope).toBe('agents:read');expect(tokens.expires_in).toBe(900);
+  const refresh={grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:`${origin}/mcp`};
+  const ungranted=await exchange({...refresh,scope:'agents:read offline_access'});expect(ungranted.status).toBe(400);expect((await ungranted.json()).error).toBe('invalid_scope');
+  const narrowed=await exchange({...refresh,scope:'agents:read'});expect(narrowed.status).toBe(200);const rotated=await narrowed.json();expect(rotated.scope).toBe('agents:read');expect(rotated.refresh_token).not.toBe(tokens.refresh_token);
+  const elevated=await exchange({...refresh,refresh_token:rotated.refresh_token,scope:'agents:read github:write'});expect(elevated.status).toBe(400);expect((await elevated.json()).error).toBe('invalid_scope');
+ },20000);
+});

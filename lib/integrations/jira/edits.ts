@@ -1,4 +1,5 @@
 import type { Connection } from '@/lib/vault/connections';
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import { jiraAuth, jiraRequest } from '@/lib/integrations/jiraApi';
 import { isJiraAccountId } from '@/lib/jiraAccount';
 import { isJiraKey } from '@/lib/jiraKey';
@@ -25,7 +26,8 @@ const EPIC_LEVEL = 1;
 const STORY_LEVEL = 0;
 
 /** A request the panel can refuse before asking Jira: answered with 400. */
-export class InvalidEdit extends Error {}
+export class InvalidEdit extends ProviderRefusal {}
+export class StoryTypeUnavailable extends ProviderRefusal {}
 
 function fail(detail: string): never {
   failIn(null, detail);
@@ -122,7 +124,7 @@ export function pickStoryTypeId(data: unknown): string {
       names.some((n) => STORY_TYPE_NAMES.includes(n))
     );
   });
-  if (!found) throw new Error('o projeto não tem um tipo História (ou Story) para criar no épico');
+  if (!found) throw new StoryTypeUnavailable('o projeto não tem um tipo História (ou Story) para criar no épico');
   return numericId((found as Record<string, unknown>).id, 'id do tipo História');
 }
 

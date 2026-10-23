@@ -1,12 +1,9 @@
+import { ExternalNotSubmittedError } from '@/lib/access/receipts';
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { jiraAuth } from '@/lib/integrations/jiraApi';
-import {
-  answerApproval,
-  fetchPendingApprovals,
-  type ApprovalDecision,
-} from '@/lib/integrations/jira/approvals';
+import { type ApprovalDecision } from '@/lib/integrations/jira/approvals';
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -23,9 +20,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!key) return invalidKey();
 
   try {
-    const approvals = await fetchPendingApprovals(jiraAuth(guard.value.connection), key);
+    const approvals = await jiraActions.approvals(guard.value.connection, key);
     return NextResponse.json({ approvals });
   } catch (err) {
+    if (err instanceof ExternalNotSubmittedError) return NextResponse.json({error: err.message}, {status:409});
     return upstreamError(err);
   }
 }
@@ -47,19 +45,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const auth = jiraAuth(guard.value.connection);
-    // The list can change between opening the dialog and confirming: someone
-    // else may have decided, or the request moved on.
-    const pending = await fetchPendingApprovals(auth, key);
-    if (!pending.some((a) => a.id === approvalId)) {
-      return NextResponse.json(
-        { error: 'essa aprovação não está mais pendente para você' },
-        { status: 409 },
-      );
-    }
-    await answerApproval(auth, key, approvalId, decision as ApprovalDecision);
+    await jiraActions.answerApproval({userId: guard.value.user.id, connection: guard.value.connection}, key, approvalId, decision as ApprovalDecision);
     return writeDone(guard.value.user.id);
   } catch (err) {
+    if (err instanceof ExternalNotSubmittedError) return NextResponse.json({error: err.message}, {status:409});
     return upstreamError(err);
   }
 }

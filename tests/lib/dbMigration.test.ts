@@ -266,7 +266,7 @@ describe('coluna Fazendo do quadro de tarefas', () => {
     const { markDoing } = await import('@/lib/tasks/boardStatus');
     markDoing('u-1', 't-1');
     const version = getDb().pragma('user_version', { simple: true });
-    expect(version).toBe(15);
+    expect(version).toBe(16);
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
@@ -318,7 +318,7 @@ describe('cor das notas do quadro de tarefas', () => {
   it('as tarefas e a marcação de Fazendo continuam, todas com cor automática', async () => {
     seedBoardDatabase();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(15);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(16);
     const { listTasks } = await import('@/lib/tasks/local');
     const { withBoardOverlay } = await import('@/lib/tasks/boardStatus');
 
@@ -336,7 +336,7 @@ describe('cor das notas do quadro de tarefas', () => {
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
-    expect(reopen().pragma('user_version', { simple: true })).toBe(15);
+    expect(reopen().pragma('user_version', { simple: true })).toBe(16);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-1')).toEqual({ paper: 'grey', pin: 'red' });
   });
@@ -355,8 +355,26 @@ describe('cor das notas do quadro de tarefas', () => {
     `);
     half.close();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(15);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(16);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-2')).toEqual({ paper: 'white', pin: null });
   });
+  it('upgrades production version 15 with note colours to agent workspace version 16 without resetting tasks', async () => {
+    seedBoardDatabase();
+    const previous = new Database(dbFile);
+    previous.exec(`CREATE TABLE task_board_style (
+      user_id TEXT NOT NULL, task_id TEXT NOT NULL, paper TEXT, pin TEXT,
+      updated_at TEXT NOT NULL, PRIMARY KEY (user_id, task_id)
+    );`);
+    previous.prepare('INSERT INTO task_board_style VALUES (?, ?, ?, ?, ?)').run('u-1','t-2','white','blue','2026-10-23');
+    previous.pragma('user_version = 15');
+    previous.close();
+    const {getDb} = await import('@/lib/db');
+    const current = getDb();
+    expect(current.pragma('user_version', {simple:true})).toBe(16);
+    expect(current.prepare('SELECT COUNT(1) AS count FROM main.tb_agent').get()).toEqual({count:0});
+    expect(current.prepare('SELECT paper, pin FROM main.task_board_style WHERE user_id=? AND task_id=?').get('u-1','t-2')).toEqual({paper:'white',pin:'blue'});
+    expect(current.prepare('SELECT COUNT(1) AS count FROM main.tasks').get()).toEqual({count:2});
+  });
+
 });

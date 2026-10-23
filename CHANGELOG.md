@@ -20,6 +20,15 @@ Only `main` is maintained; there are no release branches.
   moved into the row's "⋯" menu, and the subtask arrow grew to 24px.
 
 ### Added
+- A task-based home kanban for agent work, with a detailed agents workspace,
+  reporting API, personal API credentials and generated onboarding instructions.
+  Agent history expires 30 days after its last accepted activity; the original
+  integrations dashboard remains available under `/workspace`.
+- An OAuth-authorized remote MCP endpoint with 58 tools for agent work, personal
+  tasks, Jira, GitHub, connections and shared focus actions. Browser and MCP use
+  shared Jira/GitHub operations; integration secrets are entered only in the browser.
+- Persistent mutation receipts, bounded retention cleanup, a private OAuth companion,
+  first-upgrade service installation and daily logical backups excluding agent data.
 - Each task's note on the board can have its own paper and pin colour. The
   "⋯" menu of a note and of a list row has "Cor da nota…", which opens two
   choices, "Papel" (yellow, pink, blue, green, white, grey) and "Alfinete"

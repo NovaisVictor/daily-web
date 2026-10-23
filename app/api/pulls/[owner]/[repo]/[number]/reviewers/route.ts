@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
-import { upstreamError } from '@/lib/api/context';
+import { pullOperationError, runPullOperation } from '@/app/api/pulls/shared';
 import { badRequest, invalidPull, jsonObject, pullParams, pullsWriteDone, requirePulls } from '@/lib/api/pulls';
-import { githubToken } from '@/lib/integrations/githubApi';
-import { requestReviewers, REVIEWERS_MAX, teamSlug } from '@/lib/integrations/github/actions';
+import { REVIEWERS_MAX, teamSlug } from '@/lib/integrations/github/actions';
 import { isRequestableLogin } from '@/lib/githubLogin';
 
 type Params = { params: Promise<{ owner: string; repo: string; number: string }> };
@@ -38,9 +37,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const requested = await requestReviewers(githubToken(auth.value.connection), ref, split.users, split.teams);
-    return pullsWriteDone(auth.value.user.id, { requested });
+    const result = await runPullOperation(request,auth.value,'github_request_review',{...ref,reviewers:split.users,teams:split.teams});
+    return pullsWriteDone(auth.value.user.id, { requested:result.requested });
   } catch (err) {
-    return upstreamError(err);
+    return pullOperationError(err,auth.value.user.id);
   }
 }

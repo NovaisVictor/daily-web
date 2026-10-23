@@ -1,7 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { applyEdit, fetchPriorityOptions, InvalidEdit, parseEditChange } from '@/lib/integrations/jira/edits';
+import { InvalidEdit, parseEditChange } from '@/lib/integrations/jira/edits';
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   try {
-    return NextResponse.json(await fetchPriorityOptions(auth.value.connection, key));
+    return NextResponse.json(await jiraActions.priorities(auth.value.connection, key));
   } catch (err) {
     return upstreamError(err);
   }
@@ -31,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!edit) return NextResponse.json({ error: 'alteração inválida' }, { status: 400 });
 
   try {
-    await applyEdit(auth.value.connection, key, edit);
+    await jiraActions.edit({userId: auth.value.user.id, connection: auth.value.connection}, key, edit);
   } catch (err) {
     if (err instanceof InvalidEdit) return NextResponse.json({ error: err.message }, { status: 400 });
     return upstreamError(err);

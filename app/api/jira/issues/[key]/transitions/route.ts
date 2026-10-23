@@ -1,7 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { applyTransition, fetchTransitions, TransitionUnavailable } from '@/lib/integrations/jira/transitions';
+import { TransitionUnavailable } from '@/lib/integrations/jira/transitions';
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -12,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!key) return invalidKey();
 
   try {
-    return NextResponse.json({ transitions: await fetchTransitions(auth.value.connection, key) });
+    return NextResponse.json({ transitions: await jiraActions.transitions(auth.value.connection, key) });
   } catch (err) {
     return upstreamError(err);
   }
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!transitionId) return NextResponse.json({ error: 'transição inválida' }, { status: 400 });
 
   try {
-    await applyTransition(auth.value.connection, key, transitionId);
+    await jiraActions.applyTransition({userId: auth.value.user.id, connection: auth.value.connection}, key, transitionId);
   } catch (err) {
     if (err instanceof TransitionUnavailable) {
       return NextResponse.json({ error: err.message }, { status: 409 });

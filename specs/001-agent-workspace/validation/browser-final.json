@@ -1,0 +1,30 @@
+{
+  "outcome": "passed",
+  "executedAt": "2026-10-23T22:12:20.275Z",
+  "origin": "http://127.0.0.1:8022",
+  "runtime": "production",
+  "source": {
+    "integrationBase": "7ca329c",
+    "sourceCheckpoint": "d094923",
+    "database": "fresh disposable schema 16"
+  },
+  "checks": [
+    "home renders with kanban only",
+    "actionable empty kanban state",
+    "accepted reports appear automatically, two cards for one session",
+    "lifecycle moves card; card opens details and timeline",
+    "production responses match captured contract shapes; fixture left unchanged",
+    "filters persist in URL after refresh and browser back",
+    "preserved dashboard reachable independently",
+    "workspace task board defaults and paper/pin selections persist after reload",
+    "cross-user API and browser access denied",
+    "500 and malformed enum failures are visible",
+    "access page prompt does not include issued secret",
+    "PAT revocation rejects next use",
+    "no browser runtime errors"
+  ],
+  "browserErrors": 0,
+  "userIsolationHttpStatus": 404,
+  "revokedCredentialHttpStatus": 401,
+  "providerMutations": "disposable reporting API only"
+}

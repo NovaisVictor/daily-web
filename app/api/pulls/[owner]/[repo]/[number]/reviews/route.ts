@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
-import { upstreamError } from '@/lib/api/context';
+import { pullOperationError, runPullOperation } from '@/app/api/pulls/shared';
 import { badRequest, invalidPull, jsonObject, pullParams, pullsWriteDone, requirePulls, textField } from '@/lib/api/pulls';
-import { githubToken } from '@/lib/integrations/githubApi';
-import { REVIEW_EVENTS, submitReview, TEXT_MAX, type ReviewEvent } from '@/lib/integrations/github/actions';
+import { REVIEW_EVENTS, TEXT_MAX, type ReviewEvent } from '@/lib/integrations/github/actions';
 
 type Params = { params: Promise<{ owner: string; repo: string; number: string }> };
 
@@ -25,14 +24,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const review = await submitReview(
-      githubToken(auth.value.connection),
-      ref,
-      event as ReviewEvent,
-      body.kind === 'text' ? body.value : null,
-    );
-    return pullsWriteDone(auth.value.user.id, { review });
+    const result = await runPullOperation(request,auth.value,'github_review',{...ref,event,body:body.kind==='text'?body.value:null});
+    return pullsWriteDone(auth.value.user.id, { review: {id:result.id,state:result.state} });
   } catch (err) {
-    return upstreamError(err);
+    return pullOperationError(err,auth.value.user.id);
   }
 }

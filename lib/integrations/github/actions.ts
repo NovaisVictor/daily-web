@@ -1,3 +1,4 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import { githubRequest, isRecord, unexpected } from './client';
 
 export interface PullRef {
@@ -49,7 +50,7 @@ const RERUNNABLE: readonly RunConclusion[] = ['failure', 'timed_out', 'cancelled
 
 /** GitHub said no for a reason the app checked itself before writing (the PR
  *  changed since the user looked). The route answers 409, not 502. */
-export class PullStateRefusal extends Error {}
+export class PullStateRefusal extends ProviderRefusal {}
 
 function repoPath({ owner, repo }: PullRef): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
@@ -138,6 +139,7 @@ export async function requestReviewers(
 
 interface PullSnapshot {
   state: 'open' | 'closed';
+  publication: 'draft' | 'ready';
   /** `null` while GitHub has not computed it yet. */
   mergeable: boolean | null;
   headSha: string;
@@ -149,16 +151,18 @@ function parsePullSnapshot(data: unknown): PullSnapshot {
   if (data.state !== 'open' && data.state !== 'closed') {
     throw unexpected(where, `estado desconhecido ${JSON.stringify(data.state)}`);
   }
+  if (typeof data.draft !== 'boolean') throw unexpected(where, '`draft` com forma inesperada');
   if (data.mergeable !== null && typeof data.mergeable !== 'boolean') {
     throw unexpected(where, '`mergeable` com forma inesperada');
   }
   if (!isRecord(data.head)) throw unexpected(where, '`head` ausente');
-  return { state: data.state, mergeable: data.mergeable, headSha: requiredString(data.head.sha, where, 'head.sha') };
+  return { state: data.state, publication: data.draft ? 'draft' : 'ready', mergeable: data.mergeable, headSha: requiredString(data.head.sha, where, 'head.sha') };
 }
 
 const HEAD_MOVED = 'o PR recebeu commits novos desde que você olhou — atualize o painel e confira';
 
 function refusalOf(pull: PullSnapshot, headSha: string): string | null {
+  if (pull.publication === 'draft') return 'o PR ainda é um rascunho';
   if (pull.state !== 'open') return 'o PR não está mais aberto';
   if (pull.headSha !== headSha) return HEAD_MOVED;
   if (pull.mergeable === null) return 'o GitHub ainda está calculando se o PR pode entrar — tente de novo em instantes';

@@ -1,3 +1,4 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import type { Connection } from '@/lib/vault/connections';
 import type { JiraStatusCategory } from '@/lib/types';
 import { jiraAuth, jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
@@ -95,7 +96,7 @@ export async function fetchTransitions(conn: Connection, key: string): Promise<J
   return load(jiraAuth(conn), key);
 }
 
-export class TransitionUnavailable extends Error {
+export class TransitionUnavailable extends ProviderRefusal {
   constructor() {
     super('essa transição não está mais disponível');
   }

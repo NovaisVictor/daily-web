@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { upstreamError } from '@/lib/api/context';
+import { NextRequest } from 'next/server';
+import { pullOperationError, runPullOperation } from '@/app/api/pulls/shared';
 import { badRequest, invalidPull, jsonObject, pullParams, pullsWriteDone, requirePulls } from '@/lib/api/pulls';
-import { githubToken } from '@/lib/integrations/githubApi';
 import {
   isCommitSha,
   MERGE_METHODS,
-  mergePull,
-  PullStateRefusal,
   type MergeMethod,
 } from '@/lib/integrations/github/actions';
 
@@ -27,10 +24,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!isCommitSha(payload?.headSha)) return badRequest('commit do PR inválido');
 
   try {
-    const sha = await mergePull(githubToken(auth.value.connection), ref, method as MergeMethod, payload.headSha);
-    return pullsWriteDone(auth.value.user.id, { sha });
+    const result = await runPullOperation(request,auth.value,'github_merge',{...ref,method,headSha:payload.headSha});
+    return pullsWriteDone(auth.value.user.id, { sha:result.sha });
   } catch (err) {
-    if (err instanceof PullStateRefusal) return NextResponse.json({ error: err.message }, { status: 409 });
-    return upstreamError(err);
+    return pullOperationError(err,auth.value.user.id);
   }
 }

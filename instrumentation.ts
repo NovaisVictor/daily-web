@@ -6,6 +6,8 @@ export async function register() {
   // conseguiria logar.
   const { bootstrapFirstUser } = await import('@/lib/auth/users');
   bootstrapFirstUser();
+  const { startAgentCleanup } = await import('@/lib/agents/retention');
+  startAgentCleanup();
 
   const { startRefreshLoop, refreshIntervalSeconds } = await import('@/lib/refresher');
   const { getPomodoroState, onPhaseChange, activePomodoroUsers } = await import('@/lib/pomodoro');

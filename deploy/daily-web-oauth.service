@@ -1,0 +1,27 @@
+# Use the same service account, directory, environment and Node binary as daily-web.service.
+[Unit]
+Description=Daily Web OAuth companion
+Requires=daily-web.service
+After=daily-web.service
+PartOf=daily-web.service
+
+[Service]
+Type=simple
+User=SEU_USUARIO
+WorkingDirectory=/caminho/para/daily-web
+EnvironmentFile=/etc/daily-web/env
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=TZ=America/Sao_Paulo
+RuntimeDirectory=daily-web
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+Environment=DAILY_WEB_OAUTH_RUNTIME_DIR=/run/daily-web
+Environment=DAILY_WEB_OAUTH_SOCKET=/run/daily-web/oauth.sock
+UMask=0077
+ExecStart=/usr/bin/node dist/oauth-server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -8,6 +8,13 @@ export interface GithubRequestOptions {
   body?: unknown;
 }
 
+export class GithubResponseError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'GithubResponseError';
+  }
+}
+
 export interface GithubReply {
   /** Parsed JSON, or `null` for a 204. */
   data: unknown;
@@ -105,7 +112,7 @@ export async function githubCall(
   });
 
   if (!response.ok) {
-    throw new Error(failureMessage(response.status, response.headers, await readBody(response)));
+    throw new GithubResponseError(response.status, failureMessage(response.status, response.headers, await readBody(response)));
   }
   if (response.status === 204) return { data: null, headers: response.headers };
   const text = await response.text();

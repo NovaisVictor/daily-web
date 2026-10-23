@@ -1,0 +1,59 @@
+{
+  "recordedAt": "2026-10-23T20:33:02.695Z",
+  "scope": "Isolated Node HTTP server invokes real reporting Next route handlers; reads use the same owner-scoped listTasks operation as the browser snapshot. This does not measure Next middleware, React rendering, production proxy, or browser-visible latency.",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "workload": {
+    "users": 20,
+    "sessions": 100,
+    "retainedTasks": 10000,
+    "reports": 100,
+    "scheduledReportsPerSecond": 10,
+    "wallMs": 9902.473125
+  },
+  "httpAcceptanceMs": {
+    "samples": 100,
+    "p50": 1.672959000001356,
+    "p95": 3.6822080000001733,
+    "p99": 9.771624999999403,
+    "maximum": 11.371041999999989
+  },
+  "reportToSnapshotPollMs": {
+    "samples": 100,
+    "p50": 2.8236249999999927,
+    "p95": 5.293916000000536,
+    "p99": 11.442541999999776,
+    "maximum": 13.43795799999998
+  },
+  "schedulingLagMs": {
+    "samples": 100,
+    "p50": 0.45566599999983737,
+    "p95": 0.9976659999999811,
+    "p99": 1.0581660000000284,
+    "maximum": 2.0643330000000333
+  },
+  "server": {
+    "peakConcurrentRequests": 1
+  },
+  "memory": {
+    "rssBeforeBytes": 170819584,
+    "rssPeakBytes": 213172224,
+    "rssAfterBytes": 213172224,
+    "heapUsedBeforeBytes": 31901360,
+    "heapUsedAfterBytes": 37642520
+  },
+  "cleanup": {
+    "batchLimit": 500,
+    "elapsedMs": 7.920042000001558,
+    "tasks": 500,
+    "activity": 0,
+    "sessions": 0,
+    "agents": 0,
+    "receipts": 0
+  },
+  "errors": {},
+  "pass": true
+}

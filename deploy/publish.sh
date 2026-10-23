@@ -15,6 +15,30 @@ if [[ ! -d "$TARGET" ]]; then
   exit 1
 fi
 
+OAUTH_SERVICE="${SERVICE}-oauth"
+NODE="$(node -p 'process.execPath')"
+sudo env DAILY_WEB_SERVICE="$SERVICE" "$NODE" ./deploy/install-services.mjs --check "$TARGET"
+OAUTH_INSTALLED=0
+if systemctl cat "$OAUTH_SERVICE" >/dev/null 2>&1; then
+  OAUTH_INSTALLED=1
+  sudo systemctl stop "$OAUTH_SERVICE"
+fi
+
+ARTIFACT_READY=0
+APP_RESTARTED=0
+recover() {
+  local status=$?
+  if [[ "$status" != "0" && "$OAUTH_INSTALLED" == "1" ]]; then
+    if [[ "$ARTIFACT_READY" == "1" && "$APP_RESTARTED" == "1" ]] && systemctl is-active --quiet "$SERVICE"; then
+      sudo systemctl start "$OAUTH_SERVICE" || echo "OAuth recovery failed; inspect the companion service" >&2
+    else
+      echo "Publish failed; OAuth remains stopped. Restore a complete compatible artifact and a healthy application before starting $OAUTH_SERVICE." >&2
+    fi
+  fi
+  exit "$status"
+}
+trap recover EXIT
+
 echo "publishing to $TARGET"
 
 # --delete so the target does not accumulate files that left the repository.
@@ -24,5 +48,10 @@ rsync -a --delete \
   --exclude 'data/' \
   ./ "$TARGET/"
 
+ARTIFACT_READY=1
+sudo env DAILY_WEB_SERVICE="$SERVICE" "$NODE" "$TARGET/deploy/install-services.mjs" "$TARGET"
 echo "restarting $SERVICE"
 sudo systemctl restart "$SERVICE"
+APP_RESTARTED=1
+sudo systemctl start "$OAUTH_SERVICE"
+"$TARGET/deploy/healthcheck.sh"

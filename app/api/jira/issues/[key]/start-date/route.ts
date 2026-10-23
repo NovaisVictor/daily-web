@@ -1,9 +1,9 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api/context';
 import { isJiraKey } from '@/lib/jiraKey';
 import { jiraConnectionOf } from '@/lib/jiraPeople';
-import { isCalendarDate, setStartDate, suggestStartDate } from '@/lib/integrations/jiraApi';
-import { resolveJiraProblem } from '@/lib/refresher';
+import { isCalendarDate } from '@/lib/integrations/jiraApi';
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!conn) return NextResponse.json({ error: 'Jira não conectado' }, { status: 400 });
 
   try {
-    const suggestion = await suggestStartDate(conn, key);
+    const suggestion = await jiraActions.suggestStartDate(conn, key);
     return NextResponse.json(suggestion ?? { date: null, basis: null });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
@@ -44,8 +44,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!conn) return NextResponse.json({ error: 'Jira não conectado' }, { status: 400 });
 
   try {
-    await setStartDate(conn, key, body.date);
-    resolveJiraProblem(auth.value.id, key, ['story-in-progress-without-start', 'story-done-without-start']);
+    await jiraActions.startDate({userId: auth.value.id, connection: conn}, key, body.date);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });

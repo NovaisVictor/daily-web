@@ -20,6 +20,13 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Garante que "hoje"/"amanhã" e a janela da agenda usem o fuso esperado
 # (o código já resolve isso via getters locais — isto é só belt-and-braces).
 Environment=TZ=America/Sao_Paulo
+RuntimeDirectory=daily-web
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+Environment=DAILY_WEB_OAUTH_RUNTIME_DIR=/run/daily-web
+Environment=DAILY_WEB_OAUTH_SOCKET=/run/daily-web/oauth.sock
+UMask=0077
+ExecStartPre=/usr/bin/node dist/migrate-db.js
 ExecStart=/usr/bin/npm start
 # `always`, not `on-failure`: an external SIGTERM — a broad `pkill` caught the
 # server once — exits cleanly, and a clean exit is not a failure, so the

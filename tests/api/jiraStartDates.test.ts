@@ -17,7 +17,7 @@ vi.mock('@/lib/api/context', async (importOriginal) => ({
 }));
 
 const invalidate = vi.fn();
-vi.mock('@/lib/refresher', () => ({ invalidate: (id: string) => invalidate(id) }));
+vi.mock('@/lib/refresher', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/refresher')>()), invalidate: (id: string) => invalidate(id) }));
 
 import { GET, POST } from '@/app/api/jira/problems/start-dates/route';
 import { saveConnection, setModuleEnabled } from '@/lib/vault/connections';

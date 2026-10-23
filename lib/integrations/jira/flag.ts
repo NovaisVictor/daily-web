@@ -1,3 +1,4 @@
+import { ProviderRefusal } from '@/lib/integrations/refusal';
 import { instanceMeta, jiraRequest, type JiraAuth } from '@/lib/integrations/jiraApi';
 import { postComment } from '@/lib/integrations/jira/comments';
 import { fail as failIn, isRecord, NOT_FOUND } from '@/lib/integrations/jira/parse';
@@ -15,7 +16,7 @@ function fail(detail: string): never {
 export function parseImpedimentOptionId(data: unknown, fieldId: string): string {
   if (!isRecord(data) || !isRecord(data.fields)) fail('metadados de edição ausentes');
   const field = data.fields[fieldId];
-  if (!isRecord(field)) throw new Error('o campo "Flagged" não pode ser editado nesta issue');
+  if (!isRecord(field)) throw new ProviderRefusal('o campo "Flagged" não pode ser editado nesta issue');
   if (!Array.isArray(field.allowedValues)) fail('opções do campo "Flagged" ausentes');
   const option = field.allowedValues.find((v) => isRecord(v) && v.value === IMPEDIMENT_VALUE);
   if (!isRecord(option)) fail(`opção "${IMPEDIMENT_VALUE}" ausente no campo "Flagged"`);
@@ -39,7 +40,7 @@ export class FlagCommentFailed extends Error {
 
 async function flaggedFieldId(auth: JiraAuth): Promise<string> {
   const { flaggedField } = await instanceMeta(auth);
-  if (!flaggedField) throw new Error('campo "Flagged" não encontrado no Jira');
+  if (!flaggedField) throw new ProviderRefusal('campo "Flagged" não encontrado no Jira');
   return flaggedField;
 }
 

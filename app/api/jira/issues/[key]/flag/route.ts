@@ -1,8 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { jiraAuth } from '@/lib/integrations/jiraApi';
-import { changeFlag, FlagCommentFailed, type FlagChange } from '@/lib/integrations/jira/flag';
+import { FlagCommentFailed, type FlagChange } from '@/lib/integrations/jira/flag';
 import { FLAG_REASON_MAX } from '@/lib/jiraLimits';
 
 type Params = { params: Promise<{ key: string }> };
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   try {
-    await changeFlag(jiraAuth(guard.value.connection), key, parsed.change);
+    await jiraActions.flag({userId: guard.value.user.id, connection: guard.value.connection}, key, parsed.change);
   } catch (err) {
     if (err instanceof FlagCommentFailed) return writeDone(guard.value.user.id, { warning: err.message });
     return upstreamError(err);

@@ -4,8 +4,9 @@
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-brightgreen)](.nvmrc)
 
-A personal dashboard meant to sit open on a second monitor: email, calendar,
-pull requests, Jira, tasks and a pomodoro timer on one page, behind a login.
+A personal workspace for agent work and daily integrations, behind a login.
+The home screen is a task kanban for Claude, Codex and Gemini; the original
+email, calendar, Jira, pull requests, tasks and focus dashboard remains at `/workspace`.
 
 Everyone connects their own accounts from the settings screen. Nothing is
 shared between users and no module is mandatory — if you do not use Jira, you
@@ -290,3 +291,64 @@ research, nonprofits and public institutions; commercial use is not permitted.
 
 This is **not an open source license** in the OSI sense, which does not allow
 field-of-use restrictions. It is source-available.
+
+
+## Agent workspace and MCP
+
+Open `/access` to create a personal reporting token, copy onboarding instructions,
+and inspect or revoke MCP access. A token is shown once; the generated prompt uses
+an environment-variable placeholder instead of copying the secret into a chat.
+Each user sees only their own tasks, sessions, credentials and connections.
+
+The reporting API is rooted at `/api/v1/agents`. The generated instructions describe
+agent registration, sessions, task creation, transitions, activity and heartbeat.
+Writes require `Idempotency-Key` and `X-Request-Timestamp`; metadata and lifecycle
+updates also require the current version. Keep the same key and input when retrying.
+The main board has one card per task, with its responsible agent/session. `/agents`
+shows tasks and sessions; opening a card reveals its details and retained activity.
+
+Agent work expires **30 days after its last accepted activity**. Reading or replaying
+an update does not renew it. Session-only heartbeats do not keep tasks alive. Each
+activity entry also expires after 30 days. Existing personal tasks, Jira issues and
+GitHub PRs are not deleted by this policy. The cleanup worker does not need a browser
+open; expired records are hidden even before physical cleanup runs.
+
+The remote MCP endpoint is `/mcp` and requires OAuth. It exposes agent work, personal
+tasks, Jira, GitHub and the shared focus action using the user's own permissions.
+Provider operations require an explicit connection selection. Secrets are entered
+only in the browser: an MCP client receives a setup URL, never an integration token.
+Revocation takes effect on the next request or tool call. An uncertain provider
+write is recorded and must be reconciled before it can be retried.
+
+### OAuth companion
+
+`npm run build` also builds the companion into `dist/oauth-server.js`. Use the same
+`PUBLIC_ORIGIN`, database path and vault key for the application and companion;
+configure its private Unix socket with `DAILY_WEB_OAUTH_SOCKET` and loopback port
+with `DAILY_WEB_OAUTH_PORT`. Complete the application migrations before starting
+`node dist/oauth-server.js`. The deployment installer discovers the existing app
+service and installs the companion, startup migration and logical-backup timer.
+The app proxies public OAuth routes to the loopback companion, so an existing
+Traefik route to Next is sufficient. See `docs/backup-and-services.md`. Do not publish
+the internal socket or the loopback port directly. The browser application remains
+usable if the companion is unavailable; MCP authentication fails closed.
+
+The companion implements authorization code + PKCE, scoped consent, rotating
+refresh tokens, persistent encrypted grants and revocation. Configure a compatible
+remote MCP client with the canonical HTTPS `/mcp` URL and complete its browser login.
+Headless use requires previously completed authorization. Reporting tokens and MCP
+OAuth tokens are different credentials and are not interchangeable. Clients
+authorized against an earlier preview that advertised `offline_access` must
+authorize once again; application refresh scopes remain strictly consented.
+
+### Backup and restore
+
+Use compiled `node dist/backup.js <database> <new-backup-file>` and
+`node dist/restore.js <backup-file> <new-database-file>` for logical backups.
+The managed daily timer runs scheduled logical backups into a private directory;
+agent tracking data is excluded, and restored API/MCP credentials are revoked
+before service startup. Existing personal/provider information is preserved.
+The restore command creates a new database and never overwrites the running one.
+Audit any external raw backup or snapshot system separately; the application's
+retention policy cannot delete copies maintained outside its control. Operational
+configuration and rollout details are in `docs/backup-and-services.md`.

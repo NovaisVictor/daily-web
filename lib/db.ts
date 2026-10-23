@@ -430,6 +430,70 @@ function addTaskBoardStyle(instance: Database.Database): void {
   `);
 }
 
+function addAgentWorkspace(instance: Database.Database): void {
+  instance.exec(`
+    CREATE TABLE main.tb_agent (
+      uid_agent TEXT PRIMARY KEY, uid_user TEXT NOT NULL, ref_external TEXT NOT NULL,
+      typ_provider TEXT NOT NULL CHECK (typ_provider IN ('claude','codex','gemini')),
+      nam_display TEXT NOT NULL, tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+      CONSTRAINT tb_agent_uk1 UNIQUE(uid_user, ref_external)
+    );
+    CREATE INDEX main.tb_agent_ix1 ON tb_agent(uid_user, tsz_update, uid_agent);
+    CREATE TABLE main.tb_agent_session (
+      uid_session TEXT PRIMARY KEY, uid_user TEXT NOT NULL, uid_agent TEXT NOT NULL,
+      ref_external TEXT NOT NULL, num_version INTEGER NOT NULL DEFAULT 1,
+      tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+      CONSTRAINT tb_agent_session_uk1 UNIQUE(uid_user, uid_agent, ref_external)
+    );
+    CREATE INDEX main.tb_agent_session_ix1 ON tb_agent_session(uid_user, tsz_update, uid_session);
+    CREATE INDEX main.tb_agent_session_ix2 ON tb_agent_session(uid_agent);
+    CREATE TABLE main.tb_agent_task (
+      uid_task TEXT PRIMARY KEY, uid_user TEXT NOT NULL, ref_external TEXT NOT NULL,
+      nam_title TEXT NOT NULL, txt_description TEXT NOT NULL, typ_status TEXT NOT NULL
+        CHECK(typ_status IN ('queued','working','blocked','completed','failed','cancelled')),
+      uid_session TEXT, jsn_source TEXT, num_version INTEGER NOT NULL DEFAULT 1,
+      tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+      CONSTRAINT tb_agent_task_uk1 UNIQUE(uid_user, ref_external)
+    );
+    CREATE INDEX main.tb_agent_task_ix1 ON tb_agent_task(uid_user, tsz_update DESC, uid_task DESC);
+    CREATE INDEX main.tb_agent_task_ix2 ON tb_agent_task(uid_user, typ_status, tsz_update DESC, uid_task DESC);
+    CREATE INDEX main.tb_agent_task_ix3 ON tb_agent_task(uid_session, tsz_update);
+    CREATE INDEX main.tb_agent_task_ix4 ON tb_agent_task(tsz_update, uid_task);
+    CREATE TABLE main.tb_agent_activity (
+      uid_activity TEXT PRIMARY KEY, uid_user TEXT NOT NULL, uid_task TEXT NOT NULL,
+      typ_kind TEXT NOT NULL, txt_summary TEXT NOT NULL, tsz_occurred TEXT,
+      tsz_insert TEXT NOT NULL
+    );
+    CREATE INDEX main.tb_agent_activity_ix1 ON tb_agent_activity(uid_user, uid_task, tsz_insert DESC, uid_activity DESC);
+    CREATE INDEX main.tb_agent_activity_ix2 ON tb_agent_activity(tsz_insert, uid_activity);
+    CREATE TABLE main.tb_api_credential (
+      uid_credential TEXT PRIMARY KEY, uid_user TEXT NOT NULL, nam_label TEXT NOT NULL,
+      ref_prefix TEXT NOT NULL, txt_digest TEXT NOT NULL UNIQUE, jsn_scopes TEXT NOT NULL,
+      typ_state TEXT NOT NULL CHECK(typ_state IN ('active','revoked')),
+      tsz_insert TEXT NOT NULL, tsz_used TEXT
+    );
+    CREATE INDEX main.tb_api_credential_ix1 ON tb_api_credential(uid_user, tsz_insert);
+    CREATE TABLE main.tb_mutation_receipt (
+      uid_receipt TEXT PRIMARY KEY, uid_user TEXT NOT NULL, nam_capability TEXT NOT NULL,
+      ref_key TEXT NOT NULL, txt_digest TEXT NOT NULL, typ_class TEXT NOT NULL,
+      ref_resource TEXT, ref_connection TEXT, typ_state TEXT NOT NULL,
+      jsn_outcome TEXT, tsz_insert TEXT NOT NULL, tsz_resolved TEXT, tsz_expires TEXT,
+      CONSTRAINT tb_mutation_receipt_uk1 UNIQUE(uid_user,nam_capability,ref_key)
+    );
+    CREATE INDEX main.tb_mutation_receipt_ix1 ON tb_mutation_receipt(tsz_expires);
+    CREATE INDEX main.tb_mutation_receipt_ix2 ON tb_mutation_receipt(uid_user,ref_resource);
+    CREATE INDEX main.tb_mutation_receipt_ix3 ON tb_mutation_receipt(typ_state,tsz_insert);
+    CREATE TABLE main.tb_oauth_record (
+      typ_kind TEXT NOT NULL, uid_record TEXT NOT NULL, jsn_payload TEXT NOT NULL,
+      tsz_expires TEXT, uid_user TEXT, uid_grant TEXT,
+      CONSTRAINT tb_oauth_record_pk PRIMARY KEY(typ_kind,uid_record)
+    );
+    CREATE INDEX main.tb_oauth_record_ix1 ON tb_oauth_record(tsz_expires);
+    CREATE INDEX main.tb_oauth_record_ix2 ON tb_oauth_record(uid_user);
+    CREATE INDEX main.tb_oauth_record_ix3 ON tb_oauth_record(uid_grant);
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -446,6 +510,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addNoteFolders,
   addTaskBoardStatus,
   addTaskBoardStyle,
+  addAgentWorkspace,
 ];
 
 function migrate(instance: Database.Database): void {
@@ -466,6 +531,9 @@ export function getDb(): Database.Database {
   db = new Database(currentPath);
   dbPath = currentPath;
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
+  db.pragma('secure_delete = ON');
+  db.pragma('journal_size_limit = 0');
   db.exec(BASE_SCHEMA);
   migrate(db);
   return db;

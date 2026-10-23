@@ -14,7 +14,7 @@ vi.mock('@/lib/api/context', async (importOriginal) => ({
   },
 }));
 
-import { POST } from '@/app/api/pulls/repos/route';
+import { POST, GET, DELETE } from '@/app/api/pulls/repos/route';
 import { listConnections, saveConnection } from '@/lib/vault/connections';
 
 let dir: string;
@@ -35,7 +35,8 @@ beforeEach(async () => {
   process.env.DAILY_WEB_SECRET_KEY = Buffer.alloc(32, 'a').toString('base64');
   currentUser.mockResolvedValue(ME);
   const { getDb } = await import('@/lib/db');
-  getDb();
+  const {createUser}=await import('@/lib/auth/users');
+  ME.id=(await createUser('test-owner','test-only-password')).id;
 });
 
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -64,4 +65,12 @@ describe('POST /api/pulls/repos', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).repos).toHaveLength(30);
   });
+});
+
+
+it('lists and removes repositories through the same shared configuration operation',async()=>{
+  saveConnection(ME.id,'pulls','GitHub',{token:'test-only-token',repos:'acme/repo-1, acme/repo-2'});
+  expect(await(await GET()).json()).toEqual({repos:['acme/repo-1','acme/repo-2']});
+  const removed=await DELETE(new NextRequest('http://localhost/api/pulls/repos',{method:'DELETE',body:JSON.stringify({repo:'acme/repo-1'})}));
+  expect(await removed.json()).toEqual({repos:['acme/repo-2']});
 });
