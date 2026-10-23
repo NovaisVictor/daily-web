@@ -91,4 +91,38 @@ describe('StandupDialog', () => {
     const reopened = screen.getByRole('dialog', { name: 'Resumo para a daily' });
     expect(within(reopened).getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
   });
+
+  it('switches to the weekly summary inside the same dialog', () => {
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Semanal' }));
+
+    expect(within(dialog).getByRole('button', { name: 'Semanal' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByRole('textbox', { name: 'texto do resumo' })).toHaveValue(
+      'Entregue na semana\n- Nada entregue\n\nPRs abertos na semana\n- Nenhum\n\nBloqueios\n- A-3 — Travada',
+    );
+  });
+
+  it('copies the weekly text once switched', async () => {
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Semanal' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copiar' }));
+
+    await within(dialog).findByRole('button', { name: 'Copiado' });
+    expect(writeText).toHaveBeenCalledWith(
+      'Entregue na semana\n- Nada entregue\n\nPRs abertos na semana\n- Nenhum\n\nBloqueios\n- A-3 — Travada',
+    );
+  });
+
+  it('opens on the daily summary again after the weekly one', () => {
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Semanal' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resumo para a daily' }));
+
+    const reopened = screen.getByRole('dialog', { name: 'Resumo para a daily' });
+    expect(within(reopened).getByRole('button', { name: 'Diário' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(reopened).getByRole('textbox', { name: 'texto do resumo' })).toHaveValue(
+      'Ontem\n- Nada entregue\n\nHoje\n- A-2 — Andando\n\nBloqueios\n- A-3 — Travada',
+    );
+  });
 });

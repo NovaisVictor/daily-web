@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildStandup, previousWorkingDay, standupText, type StandupSource } from '@/lib/standup';
+import {
+  buildStandup,
+  buildWeekly,
+  previousWorkingDay,
+  standupText,
+  startOfWeek,
+  weeklyText,
+  type StandupSource,
+} from '@/lib/standup';
 import type { JiraDatedItem, JiraItem, PullRequestItem } from '@/lib/types';
 
 const MONDAY = new Date(2026, 9, 19, 9, 30);
@@ -234,6 +242,89 @@ describe('standupText', () => {
       }),
     ).toBe(
       'Ontem\n- A-1 — Entregue\n- acme/api#7 — feat: add login\n\nHoje\n- A-2 — Andando\n\nBloqueios\n- A-3 — Travada',
+    );
+  });
+});
+
+describe('startOfWeek', () => {
+  it('is the Monday of the current week', () => {
+    expect(startOfWeek(WEDNESDAY)).toEqual(new Date(2026, 9, 19));
+  });
+
+  it('is the day itself on a Monday', () => {
+    expect(startOfWeek(MONDAY)).toEqual(new Date(2026, 9, 19));
+  });
+
+  it('is the Monday just past on a Sunday', () => {
+    expect(startOfWeek(new Date(2026, 9, 25, 10))).toEqual(new Date(2026, 9, 19));
+  });
+});
+
+describe('buildWeekly', () => {
+  it('returns three empty sections when nothing is loaded', () => {
+    expect(buildWeekly(source(), WEDNESDAY)).toEqual({ delivered: [], pulls: [], blockers: [] });
+  });
+
+  it('lists what was delivered or approved since Monday, today included', () => {
+    const weekly = buildWeekly(
+      source({
+        delivered: [
+          dated({ key: 'A-1', summary: 'Segunda', updatedAt: at(19, 10) }),
+          dated({ key: 'A-2', summary: 'Hoje', updatedAt: at(21, 8), today: true }),
+        ],
+        approved: [dated({ key: 'A-3', summary: 'Aprovada', updatedAt: at(20) })],
+      }),
+      WEDNESDAY,
+    );
+    expect(weekly.delivered).toEqual(['A-1 — Segunda', 'A-2 — Hoje', 'A-3 — Aprovada']);
+  });
+
+  it('leaves out what was closed before Monday', () => {
+    const weekly = buildWeekly(
+      source({ delivered: [dated({ key: 'A-1', updatedAt: at(16) })] }),
+      WEDNESDAY,
+    );
+    expect(weekly.delivered).toEqual([]);
+  });
+
+  it('lists an issue both delivered and approved only once', () => {
+    const weekly = buildWeekly(
+      source({ delivered: [dated({ key: 'A-1' })], approved: [dated({ key: 'A-1' })] }),
+      WEDNESDAY,
+    );
+    expect(weekly.delivered).toEqual(['A-1 — Resumo']);
+  });
+
+  it('lists the PRs opened since Monday, today included, and not the older ones', () => {
+    const weekly = buildWeekly(
+      source({
+        myPulls: [
+          pull({ number: 1, title: 'feat: segunda', createdAt: at(19, 9) }),
+          pull({ number: 2, title: 'feat: hoje', createdAt: at(21, 8) }),
+          pull({ number: 3, title: 'feat: antiga', createdAt: at(15) }),
+          pull({ number: 4, title: 'issue', createdAt: at(20), isPullRequest: false }),
+        ],
+      }),
+      WEDNESDAY,
+    );
+    expect(weekly.pulls).toEqual(['acme/api#1 — feat: segunda', 'acme/api#2 — feat: hoje']);
+  });
+
+  it('lists the same blockers as the daily summary', () => {
+    const blocked = source({
+      open: [issue({ key: 'A-9', summary: 'Travada', flag: 'impediment' })],
+      myPulls: [pull({ ci: 'failing' })],
+    });
+    const { blockers } = buildWeekly(blocked, WEDNESDAY);
+    expect(blockers).toHaveLength(2);
+    expect(blockers).toEqual(buildStandup(blocked, WEDNESDAY).blockers);
+  });
+});
+
+describe('weeklyText', () => {
+  it('writes each section with a placeholder when it is empty', () => {
+    expect(weeklyText({ delivered: [], pulls: [], blockers: [] })).toBe(
+      'Entregue na semana\n- Nada entregue\n\nPRs abertos na semana\n- Nenhum\n\nBloqueios\n- Nenhum',
     );
   });
 });

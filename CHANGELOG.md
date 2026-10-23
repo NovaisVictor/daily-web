@@ -9,6 +9,11 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- The "Resumo para a daily" dialog has a "Semanal" view next to "Diário":
+  what you delivered or approved since Monday, the pull requests you opened
+  since Monday and are still open, and what blocks you now. Like the daily
+  one it comes from what the dashboard already loaded, and "Copiar" copies
+  whichever view is on screen. It reopens on "Diário".
 - A Dracula choice under "Fundo" in the account menu, next to Gradiente and
   Catppuccin. In the dark theme it applies the full Dracula palette:
   background and sidebar, raised surfaces, text, borders, the accent (Purple)

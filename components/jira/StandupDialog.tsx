@@ -13,9 +13,34 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { buildStandup, standupText, type StandupSource } from '@/lib/standup';
+import { Chip } from '@/components/ui/Chip';
+import {
+  buildStandup,
+  buildWeekly,
+  standupText,
+  weeklyText,
+  type StandupSource,
+} from '@/lib/standup';
 
 type Copy = 'idle' | 'copied' | 'failed';
+
+type Range = 'daily' | 'weekly';
+
+const RANGE_LABEL: Record<Range, string> = {
+  daily: 'Diário',
+  weekly: 'Semanal',
+};
+
+const RANGE_DESCRIPTION: Record<Range, string> = {
+  daily: 'O que você entregou desde o último dia útil, o que está em andamento e o que está travado.',
+  weekly: 'O que você entregou e os PRs que abriu desde segunda-feira, e o que está travado agora.',
+};
+
+function summaryText(range: Range, source: StandupSource, now: Date): string {
+  return range === 'daily'
+    ? standupText(buildStandup(source, now))
+    : weeklyText(buildWeekly(source, now));
+}
 
 const COPY_LABEL: Record<Copy, string> = {
   idle: 'Copiar',
@@ -26,11 +51,17 @@ const COPY_LABEL: Record<Copy, string> = {
 export function StandupDialog({ source }: { source: StandupSource }) {
   const [text, setText] = useState<string | null>(null);
   const [copy, setCopy] = useState<Copy>('idle');
+  // The weekly view lives in the same dialog rather than behind a second
+  // button: the panel header already holds enough controls.
+  const [range, setRange] = useState<Range>('daily');
 
-  const open = () => {
+  const show = (next: Range) => {
+    setRange(next);
     setCopy('idle');
-    setText(standupText(buildStandup(source, new Date())));
+    setText(summaryText(next, source, new Date()));
   };
+
+  const open = () => show('daily');
 
   const copyText = async () => {
     if (text === null) return;
@@ -54,10 +85,15 @@ export function StandupDialog({ source }: { source: StandupSource }) {
         <DialogContent showCloseButton className="motion-reduce:animate-none">
           <DialogHeader>
             <DialogTitle>Resumo para a daily</DialogTitle>
-            <DialogDescription className="text-ink-dim">
-              O que você entregou desde o último dia útil, o que está em andamento e o que está travado.
-            </DialogDescription>
+            <DialogDescription className="text-ink-dim">{RANGE_DESCRIPTION[range]}</DialogDescription>
           </DialogHeader>
+          <div role="group" aria-label="Período do resumo" className="flex gap-2">
+            {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
+              <Chip key={r} active={range === r} onClick={() => show(r)}>
+                {RANGE_LABEL[r]}
+              </Chip>
+            ))}
+          </div>
           <Textarea
             readOnly
             aria-label="texto do resumo"

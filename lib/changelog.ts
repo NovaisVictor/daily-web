@@ -13,6 +13,18 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23-resumo-semanal',
+    date: '2026-10-23',
+    title: 'Resumo da semana',
+    items: [
+      {
+        title: 'Diário ou Semanal no mesmo resumo',
+        detail:
+          'No resumo para a daily, a opção "Semanal" mostra o que você entregou desde segunda, os PRs abertos na semana e os bloqueios atuais, pronto para copiar na retro ou no 1:1. Ao reabrir, o resumo volta para o "Diário".',
+      },
+    ],
+  },
+  {
     id: '2026-10-21-daily',
     date: '2026-10-21',
     title: 'Resumo para a daily',
