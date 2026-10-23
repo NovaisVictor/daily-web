@@ -130,4 +130,29 @@ describe('maintained MCP capability inventory', () => {
     await result(tools, 'agents_tasks_delete', deletion);
     expect(listTasks(owner.userId).items).toHaveLength(0);
   });
+  it('creates and manages subtasks through the same scoped MCP lifecycle', async () => {
+    const tools=registered(owner);
+    const parent=await result<AgentTask>(tools,'agents_tasks_create',{input:{externalId:'parent',title:'Release'},...mutation()});
+    const input={input:{externalId:'child',title:'Validate release',parentTaskId:parent.id},...mutation()};
+    const child=await result<AgentTask>(tools,'agents_tasks_create',input);
+    expect(child.parentTaskId).toBe(parent.id);
+    expect((await result<AgentTask>(tools,'agents_tasks_create',input)).id).toBe(child.id);
+    expect(await result(tools,'agents_tasks_list',{scope:'roots'})).toMatchObject({items:[{id:parent.id}]});
+    expect(await result(tools,'agents_tasks_list',{parentTaskId:parent.id})).toMatchObject({items:[{id:child.id}]});
+    const working=await result<AgentTask>(tools,'agents_tasks_transition',{id:child.id,status:'working',expectedVersion:child.version,...mutation()});
+    await result(tools,'agents_tasks_activity',{id:child.id,input:{kind:'progress',summary:'Checks running'},...mutation()});
+    expect(await result(tools,'agents_tasks_get',{id:child.id})).toMatchObject({version:working.version,status:'working'});
+    expect(await result(tools,'agents_tasks_get',{id:parent.id})).toMatchObject({status:'queued',version:1});
+    const denied=await registered(other).get('agents_tasks_create')!.call({input:{externalId:'foreign',title:'Denied',parentTaskId:parent.id},...mutation()});
+    expect(JSON.parse(denied.content[0].text).code).toBe('not_found');
+    const nested=await tools.get('agents_tasks_create')!.call({input:{externalId:'nested',title:'Denied',parentTaskId:child.id},...mutation()});
+    expect(JSON.parse(nested.content[0].text).code).toBe('invalid_parent');
+    const changed=await tools.get('agents_tasks_update')!.call({id:child.id,input:{expectedVersion:working.version,parentTaskId:parent.id},...mutation()});
+    expect(changed.isError).toBe(true);
+    const blocked=await tools.get('agents_tasks_delete')!.call({id:parent.id,...mutation()});
+    expect(JSON.parse(blocked.content[0].text).code).toBe('task_has_subtasks');
+    await result(tools,'agents_tasks_delete',{id:child.id,...mutation()});
+    await result(tools,'agents_tasks_delete',{id:parent.id,...mutation()});
+  });
+
 });

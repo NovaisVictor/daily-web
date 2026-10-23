@@ -12,8 +12,8 @@ OAuth tokens use the MCP audience and cannot be substituted for reporting tokens
 | POST /sessions/{id}/heartbeat | Refresh that session's observed freshness | Current version |
 | GET /sessions | List live sessions with cursor | Items + nextCursor |
 | GET /sessions/{id} | Inspect session and live work references | Session snapshot |
-| POST /tasks | Create task with externalId, title, optional assignment/source link | Task + version |
-| GET /tasks | Filter by status/agent/session, bounded cursor paging | Items + nextCursor |
+| POST /tasks | Create task with externalId, title, optional assignment/source link and parentTaskId | Task + version |
+| GET /tasks | Filter by status/agent/session/parentTaskId/scope, bounded cursor paging | Items + nextCursor |
 | GET /tasks/{id} | Read live task details | Task + version |
 | PATCH /tasks/{id} | Edit title/description/assignment/source link with expected version | Updated task |
 | POST /tasks/{id}/transitions | Apply valid lifecycle transition with expected version | Updated task |
@@ -43,3 +43,34 @@ Credential creation/listing/revocation is browser-session authenticated under
 POST, not GET. Credential administration cannot be performed with a reporting
 credential. Prompt generation uses configured PUBLIC_ORIGIN and placeholders;
 never trust Host to construct security-sensitive URLs.
+
+## Agent subtasks (2026-10-23)
+
+POST /tasks accepts optional `parentTaskId` referencing a live owned top-level
+agent task. The same `agents:write` scope authorizes creation; no credential or
+consent broadening is required. The response always includes `parentTaskId`
+(null for top-level tasks). An omitted assignment inherits the parent's current
+session; explicit null creates an unassigned subtask. Each subtask has its own
+identity, metadata version, lifecycle and activity endpoints. Parent linkage is
+immutable and nesting beyond one level returns 400 `invalid_parent`. A foreign
+or expired parent returns 404 without exposing ownership.
+
+GET /tasks defaults to `scope=all`, preserving the existing reporting list.
+Use `scope=roots` for macro kanban cards or `parentTaskId=<id>` for a bounded,
+keyset-paginated subtask list. Combining these filters returns 400. The browser
+task detail additionally returns a `subtasks` page and accepts `subtaskCursor`
+independently of the existing activity `cursor`. Reads never renew retention.
+
+Accepted creation, metadata changes, transitions, deletion and activity of a subtask
+advance its parent's last-activity timestamp in the same transaction. They do
+not change the parent's status/version. Replays and no-op metadata updates do
+not advance either timestamp. Each child's own data still expires after 30 days
+without its own accepted activity; recent parent activity does not retain an
+inactive child. Cleanup deletes children before their expired parent under the
+existing shared deletion budget. Explicit parent DELETE returns 409
+`task_has_subtasks` until its live subtasks have been removed; no implicit cascade.
+
+Expired children awaiting physical cleanup do not block parent deletion: their
+link is cleared atomically without changing timestamps, state, content or
+receipts. They remain expired and cleanup retains its existing row budget.
+Only live children cause `task_has_subtasks`; no live child is detached or deleted.

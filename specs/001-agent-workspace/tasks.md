@@ -182,3 +182,10 @@ was read-only; no unsafe application backup job was found to replace. See
 `validation/reporting-clients.json` and `../../docs/backup-and-services.md`.
 Natural-expiry client refresh and the integrated release gate are recorded in
 `quickstart.md`; completed implementation tasks do not alone certify a release.
+
+## Follow-up: agent task and subtask creation
+
+- [x] T055 Implement FR-030/FR-032 owner-scoped one-level hierarchy, additive migration, atomic retention propagation and deletion protection.
+- [x] T056 Implement FR-030 API/MCP hierarchy inputs, filtered reads and safe generated onboarding instructions.
+- [x] T057 Implement FR-031 macro home board and independently paginated subtasks with parent/child navigation.
+- [x] T058 Validate hierarchy, migration, authorization, idempotency, retention and UI; complete independent review and affected release gates.

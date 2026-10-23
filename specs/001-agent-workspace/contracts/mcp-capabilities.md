@@ -312,3 +312,13 @@ restore tests under `tests/lib/agents`. The existing `npm run build` runs the
 OAuth companion compiler and the Next production build/type check. No duplicate
 full-suite step or alternate unverified command is required. Live provider and
 three-client acceptance cannot be inferred from a green offline CI run.
+
+## Agent subtask extension (2026-10-23)
+
+`agents_tasks_create.input.parentTaskId` creates a subtask using the existing
+`agents:write` consent. `agents_tasks_list` supports `parentTaskId` and
+`scope=all|roots`. All task outputs include nullable `parentTaskId`.
+Use the returned child id with the existing get/update/transition/activity/delete
+tools; each child has its own version and lifecycle. Parent linkage cannot be
+edited. No additional tool or broader scope is needed. See reporting-api.md for
+one-level nesting, parent deletion, idempotency and retention semantics.

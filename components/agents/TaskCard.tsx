@@ -6,6 +6,7 @@ const FRESHNESS_LABELS = { fresh: 'Reportando', stale: 'Sem atualização recent
 export function TaskCard({ task }: { task: AgentTask }) {
   return (
     <Link href={`/agents/tasks/${encodeURIComponent(task.id)}`} className="group flex flex-col gap-3 rounded-xl border border-line bg-surface-2 p-4 shadow-e1 transition hover:border-brand-edge hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+      {task.parentTaskId && <span className="text-xs font-medium text-ink-dim">Subtarefa</span>}
       <span className="text-sm font-semibold leading-relaxed text-ink group-hover:text-primary">{task.title}</span>
       {task.description && <p className="line-clamp-2 text-xs leading-relaxed text-ink-mid">{task.description}</p>}
       <div className="flex items-start gap-2 text-xs text-ink-mid"><Bot className="mt-0.5 size-3.5 shrink-0" /><span>{task.assignment ? <>{task.assignment.displayName}<span className="block text-ink-dim">{task.assignment.provider} · {task.assignment.sessionId.slice(0, 8)}</span></> : 'Sem agente atribuído'}</span></div>

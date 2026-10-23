@@ -288,3 +288,17 @@ equivalent against the same authorized repositories and resulting state.
   by the user after Ruflo review; MCP returns a secure setup link.
 - Both core decisions are integrated. The implementation plan and module backlog
   are recorded separately; implementation has not started.
+
+### Follow-up: agent subtasks (2026-10-23)
+
+The user explicitly authorized agents to create tasks and subtasks and confirmed
+that these are agent-kanban tasks, linked to a parent with their own progress.
+
+- FR-030: Agents can create one-level subtasks through the reporting API and MCP,
+  under the existing owner-scoped write permission. Each child has its own state,
+  activity, metadata version and 30-day inactivity retention.
+- FR-031: The home kanban displays top-level tasks; task detail displays linked,
+  paginated subtasks with navigation to their independent activity/status view.
+  Child activity counts as parent activity, without automatic status changes.
+- FR-032: Enforce parent ownership, reject nested/reparenting requests, preserve
+  idempotent writes and reject implicit destructive parent deletion.

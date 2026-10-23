@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('task editing concurrency', () => {
   it('preserves the version present when editing started even if polling updates the task', async () => {
     const now = new Date().toISOString();
-    const task: AgentTask = { id: 'task', externalId: 'external', title: 'Original title', description: '', status: 'queued', assignment: null, source: null, version: 1, createdAt: now, lastActivityAt: now };
+    const task: AgentTask = { id: 'task', parentTaskId: null, externalId: 'external', title: 'Original title', description: '', status: 'queued', assignment: null, source: null, version: 1, createdAt: now, lastActivityAt: now };
     const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 409 }));
     vi.stubGlobal('fetch', fetch);
     const view = render(<TaskActions task={task} onChanged={vi.fn()} />);

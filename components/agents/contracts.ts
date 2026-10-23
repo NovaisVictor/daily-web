@@ -7,7 +7,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   completed: 'Concluídas', failed: 'Falharam', cancelled: 'Canceladas',
 };
 export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession> }
-export interface TaskDetail { task: AgentTask; activity: Page<Activity> }
+export interface TaskDetail { task: AgentTask; activity: Page<Activity>; subtasks: Page<AgentTask> }
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Resposta inválida do servidor.');
@@ -33,6 +33,8 @@ function page<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
 }
 function task(value: unknown): AgentTask {
   const data = object(value);
+  const parentTaskId=data.parentTaskId==null?null:string(data.parentTaskId);
+  if(parentTaskId!==null&&(!parentTaskId||parentTaskId===data.id))throw new Error('Hierarquia inválida na resposta do servidor.');
   let assignment: Assignment | null = null;
   if (data.assignment != null) {
     const a = object(data.assignment);
@@ -44,7 +46,7 @@ function task(value: unknown): AgentTask {
     const s = object(data.source);
     source = { provider: member(s.provider, ['personal', 'jira', 'github']), resource: string(s.resource), ...(s.connectionId == null ? {} : { connectionId: string(s.connectionId) }) };
   }
-  return { id: string(data.id), externalId: string(data.externalId), title: string(data.title), description: string(data.description), status: member(data.status, TASK_STATUSES), assignment, source, version: data.version as number, createdAt: timestamp(data.createdAt), lastActivityAt: timestamp(data.lastActivityAt) };
+  return { id: string(data.id), parentTaskId, externalId: string(data.externalId), title: string(data.title), description: string(data.description), status: member(data.status, TASK_STATUSES), assignment, source, version: data.version as number, createdAt: timestamp(data.createdAt), lastActivityAt: timestamp(data.lastActivityAt) };
 }
 export function parseSnapshot(value: unknown): Snapshot {
   const data = object(value);
@@ -58,7 +60,10 @@ export function parseSnapshot(value: unknown): Snapshot {
 }
 export function parseTaskDetail(value: unknown): TaskDetail {
   const data = object(value);
-  return { task: task(data.task), activity: page(data.activity, value => {
+  const current=task(data.task);
+  const subtasks:Page<AgentTask>=data.subtasks===undefined?{items:[],nextCursor:null,complete:true}:page(data.subtasks,task);
+  if(subtasks.items.some(child=>child.parentTaskId!==current.id)||current.parentTaskId!==null&&subtasks.items.length)throw new Error('Hierarquia inválida na resposta do servidor.');
+  return { task: current, subtasks, activity: page(data.activity, value => {
     const a = object(value);
     return { id: string(a.id), taskId: string(a.taskId), kind: member(a.kind, ['progress', 'transition', 'created', 'updated'] as const), summary: string(a.summary), receivedAt: timestamp(a.receivedAt), occurredAt: a.occurredAt == null ? null : timestamp(a.occurredAt) };
   }) };

@@ -494,6 +494,13 @@ function addAgentWorkspace(instance: Database.Database): void {
   `);
 }
 
+function addAgentSubtasks(instance: Database.Database): void {
+  instance.exec(`
+    ALTER TABLE main.tb_agent_task ADD COLUMN uid_parent_task TEXT REFERENCES tb_agent_task(uid_task) ON DELETE SET NULL;
+    CREATE INDEX main.tb_agent_task_ix5 ON tb_agent_task(uid_parent_task, uid_user, tsz_update DESC, uid_task DESC);
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -511,6 +518,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addTaskBoardStatus,
   addTaskBoardStyle,
   addAgentWorkspace,
+  addAgentSubtasks,
 ];
 
 function migrate(instance: Database.Database): void {
