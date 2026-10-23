@@ -138,7 +138,11 @@
   --foreground: var(--ink);
   --card: var(--glass);
   --card-foreground: var(--ink);
-  --popover: var(--glass-strong);
+  /* Menus and dialogs float over content, not over the page floor: in dark
+     themes the 5% glass let a post-it's colour and text show through the
+     items. The theme's own popover surface, nearly opaque, keeps the blur
+     as a hint while the content stays readable on any background. */
+  --popover: oklch(from var(--surface-4) l c h / 94%);
   --popover-foreground: var(--ink);
   --primary: var(--brand);
   --primary-foreground: var(--brand-ink);

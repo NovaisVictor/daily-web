@@ -147,6 +147,9 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- Menus and dialogs no longer let the content behind them show through in
+  the dark themes. They used a 5% glass, so a post-it's colour and text sat
+  under the menu items; they now use the theme's popover surface at 94%.
 - Editing a local monthly task no longer wipes its recurrence. The form only
   recognised Microsoft To Do's `absoluteMonthly`, so a task stored as
   `monthly` opened as "Não repete" and saving sent `recur: 'none'`.
