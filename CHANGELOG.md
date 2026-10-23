@@ -114,6 +114,14 @@ Only `main` is maintained; there are no release branches.
 - The gradient is the default page background again. The Catppuccin base is
   no longer applied to everyone; it is opt-in through the new choice.
 
+### Removed
+- UI primitives that nothing imported: `components/ui/card`, `select`,
+  `separator`, `sheet`, `table` and `tabs`, plus `components/data/Metric`.
+  Panels keep rendering tabs through `ui/legacy-tabs`. Nothing changes on
+  screen.
+- The `components/ui/EmptyState` shim. Every caller already imports
+  `components/data/EmptyState`.
+
 ### Fixed
 - Creating a focus block now shows the "Bloco de foco criado" confirmation.
   The provider called `toast()` but no Toaster was ever mounted, so the

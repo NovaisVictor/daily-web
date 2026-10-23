@@ -4,7 +4,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-vi.mock('@/lib/integrations/imap', () => ({
+vi.mock('@/lib/integrations/imap', async (importOriginal) => ({
+  // The real mailConfig, so the sender the draft route reads comes from the
+  // stored connection exactly as in production.
+  mailConfig: (await importOriginal<typeof import('@/lib/integrations/imap')>()).mailConfig,
   setSeen: vi.fn(),
   applyTag: vi.fn(),
   deleteEmails: vi.fn(),
@@ -13,15 +16,22 @@ vi.mock('@/lib/integrations/imap', () => ({
   fetchBody: vi.fn(),
 }));
 
+vi.mock('@/lib/ai/replyDraft', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/ai/replyDraft')>()),
+  draftReply: vi.fn(),
+}));
+
 const currentUser = vi.fn();
 vi.mock('@/lib/auth/currentUser', () => ({ getCurrentUser: () => currentUser() }));
 
-import { setSeen, applyTag, deleteEmails, listFolders, sendReply } from '@/lib/integrations/imap';
+import { setSeen, applyTag, deleteEmails, listFolders, sendReply, fetchBody } from '@/lib/integrations/imap';
+import { draftReply } from '@/lib/ai/replyDraft';
 import { POST as markRoute } from '@/app/api/email/mark/route';
 import { POST as batchRoute } from '@/app/api/email/batch/route';
 import { GET as foldersRoute } from '@/app/api/email/folders/route';
 import { POST as tagRoute } from '@/app/api/email/tag/route';
 import { POST as replyRoute } from '@/app/api/email/reply/route';
+import { POST as draftRoute } from '@/app/api/email/reply/draft/route';
 
 let dir: string;
 let mailId: string;
@@ -140,6 +150,21 @@ describe('POST /api/email/reply', () => {
     const res = await replyRoute(req({ account: mailId, id: '42', body: 'oi' }));
     expect(res.status).toBe(502);
     expect((await res.json()).error).toContain('senha recusada');
+  });
+});
+
+describe('POST /api/email/reply/draft', () => {
+  it('escreve o rascunho em nome da caixa que vai enviar a resposta', async () => {
+    vi.mocked(fetchBody).mockResolvedValue('Pode confirmar a reunião?');
+    vi.mocked(draftReply).mockResolvedValue('Confirmado.');
+    const res = await draftRoute(
+      req({ account: mailId, id: '42', from: 'cliente@y.com', subject: 'Reunião' }),
+    );
+    expect(res.status).toBe(200);
+    expect(vi.mocked(draftReply).mock.calls[0][0]).toMatchObject({
+      sender: 'a@x.com',
+      from: 'cliente@y.com',
+    });
   });
 });
 

@@ -33,6 +33,7 @@ export class MissingApiKeyError extends Error {
 export interface DraftInput {
   /** The mailbox address the reply will be sent from. */
   sender: string;
+  /** The author of the incoming e-mail, who receives the reply. */
   from: string;
   subject: string;
   body: string;
