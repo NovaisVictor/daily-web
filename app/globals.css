@@ -445,14 +445,14 @@
 }
 
 /* Dracula, dark theme only. The official palette names one background and one
-   "current line"; the darker and lighter surfaces are the ones Dracula's own
-   editor themes use for sidebars and raised panels. Comment (#6272a4) is 3:1
-   on the background, too dim for text, so it only draws strong lines and the
-   top surface; the two dimmer text tones are lightened from it and from
-   Foreground to stay above 4.5:1 on every surface text sits on. Unlike
-   Catppuccin there is no light base: on a light page the mesh stays, since
-   Dracula is a dark palette. The mapping is written twice, as the dark theme
-   is (system preference and explicit choice). */
+   "current line"; the darker and lighter surfaces fill the other surface
+   steps. Comment (#6272a4) is 3:1 on the background, too dim for text, so it
+   only draws strong lines and the top surface; the two dimmer text tones are
+   lightened from it and from Foreground to stay at least 4.5:1 on surface-0
+   to surface-2, where body text sits (#a4add0 drops to 4.13:1 on Current
+   Line). Unlike Catppuccin there is no light base: on a light page the mesh
+   stays, since Dracula is a dark palette. The mapping is written twice, as
+   the dark theme is (system preference and explicit choice). */
 :root[data-backdrop='dracula'] {
   --drc-darkest: oklch(0.22 0.014 278.803); /* #191a21 */
   --drc-darker: oklch(0.255 0.019 280.488); /* #21222c */

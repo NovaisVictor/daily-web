@@ -37,6 +37,18 @@ export const RELEASES: Release[] = [
     ],
   },
   {
+    id: '2026-10-23-dracula',
+    date: '2026-10-23',
+    title: 'Fundo Dracula',
+    items: [
+      {
+        title: 'Uma terceira opção de fundo',
+        detail:
+          'No menu da conta, em Fundo, ao lado de Gradiente e Catppuccin: no tema escuro, a página, os cartões, o texto, as bordas, o destaque e os selos de situação seguem a paleta Dracula. No tema claro o gradiente continua.',
+      },
+    ],
+  },
+  {
     id: '2026-10-21-daily',
     date: '2026-10-21',
     title: 'Resumo para a daily',

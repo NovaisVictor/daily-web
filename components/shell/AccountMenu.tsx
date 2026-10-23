@@ -40,7 +40,8 @@ const DENSITY_LABEL: Record<Density, string> = {
 const BACKDROP_LABEL: Record<Backdrop, string> = {
   mesh: 'Gradiente',
   catppuccin: 'Catppuccin',
-  dracula: 'Dracula',
+  // Dracula only remaps the dark theme, so the hint keeps a light-theme pick from looking broken.
+  dracula: 'Dracula (só no tema escuro)',
 };
 
 interface Props {
