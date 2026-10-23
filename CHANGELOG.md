@@ -115,6 +115,10 @@ Only `main` is maintained; there are no release branches.
   no longer applied to everyone; it is opt-in through the new choice.
 
 ### Fixed
+- Creating a focus block now shows the "Bloco de foco criado" confirmation.
+  The provider called `toast()` but no Toaster was ever mounted, so the
+  message was queued and never rendered. The shell now mounts one for every
+  authenticated screen.
 - An AI-drafted e-mail reply no longer speaks as the project's author. The
   prompt named one person, so every other user got drafts written, and
   sometimes signed, in his name. The draft is now written on behalf of the

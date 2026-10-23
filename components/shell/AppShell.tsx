@@ -26,6 +26,7 @@ import { AccountMenu } from './AccountMenu';
 import { ChangelogDialog, useChangelog } from './ChangelogDialog';
 import { CommandPalette } from './CommandPalette';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Toaster } from '@/components/ui/sonner';
 import { NAV_ITEMS, groupStart } from './nav-items';
 
 interface Props {
@@ -299,6 +300,9 @@ export function AppShell({ theme, density, backdrop, sidebar, username, children
 
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
         <ChangelogDialog shown={changelog.shown} dismiss={changelog.dismiss} />
+        {/* `toast()` only queues a message; without a mounted Toaster nothing
+            ever renders it, which is how "Bloco de foco criado" went unseen. */}
+        <Toaster />
       </div>
     </TooltipProvider>
   );
