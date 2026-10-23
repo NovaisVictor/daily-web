@@ -8,7 +8,7 @@ import type { PanelResult, TaskPriority, TasksView, TodoTask } from '@/lib/types
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
 import { matchesQuery } from '@/lib/filters';
-import { groupTasksByDueWindow } from '@/lib/taskGrouping';
+import { groupTasksByDueWindow, isOverdue } from '@/lib/taskGrouping';
 import type { TaskGroupKey } from '@/lib/taskGrouping';
 import { TaskFormModal } from './TaskFormModal';
 import { Section } from './ui/Section';
@@ -20,26 +20,30 @@ import { EmptyState } from '@/components/data/EmptyState';
 import { useConfirm } from '@/components/data/ConfirmDialog';
 import { SkeletonRows } from './ui/legacy-skeleton';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { GLYPH } from './data/Status';
 import { cn } from '@/lib/utils';
 import { focusRing, tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
+import { SubtaskList } from '@/components/tasks/SubtaskList';
+import { TaskActionsMenu } from '@/components/tasks/TaskActionsMenu';
+import { segmentedGroup, segmentedItem } from '@/components/tasks/segmented';
+import { readErrorMessage } from '@/components/tasks/readErrorMessage';
 import { columnLabel, planMove, type BoardColumn } from '@/lib/taskBoard';
 
 /** A failing integration is information, not an alarm: contained block, side marker. */
 
+// 24px: the smallest target WCAG 2.5.8 accepts; at 18px the arrow was easy to miss.
 const caret =
-  'inline-flex size-[18px] shrink-0 items-center justify-center rounded-md text-ink-dim transition-transform duration-100 ease-brand hover:bg-muted hover:text-ink aria-expanded:rotate-90 motion-reduce:transition-none';
-
-const addToggle =
-  'inline-flex size-[18px] shrink-0 items-center justify-center rounded-md leading-none text-ink-dim transition-colors duration-100 ease-brand hover:bg-muted hover:text-ink aria-expanded:text-brand motion-reduce:transition-none';
+  'inline-flex size-6 shrink-0 items-center justify-center rounded-md text-ink-dim transition-transform duration-100 ease-brand hover:bg-muted hover:text-ink aria-expanded:rotate-90 motion-reduce:transition-none';
 
 const flagPill =
   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 type-caption';
 const neutralFlag = 'border-line-strong bg-neutral-tint text-ink-dim';
+// "Fazendo" is a board column, but the list must show it too: otherwise a
+// task in progress looks exactly like one nobody started.
+const doingFlag = 'border-info/40 bg-info-tint text-info';
 
 /**
  * Priority is a state, so it carries a glyph and a word beside the hue and never
@@ -62,26 +66,18 @@ interface Props {
   onRemoved: (id: string) => void;
   onSubtaskChanged: (taskId: string, itemId: string, completed: boolean) => void;
   onDoingChanged?: (id: string, doing: boolean) => void;
-  /** The saved choice between the list and the board. The list is the default
-   *  because the board is an extra, not a replacement. */
+  /** The saved choice between the list and the board. The board is the
+   *  default: it does everything the list does, and shows "Fazendo" at a glance. */
   view?: TasksView;
   onViewChanged?: (view: TasksView) => void;
   loading?: boolean;
 }
-
-const viewToggle =
-  'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-sm text-ink-mid transition-colors duration-100 ease-brand hover:text-ink aria-pressed:bg-brand-tint aria-pressed:text-ink aria-pressed:shadow-control motion-reduce:transition-none';
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   high: 'Alta',
   normal: 'Normal',
   low: 'Baixa',
 };
-
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
-  const data = await res.json().catch(() => ({}));
-  return data.error ?? fallback;
-}
 
 // As faixas vêm em caixa alta para servirem de cabeçalho da lista; no chip
 // elas viram texto normal, com só a primeira letra maiúscula.
@@ -98,123 +94,22 @@ export function formatDue(due: string, time: string): string {
   return time ? `${day}/${month} ${time}` : `${day}/${month}`;
 }
 
-function SubtaskList({
-  task,
-  onChanged,
-  onError,
-  onSubtaskChanged,
-  adding,
-  onDoneAdding,
-}: {
-  task: TodoTask;
-  onChanged: () => void;
-  onError: (message: string) => void;
-  onSubtaskChanged: (taskId: string, itemId: string, completed: boolean) => void;
-  adding: boolean;
-  onDoneAdding: () => void;
-}) {
-  const [newTitle, setNewTitle] = useState('');
-
-  const toggleSubtask = async (subtaskId: string, completed: boolean) => {
-    onSubtaskChanged(task.id, subtaskId, completed);
-
-    const res = await fetch(
-      `/api/tasks/${encodeURIComponent(task.id)}/subtasks/${encodeURIComponent(subtaskId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed }),
-      },
-    );
-    if (!res.ok) {
-      onError(await readErrorMessage(res, 'Falha ao atualizar subtarefa'));
-      onChanged();
-    }
-  };
-
-  const addSubtask = async () => {
-    if (!newTitle.trim()) return;
-    const res = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/subtasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle.trim() }),
-    });
-    if (!res.ok) {
-      onError(await readErrorMessage(res, 'Falha ao adicionar subtarefa'));
-      return;
-    }
-    setNewTitle('');
-    onDoneAdding();
-    onChanged();
-  };
-
-  const removeSubtask = async (subtaskId: string) => {
-    const res = await fetch(
-      `/api/tasks/${encodeURIComponent(task.id)}/subtasks/${encodeURIComponent(subtaskId)}`,
-      { method: 'DELETE' },
-    );
-    if (!res.ok) {
-      onError(await readErrorMessage(res, 'Falha ao apagar subtarefa'));
-      return;
-    }
-    onChanged();
-  };
-
+/** Late is said with a glyph and a word as well as the warning hue, so it does
+ *  not depend on telling colours apart. */
+function DueDate({ task }: { task: TodoTask }) {
+  const overdue = isOverdue(task);
   return (
-    /* A subtask is the parent's child: the indent and the left hairline say so
-       without a label. The rule starts aligned with the parent's checkbox. */
-    <div className="mb-3 ml-14 flex flex-col gap-1 border-l border-line-soft pl-4">
-      {task.subtasks.map((subtask) => (
-        <div
-          key={subtask.id}
-          className={cn(
-            'flex items-center gap-2 text-sm',
-            subtask.completed ? 'text-ink-dim line-through' : 'text-ink-mid',
-          )}
-        >
-          <input
-            type="checkbox"
-            className={checkbox}
-            checked={subtask.completed}
-            onChange={() => void toggleSubtask(subtask.id, !subtask.completed)}
-            aria-label={`concluir subtarefa ${subtask.title}`}
-          />
-          <span className="min-w-0 flex-1 truncate">{subtask.title}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="shrink-0 text-ink-dim hover:bg-danger-tint hover:text-danger"
-            onClick={() => void removeSubtask(subtask.id)}
-            aria-label={`apagar subtarefa ${subtask.title}`}
-          >
-            ×
-          </Button>
-        </div>
-      ))}
-      {adding && (
-        <div className="mt-1 flex gap-2">
-          <Input
-            className="min-w-0 flex-1"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void addSubtask();
-              if (e.key === 'Escape') onDoneAdding();
-            }}
-            placeholder="nova subtarefa"
-            aria-label={`nova subtarefa de ${task.title}`}
-            autoFocus
-          />
-          <IconAction
-            variant="outline"
-            label="Adicionar subtarefa"
-            onClick={() => void addSubtask()}
-            icon={<Plus className="size-4" />}
-          />
-        </div>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 type-caption',
+        overdue ? 'font-medium text-warning' : 'text-ink-dim',
+        tabular,
       )}
-    </div>
+    >
+      {overdue && <span aria-hidden>{GLYPH.alert}</span>}
+      {overdue && <span className="sr-only">atrasada, prazo </span>}
+      {formatDue(task.due, task.time)}
+    </span>
   );
 }
 
@@ -225,7 +120,7 @@ export function TasksPanel({
   onRemoved,
   onSubtaskChanged,
   onDoingChanged,
-  view: savedView = 'list',
+  view: savedView = 'board',
   onViewChanged,
   loading = false,
 }: Props) {
@@ -263,9 +158,10 @@ export function TasksPanel({
     });
   };
 
-  // Quem clica no "+" quer ver o campo — e o que já existe ali junto.
+  // Whoever asks to add a subtask wants the field, and the ones already there
+  // next to it.
   const startAddingSubtask = (id: string) => {
-    setAddingSubtaskFor((cur) => (cur === id ? null : id));
+    setAddingSubtaskFor(id);
     setExpanded((prev) => new Set(prev).add(id));
   };
 
@@ -370,9 +266,9 @@ export function TasksPanel({
     }
   };
 
-  const moveTask = async (task: TodoTask, to: BoardColumn) => {
+  const moveTask = async (task: TodoTask, to: BoardColumn): Promise<boolean> => {
     const steps = planMove(task, to);
-    if (steps.length === 0) return;
+    if (steps.length === 0) return true;
     setActionError(null);
     // Same rule as the checkbox: a recurring task is not marked done ahead of
     // the server, because it rolls over to its next date instead.
@@ -400,7 +296,7 @@ export function TasksPanel({
         setActionError(message);
         setAnnouncement(`Não foi possível mover ${task.title}: ${message}`);
         onChanged();
-        return;
+        return false;
       }
     }
     setAnnouncement(
@@ -409,6 +305,27 @@ export function TasksPanel({
         : `${task.title} movida para ${columnLabel(to)}.`,
     );
     onChanged();
+    return true;
+  };
+
+  // One request even for "Fazendo": a create followed by a separate move could
+  // leave the task in "A fazer" when the second request failed.
+  const createTask = async (title: string, column: 'todo' | 'doing'): Promise<boolean> => {
+    setActionError(null);
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, status: column }),
+    });
+    if (!res.ok) {
+      const message = await readErrorMessage(res, 'Falha ao criar tarefa');
+      setActionError(message);
+      setAnnouncement(`Não foi possível adicionar ${title}: ${message}`);
+      return false;
+    }
+    setAnnouncement(`${title} adicionada em ${columnLabel(column)}.`);
+    onChanged();
+    return true;
   };
 
   const remove = async (task: TodoTask) => {
@@ -439,14 +356,10 @@ export function TasksPanel({
       count={activeFilters.length > 0 ? `${visibleCount} de ${all.length}` : undefined}
       actions={
         <div className="flex items-center gap-2">
-          <div
-            role="group"
-            aria-label="Visualização das tarefas"
-            className="inline-flex items-center gap-0.5 rounded-full border border-line-strong bg-surface-2 p-0.5 shadow-e1"
-          >
+          <div role="group" aria-label="Visualização das tarefas" className={segmentedGroup}>
             <button
               type="button"
-              className={cn(viewToggle, focusRing)}
+              className={cn(segmentedItem, focusRing)}
               aria-pressed={view === 'list'}
               onClick={() => void chooseView('list')}
             >
@@ -455,7 +368,7 @@ export function TasksPanel({
             </button>
             <button
               type="button"
-              className={cn(viewToggle, focusRing)}
+              className={cn(segmentedItem, focusRing)}
               aria-pressed={view === 'board'}
               onClick={() => void chooseView('board')}
             >
@@ -514,25 +427,38 @@ export function TasksPanel({
 
       {loading && all.length === 0 && <SkeletonRows count={5} />}
 
-      {!loading && all.length === 0 && !tasks.error && (
-        <EmptyState title="Nenhuma tarefa por aqui. Crie a primeira." />
+      {/* The board needs no empty state of its own: its empty columns already
+          say where a note goes, and each has its own "Adicionar". */}
+      {view === 'list' && !loading && all.length === 0 && !tasks.error && (
+        <EmptyState
+          title="Nenhuma tarefa por aqui. Crie a primeira."
+          action={
+            <Button type="button" onClick={() => setEditing('new')}>
+              <Plus className="size-4" aria-hidden="true" />
+              Nova tarefa
+            </Button>
+          }
+        />
       )}
 
       {all.length > 0 && visibleCount === 0 && (
         <EmptyState title="Nenhuma tarefa com esses filtros." />
       )}
 
-      {view === 'board' && (
-        <p role="status" className="sr-only">
-          {announcement}
-        </p>
-      )}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
 
-      {view === 'board' && boardTasks.length > 0 && (
+      {view === 'board' && !(loading && all.length === 0) && (
         <TaskBoard
           tasks={boardTasks}
-          onMove={(task, to) => void moveTask(task, to)}
+          onMove={moveTask}
           onOpen={setEditing}
+          onRemove={(task) => void remove(task)}
+          onCreate={createTask}
+          onChanged={onChanged}
+          onError={setActionError}
+          onSubtaskChanged={onSubtaskChanged}
           formatDue={formatDue}
         />
       )}
@@ -567,17 +493,8 @@ export function TasksPanel({
                       <NavArrowRight width={14} height={14} />
                     </button>
                   ) : (
-                    <span className="inline-block size-[18px] shrink-0" aria-hidden="true" />
+                    <span className="inline-block size-6 shrink-0" aria-hidden="true" />
                   )}
-                  <button
-                    type="button"
-                    className={cn(addToggle, focusRing)}
-                    aria-label={`adicionar subtarefa em ${task.title}`}
-                    aria-expanded={addingSubtaskFor === task.id}
-                    onClick={() => startAddingSubtask(task.id)}
-                  >
-                    +
-                  </button>
                   <input
                     type="checkbox"
                     className={checkbox}
@@ -602,6 +519,12 @@ export function TasksPanel({
                       {task.title}
                     </span>
                   </button>
+                  {task.doing && (
+                    <span className={cn(flagPill, doingFlag)}>
+                      <span aria-hidden>{GLYPH.moving}</span>
+                      <span>Fazendo</span>
+                    </span>
+                  )}
                   {task.priority !== 'normal' && (
                     <span className={cn(flagPill, PRIORITY_TONE[task.priority].tone)}>
                       <span aria-hidden>{PRIORITY_TONE[task.priority].glyph}</span>
@@ -613,11 +536,7 @@ export function TasksPanel({
                       repete
                     </span>
                   )}
-                  {task.due && (
-                    <span className={cn('shrink-0 type-caption text-ink-dim', tabular)}>
-                      {formatDue(task.due, task.time)}
-                    </span>
-                  )}
+                  {task.due && <DueDate task={task} />}
                   {task.subtasks.length > 0 && (
                     <span
                       className={cn('shrink-0 type-caption text-ink-dim', tabular)}
@@ -636,16 +555,13 @@ export function TasksPanel({
                       icon={<CalendarPlus className="size-4" />}
                     />
                   )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 text-danger hover:bg-danger-tint hover:text-danger"
-                    onClick={() => void remove(task)}
-                    aria-label={`apagar ${task.title}`}
-                  >
-                    Apagar
-                  </Button>
+                  <TaskActionsMenu
+                    task={task}
+                    onEdit={() => setEditing(task)}
+                    onAddSubtask={() => startAddingSubtask(task.id)}
+                    onMove={(to) => void moveTask(task, to)}
+                    onDelete={() => void remove(task)}
+                  />
                 </div>
                 {(expanded.has(task.id) || addingSubtaskFor === task.id) && (
                   <SubtaskList
@@ -654,6 +570,7 @@ export function TasksPanel({
                     onError={setActionError}
                     onSubtaskChanged={onSubtaskChanged}
                     adding={addingSubtaskFor === task.id}
+                    onStartAdding={() => startAddingSubtask(task.id)}
                     onDoneAdding={() => setAddingSubtaskFor(null)}
                   />
                 )}

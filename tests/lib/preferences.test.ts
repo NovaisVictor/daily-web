@@ -83,21 +83,23 @@ describe('remoção de usuário', () => {
 });
 
 describe('visualização das tarefas', () => {
-  it('quem nunca escolheu continua na lista', async () => {
+  it('quem nunca escolheu vê o quadro', async () => {
     const { tasksView } = await import('@/lib/preferences');
-    expect(tasksView(USER)).toBe('list');
-  });
-
-  it('guarda a escolha de cada usuário', async () => {
-    const { tasksView, setTasksView } = await import('@/lib/preferences');
-    setTasksView(USER, 'board');
     expect(tasksView(USER)).toBe('board');
-    expect(tasksView(OTHER)).toBe('list');
   });
 
-  it('um valor gravado à mão que não existe vira a lista', async () => {
+  // The default moved from the list to the board; whoever had already chosen
+  // the list must not be moved along with it.
+  it('quem já escolheu a lista continua na lista', async () => {
+    const { tasksView, setTasksView } = await import('@/lib/preferences');
+    setTasksView(USER, 'list');
+    expect(tasksView(USER)).toBe('list');
+    expect(tasksView(OTHER)).toBe('board');
+  });
+
+  it('um valor gravado à mão que não existe vira o quadro', async () => {
     const { tasksView, setPreference, TASKS_VIEW } = await import('@/lib/preferences');
     setPreference(USER, TASKS_VIEW, 'kanban');
-    expect(tasksView(USER)).toBe('list');
+    expect(tasksView(USER)).toBe('board');
   });
 });

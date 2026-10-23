@@ -49,6 +49,38 @@ export const RELEASES: Release[] = [
     ],
   },
   {
+    id: '2026-10-23-quadro-completo',
+    date: '2026-10-23',
+    title: 'Quadro completo, e agora padrão',
+    items: [
+      {
+        title: 'Tudo o que a lista faz, o quadro também faz',
+        detail:
+          'Cada nota tem o menu "⋯" com Editar, Adicionar subtarefa, Agendar foco, Mover para e Apagar, o mesmo das linhas da lista. Apagar sempre pede confirmação.',
+      },
+      {
+        title: 'Subtarefas na própria nota',
+        detail:
+          'Clique no progresso "1/3" da nota para ver as subtarefas, marcar, apagar ou adicionar uma nova sem sair do quadro.',
+      },
+      {
+        title: 'Adicione direto na coluna',
+        detail:
+          'Use "+ Adicionar" no fim de "A fazer" ou de "Fazendo". Enter cria a nota e deixa o campo aberto para a próxima; Esc cancela.',
+      },
+      {
+        title: 'O quadro abre primeiro',
+        detail:
+          'O painel de tarefas agora abre no quadro. Quem já tinha escolhido a lista continua nela. No celular, as colunas viram abas, e a coluna Feito mostra as 10 primeiras notas, com "Mostrar todas" para o resto.',
+      },
+      {
+        title: 'Atrasadas à vista',
+        detail:
+          'Uma data vencida aparece com ▲ e em destaque, na lista e no quadro. A lista também mostra quais tarefas estão em "Fazendo".',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-kanban',
     date: '2026-10-23',
     title: 'Tarefas em quadro',

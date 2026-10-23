@@ -70,3 +70,10 @@ export function groupTasksByDueWindow(tasks: TodoTask[], today: Date = new Date(
     tasks: buckets.get(key)!,
   }));
 }
+
+/** Late and still open. Same day boundary as the "ATRASADAS" group, so a row
+ *  never says "atrasada" under a heading that disagrees. A finished task is
+ *  not late any more, whatever its date says. */
+export function isOverdue(task: TodoTask, today: Date = new Date()): boolean {
+  return !task.completed && task.due !== '' && task.due < toLocalDateString(today);
+}

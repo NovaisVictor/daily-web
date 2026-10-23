@@ -138,7 +138,11 @@
   --foreground: var(--ink);
   --card: var(--glass);
   --card-foreground: var(--ink);
-  --popover: var(--glass-strong);
+  /* Menus and dialogs float over content, not over the page floor: in dark
+     themes the 5% glass let a post-it's colour and text show through the
+     items. The theme's own popover surface, nearly opaque, keeps the blur
+     as a hint while the content stays readable on any background. */
+  --popover: oklch(from var(--surface-4) l c h / 94%);
   --popover-foreground: var(--ink);
   --primary: var(--brand);
   --primary-foreground: var(--brand-ink);
@@ -1194,6 +1198,22 @@
     font-size: 0.875rem;
     color: var(--ink-dim);
   }
+  .board-lane-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2rem;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--ink-dim);
+    transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .board-lane-add:hover {
+    background: var(--muted);
+    color: var(--ink);
+  }
   .board-notes {
     display: flex;
     flex-direction: column;
@@ -1215,6 +1235,9 @@
 
   .postit {
     --postit-paper: var(--postit-yellow);
+    /* The hover wash for controls on the paper: ink at low alpha reads on
+       every paper colour, where the app's grey would smudge the pastel. */
+    --postit-wash: oklch(from var(--postit-ink) l c h / 10%);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -1356,9 +1379,15 @@
     );
   }
 
+  .postit-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
   .postit-title {
     display: block;
-    width: 100%;
+    min-width: 0;
+    flex: 1;
     font-size: 0.9375rem;
     font-weight: 500;
     line-height: 1.4;
@@ -1392,10 +1421,31 @@
     border-radius: 9999px;
     padding: 0 0.45rem;
   }
+  .postit-due {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  /* Late: the glyph and the weight carry it, and the ink darkens toward the
+     warning hue. Plain --signal-warning is too light to read on the paper. */
+  .postit-due[data-overdue] {
+    font-weight: 600;
+    color: oklch(from var(--signal-warning) 0.42 calc(c * 1.4) h);
+  }
   .postit-progress {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
+    min-height: 1.5rem;
+    margin: -0.25rem -0.375rem;
+    border-radius: 9999px;
+    padding: 0.125rem 0.375rem;
+    color: inherit;
+  }
+  .postit-progress:hover,
+  .postit-progress[aria-expanded='true'] {
+    background: var(--postit-wash);
+    color: var(--postit-ink);
   }
   .postit-progress-bar {
     position: relative;
@@ -1412,6 +1462,93 @@
     width: var(--progress, 0%);
     border-radius: inherit;
     background: var(--postit-ink-mid);
+  }
+  .postit-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    border-top: 1px dashed oklch(from var(--postit-ink) l c h / 18%);
+    padding-top: 0.35rem;
+    font-size: 0.8125rem;
+  }
+  .postit-subtask {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    color: var(--postit-ink);
+  }
+  .postit-subtask[data-done] .postit-subtask-text {
+    color: var(--postit-ink-mid);
+    text-decoration: line-through;
+    text-decoration-color: var(--postit-ink-mid);
+  }
+  .postit-subtask-text {
+    padding-top: 0.2rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .postit-check {
+    flex-shrink: 0;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-top: 0.3rem;
+    cursor: pointer;
+    accent-color: var(--postit-ink-mid);
+  }
+  .postit-icon-button {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: var(--postit-ink-mid);
+  }
+  .postit-icon-button:hover {
+    background: var(--postit-wash);
+    color: var(--postit-ink);
+  }
+  .postit-icon-button-danger:hover {
+    color: oklch(from var(--signal-danger) 0.45 c h);
+  }
+  .postit-subtask-add {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.125rem;
+  }
+  .postit-input {
+    min-width: 0;
+    flex: 1;
+    height: 1.75rem;
+    border: 0;
+    border-bottom: 1px solid oklch(from var(--postit-ink) l c h / 35%);
+    border-radius: 2px;
+    background: oklch(from var(--postit-paper) calc(l + 0.03) c h);
+    padding: 0 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--postit-ink);
+    outline: none;
+  }
+  .postit-input::placeholder {
+    color: var(--postit-ink-mid);
+    opacity: 0.8;
+  }
+  .postit-subtask-new {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.5rem;
+    margin-left: -0.375rem;
+    border-radius: 9999px;
+    padding: 0 0.375rem;
+    color: var(--postit-ink-mid);
+  }
+  .postit-subtask-new:hover {
+    background: var(--postit-wash);
+    color: var(--postit-ink);
   }
   .postit-moves {
     display: flex;

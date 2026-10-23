@@ -94,6 +94,40 @@ describe('POST /api/tasks', () => {
   });
 });
 
+describe('POST /api/tasks com coluna do quadro', () => {
+  it('status "doing" cria a tarefa já em Fazendo, numa só requisição', async () => {
+    const res = await createRoute(req({ title: 'Revisar PR', status: 'doing' }));
+    expect(res.status).toBe(200);
+    expect(addTask).toHaveBeenCalledWith('u-1', 'Revisar PR');
+    expect(setDoing).toHaveBeenCalledWith('u-1', 'NEW-ID', true);
+  });
+
+  it('status "todo" cria a tarefa sem marcar Fazendo', async () => {
+    const res = await createRoute(req({ title: 'Escrever proposta', status: 'todo' }));
+    expect(res.status).toBe(200);
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('sem status, cria em A fazer como antes', async () => {
+    await createRoute(req({ title: 'Escrever proposta' }));
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('status "done" devolve 400 sem criar a tarefa', async () => {
+    const res = await createRoute(req({ title: 'Pagar boleto', status: 'done' }));
+    expect(res.status).toBe(400);
+    expect(addTask).not.toHaveBeenCalled();
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('falha ao criar não marca Fazendo', async () => {
+    vi.mocked(addTask).mockRejectedValueOnce(new Error('mstodo falhou'));
+    const res = await createRoute(req({ title: 'Revisar PR', status: 'doing' }));
+    expect(res.status).toBe(502);
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+});
+
 describe('PATCH /api/tasks/[id]', () => {
   it('completed=true conclui a tarefa', async () => {
     await patchRoute(req({ completed: true }), params({ id: 'T1' }));

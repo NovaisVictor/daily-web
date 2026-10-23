@@ -8,6 +8,17 @@ Only `main` is maintained; there are no release branches.
 
 ## [Unreleased]
 
+### Changed
+- The board is now the default view of the tasks panel. Anyone who already
+  chose "Lista" keeps it; only people who never picked see the board.
+- Moving a note with its buttons or the menu keeps the focus on the note, in
+  its new column; it used to fall to the page.
+- On a narrow panel the board shows one column at a time behind tabs, "A
+  fazer n | Fazendo n | Feito n", instead of stacking the three columns.
+- "Feito" shows its first 10 notes, with "Mostrar todas (n)" for the rest.
+- In the list, the always-visible red "Apagar" and the small "+" for subtasks
+  moved into the row's "⋯" menu, and the subtask arrow grew to 24px.
+
 ### Added
 - A task-based home kanban for agent work, with a detailed agents workspace,
   reporting API, personal API credentials and generated onboarding instructions.
@@ -18,8 +29,23 @@ Only `main` is maintained; there are no release branches.
   shared Jira/GitHub operations; integration secrets are entered only in the browser.
 - Persistent mutation receipts, bounded retention cleanup, a private OAuth companion,
   first-upgrade service installation and daily logical backups excluding agent data.
+- The tasks board does everything the list does. Each note and each list row
+  has the same "⋯" menu: Editar, Adicionar subtarefa, Agendar foco (when a
+  Google calendar is connected), "Mover para" A fazer / Fazendo / Feito, and
+  Apagar, which always asks first. A note's "n/m" subtask progress opens the
+  checklist inside the note, where subtasks are ticked, added and deleted.
+  "A fazer" and "Fazendo" have a "+ Adicionar" field at the bottom: Enter
+  creates the note in that column and keeps the field open for the next one,
+  Esc cancels. The columns show even with no tasks at all.
+- `POST /api/tasks` accepts an optional `status` of `"todo"` or `"doing"`, so
+  a task created from "Fazendo" lands there in one request. `"done"` is
+  refused: completing still goes through `PATCH /api/tasks/[id]`.
+- The list shows a "Fazendo" tag on tasks in progress, and both views mark an
+  overdue date with the warning tone, a ▲ glyph and the words "atrasada" for
+  screen readers, not with colour alone.
+- The list's empty state has a "Nova tarefa" button.
 - An optional board view for the tasks panel. A "Lista / Quadro" toggle in the
-  panel header switches between the grouped list, which stays the default, and
+  panel header switches between the grouped list and
   three columns, "A fazer", "Fazendo" and "Feito", with each task drawn as a
   pinned sticky note coloured by priority. The choice is saved per user.
   "Fazendo" is kept in a new local table (migration 14) keyed by user and task
@@ -156,6 +182,9 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- Menus and dialogs no longer let the content behind them show through in
+  the dark themes. They used a 5% glass, so a post-it's colour and text sat
+  under the menu items; they now use the theme's popover surface at 94%.
 - Editing a local monthly task no longer wipes its recurrence. The form only
   recognised Microsoft To Do's `absoluteMonthly`, so a task stored as
   `monthly` opened as "Não repete" and saving sent `recur: 'none'`.
