@@ -12,7 +12,7 @@ remaining acceptance or operational work and must not be represented as complete
 Capture baseline and freeze contracts before implementation.
 
 - [x] T001 Review current instructions, remote migration versions, CI coverage, existing raw backup jobs and clean baseline; record evidence in specs/001-agent-workspace/quickstart.md. (FR-020)
-- [ ] T002 Expand each capability group into concrete operation rows with fixtures/provenance in specs/001-agent-workspace/contracts/mcp-capabilities.md; preserve every current panel action. (FR-014, SC-004)
+- [x] T002 Expand each capability group into concrete operation rows with fixtures/provenance in specs/001-agent-workspace/contracts/mcp-capabilities.md; preserve every current panel action. (FR-014, SC-004)
 - [x] T003 [P] Add bounded input/output schemas and named domain enums in lib/agents/schemas.ts and lib/agents/model.ts using contracts/reporting-api.md. (FR-004, FR-019)
 
 ## Phase 2: Foundation
@@ -24,7 +24,7 @@ Owner-safe persistence, operations, retention, and auth feasibility must pass be
 - [x] T006 Implement atomic local mutation receipts, 30-day content-free DELETE receipts, explicit expired externalId reuse, expected-version conflicts, and stale-request rejection in lib/access/receipts.ts. (FR-009, SC-006)
 - [x] T007 Add external outcome reservation/reconciliation in lib/access/receipts.ts; unresolved receipts cannot expire, terminal receipts expire 30 days after resolvedAt, and uncertain writes never retry blindly. (FR-009, FR-016)
 - [x] T008 Implement read-time expiry and bounded hourly/startup cleanup in lib/agents/retention.ts and instrumentation.ts: "30 days after its last accepted activity"; reads/retries never renew. (FR-011, FR-012, SC-007)
-- [ ] T009 Implement logical backup/restore excluding agent data in scripts/backup.ts and scripts/restore.ts; preserve existing personal/provider data, replace unsafe raw backup jobs and invalidate all restored tokens/grants before service startup. (FR-012, SC-007)
+- [x] T009 Implement logical backup/restore excluding agent data in scripts/backup.ts and scripts/restore.ts; preserve existing personal/provider data, replace unsafe raw backup jobs and invalidate all restored tokens/grants before service startup. (FR-012, SC-007)
 - [x] T010 Validate migrations, two-user ownership, duplicate/concurrent writes, expired externalId reuse, DELETE replay, expiry boundaries, cleanup failure and restore revocation in tests/lib/agents/storage.test.ts and tests/lib/access/receipts.test.ts. (FR-009, FR-010, FR-011, FR-012, SC-005, SC-006, SC-007)
 - [x] T011 Prove official MCP v2 and oidc-provider interoperability on Node 24 in tests/mcp/oauth-feasibility.test.ts; pin compatible dependencies in package.json/package-lock.json only after the gate passes. Use a disposable local reverse-proxy harness independent of T037; verify real-client discovery, audience, consent, persistence and revocation before dependent OAuth implementation. (FR-013, FR-017, SC-008)
 
@@ -54,7 +54,7 @@ Generate/revoke a token and onboard any supported agent without operator interve
 - [x] T022 [US2] Adjust exact bearer route handling in middleware.ts while retaining legacy cookie-route protection; reject ambiguous auth and owner overrides. (FR-010, FR-015)
 - [x] T023 [US2] Build token/onboarding UI in app/(app)/access/page.tsx and prompt generation in lib/agents/onboarding.ts; configured origin and placeholders only, no secret in saved prompt. (FR-005, FR-006, FR-007, SC-003)
 - [x] T024 [US2] Test token disclosure/revocation, every reporting route, version conflict, duplicate retry, oversized input and wrong user in tests/api/agents/reporting.test.ts and tests/lib/access/credentials.test.ts. (FR-006, FR-009, FR-010, FR-017, FR-019, FR-020, SC-005, SC-006, SC-008)
-- [ ] T025 [US2] Validate generated reporting instructions from Claude/Codex/Gemini and record onboarding time in specs/001-agent-workspace/quickstart.md. (FR-007, SC-003)
+- [x] T025 [US2] Validate generated reporting instructions from Claude/Codex/Gemini and record onboarding time in specs/001-agent-workspace/quickstart.md. (FR-007, SC-003)
 
 ## Phase 5: US3 — OAuth MCP and task workflows (P1)
 
@@ -82,12 +82,12 @@ Every existing Jira action is available with identical ownership/provider permis
 
 **Independent test**: Expanded Jira operation inventory has success, denial, invalid-input and failure evidence.
 
-- [ ] T039 [US4] Capture missing sanitized Jira responses and provenance in tests/fixtures/jira-write/; derive validation fixtures from real responses. (FR-016, FR-019)
+- [x] T039 [US4] Capture missing sanitized Jira responses and provenance in tests/fixtures/jira-write/; derive validation fixtures from real responses. (FR-016, FR-019)
 - [x] T040 [US4] Extract work views, filters, people/following, watches and summaries into lib/operations/jira.ts while reusing lib/jiraFilters.ts and lib/standup.ts. (FR-014)
 - [x] T041 [US4] Extract transitions, approvals, comments, flags, fields, stories/epics and individual/bulk start dates into lib/operations/jira.ts; preserve current restrictions. (FR-014, FR-015)
-- [ ] T042 [US4] Migrate app/api/jira/ handlers to shared operations without broadening supported user actions or requiring MCP credentials for the browser. (FR-010, FR-014)
+- [x] T042 [US4] Migrate app/api/jira/ handlers to shared operations without broadening supported user actions or requiring MCP credentials for the browser. (FR-010, FR-014)
 - [x] T043 [US4] Expose every Jira inventory operation in lib/mcp/tools/jira.ts with explicit connection selection and validated pagination/completeness. (FR-014, FR-015, FR-016)
-- [ ] T044 [US4] Test Jira parity, no cross-connection access, unknown enums, partial pages and uncertain-write reconciliation in tests/mcp/jira.test.ts and tests/lib/operations/jira.test.ts. (FR-014, FR-015, FR-016, FR-019, SC-004, SC-005)
+- [x] T044 [US4] Test Jira parity, no cross-connection access, unknown enums, partial pages and uncertain-write reconciliation in tests/mcp/jira.test.ts and tests/lib/operations/jira.test.ts. (FR-014, FR-015, FR-016, FR-019, SC-004, SC-005)
 
 ## Phase 7: US5 — GitHub parity (P2)
 
@@ -95,11 +95,11 @@ Every existing GitHub action has equivalent state/SHA checks and MCP behavior.
 
 **Independent test**: Expanded GitHub operation inventory passes including cross-module Jira sync.
 
-- [ ] T045 [US5] Capture missing sanitized GitHub fixtures/provenance in tests/fixtures/github/; derive mocks and unknown-enum fixtures from contracts. (FR-016, FR-019)
+- [x] T045 [US5] Capture missing sanitized GitHub fixtures/provenance in tests/fixtures/github/; derive mocks and unknown-enum fixtures from contracts. (FR-016, FR-019)
 - [x] T046 [US5] Extract work views/filters, tracked repos and action orchestration into lib/operations/github.ts, preserving lib/integrations/github/actions.ts checks. (FR-014, FR-015)
-- [ ] T047 [US5] Migrate app/api/pulls/ handlers to shared operations and implement lib/mcp/tools/github.ts for reviews/comments/reviewers/merge/rerun/repos. (FR-014, FR-015)
+- [x] T047 [US5] Migrate app/api/pulls/ handlers to shared operations and implement lib/mcp/tools/github.ts for reviews/comments/reviewers/merge/rerun/repos. (FR-014, FR-015)
 - [x] T048 [US5] Expose Jira-sync suggestion/application in lib/mcp/tools/github.ts with both providers/scopes, current transition checks and persisted uncertain outcome handling. (FR-014, FR-015, FR-016)
-- [ ] T049 [US5] Test current-SHA conflicts, self-review/draft/permission denial, partial reads, external failures and each inventory action in tests/mcp/github.test.ts and tests/lib/operations/github.test.ts. (FR-014, FR-015, FR-016, SC-004, SC-005)
+- [x] T049 [US5] Test current-SHA conflicts, self-review/draft/permission denial, partial reads, external failures and each inventory action in tests/mcp/github.test.ts and tests/lib/operations/github.test.ts. (FR-014, FR-015, FR-016, SC-004, SC-005)
 
 ## Phase 8: Integrated acceptance and delivery
 
@@ -169,3 +169,16 @@ items open rather than inferring success from the registry or offline suite:
 
 Exact checks, approval scope and sanitized benchmark/client artifacts are recorded
 in quickstart.md, reviews/implementation-review-4.md and validation/.
+
+## Continuation evidence
+
+The original local checkpoint `d1421dd` left nine items open. The continuation
+closed route migration and all-operation coverage with direct Jira/GitHub and
+personal-task suites, documented captured/derived contracts, measured generated
+reporting instructions in the three installed clients, and added first-upgrade
+OAuth services plus scheduled logical backups. Production cron/systemd inspection
+was read-only; no unsafe application backup job was found to replace. See
+`contracts/mcp-capabilities.md`, `contracts/github-parity.md`,
+`validation/reporting-clients.json` and `../../docs/backup-and-services.md`.
+Natural-expiry client refresh and the integrated release gate are recorded in
+`quickstart.md`; completed implementation tasks do not alone certify a release.

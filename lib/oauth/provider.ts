@@ -16,7 +16,7 @@ export function createProvider(store:OAuthStore, clients:Configuration['clients'
       if(metadata.grant_types?.some(type=>!['authorization_code','refresh_token'].includes(type)))throw new errors.InvalidClientMetadata('Unsupported grant type');
     }},
     jwks:keys.jwks as Configuration['jwks'], cookies:{keys:[String(keys.cookie)],short:{secure:config.origin.startsWith('https:')},long:{secure:config.origin.startsWith('https:')}},
-    responseTypes:['code'], scopes:['openid','offline_access',...MCP_SCOPES],
+    responseTypes:['code'], scopes:['openid',...MCP_SCOPES],
     pkce:{required:()=>true},
     features:{devInteractions:{enabled:false}, registration:{enabled:true}, revocation:{enabled:true}, introspection:{enabled:false},
       resourceIndicators:{enabled:true, defaultResource:()=>config.resource, useGrantedResource:()=>true, getResourceServerInfo:(_ctx,resource)=>{if(resource!==config.resource)throw new Error('Invalid resource');return {scope:MCP_SCOPES.join(' '),audience:config.resource,accessTokenFormat:'opaque',accessTokenTTL:900};}}},

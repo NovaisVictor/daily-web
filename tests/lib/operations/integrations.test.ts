@@ -56,8 +56,10 @@ describe('MCP integration boundaries',()=>{
    ['jira_start_apply',{connectionId:jiraId,items:[{key:'TT-1',date:'2020-01-01'}]}],
   ] as const){
    const input={...values,...mutation()};
-   await expect(run(name,owner,input)).rejects.toMatchObject({status:409,code:'state_changed'});
-   await expect(run(name,owner,input)).rejects.toMatchObject({status:409,code:'state_changed'});
+   for(let attempt=0;attempt<2;attempt++){
+    if(name==='jira_start_apply') expect(await run(name,owner,input)).toEqual({results:[{id:'TT-1',status:'refused',code:'state_changed'}]});
+    else await expect(run(name,owner,input)).rejects.toMatchObject({status:409,code:'state_changed'});
+   }
   }
   const rows=getDb().prepare('SELECT typ_state AS state FROM main.tb_mutation_receipt').all();
   expect(rows).toEqual([{state:'not_submitted'},{state:'not_submitted'}]);
@@ -87,7 +89,7 @@ describe('MCP integration boundaries',()=>{
   expect(findConnection('owner',jiraId)!.values.cloud).toBe('example.invalid');
  });
  it('toggles only the principal user module',async()=>{await run('connections_toggle',owner,{module:'jira',state:'disabled'});await expect(run('jira_work',owner,{connectionId:jiraId})).rejects.toMatchObject({code:'module_disabled'});});
- it('deduplicates a confirmed external comment and rejects changed input under the same key',async()=>{const call=vi.spyOn(actions,'addComment').mockResolvedValue({id:19,url:'https://github.com/acme/app/issues/1#issuecomment-19'});const input={...mutation(),connectionId:githubId,owner:'acme',repo:'app',number:1,body:'A comment'};expect(await run('github_comment',owner,input)).toEqual({ok:true,id:19});expect(await run('github_comment',owner,input)).toEqual({ok:true,id:19});expect(call).toHaveBeenCalledTimes(1);await expect(run('github_comment',owner,{...input,body:'changed'})).rejects.toMatchObject({status:409,code:'idempotency_conflict'});});
+ it('deduplicates a confirmed external comment and rejects changed input under the same key',async()=>{const call=vi.spyOn(actions,'addComment').mockResolvedValue({id:19,url:'https://github.com/acme/app/issues/1#issuecomment-19'});const input={...mutation(),connectionId:githubId,owner:'acme',repo:'app',number:1,body:'A comment'};expect(await run('github_comment',owner,input)).toMatchObject({ok:true,id:19,url:'https://github.com/acme/app/issues/1#issuecomment-19'});expect(await run('github_comment',owner,input)).toMatchObject({ok:true,id:19,url:'https://github.com/acme/app/issues/1#issuecomment-19'});expect(call).toHaveBeenCalledTimes(1);await expect(run('github_comment',owner,{...input,body:'changed'})).rejects.toMatchObject({status:409,code:'idempotency_conflict'});});
  it('does not retry an uncertain provider write or leak its sensitive error text',async()=>{const call=vi.spyOn(actions,'addComment').mockRejectedValue(new Error('sensitive upstream body'));const input={...mutation(),connectionId:githubId,owner:'acme',repo:'app',number:1,body:'hello'};await expect(run('github_comment',owner,input)).rejects.toMatchObject({code:'uncertain_outcome'});await expect(run('github_comment',owner,input)).rejects.toMatchObject({code:'uncertain_outcome'});expect(call).toHaveBeenCalledTimes(1);});
  it('preserves incomplete upstream GitHub results',async()=>{vi.spyOn(github,'fetchPulls').mockResolvedValue({items:[],errors:['one repository was unavailable'],truncated:[],defaultBranches:[]});await expect(run('github_work',owner,{connectionId:githubId})).resolves.toMatchObject({complete:false});});
  it('requires following a person before reading their Jira work',async()=>{const call=vi.spyOn(jira,'fetchIssues');await expect(run('jira_work',owner,{connectionId:jiraId,accountId:'abc-123'})).rejects.toMatchObject({code:'person_not_followed'});expect(call).not.toHaveBeenCalled();});

@@ -70,6 +70,17 @@ Keep existing restrictions: followed-person detail is not arbitrary people acces
 assign-to-self is not arbitrary assignment. Read all necessary pages; partial
 results are explicitly partial. Invalid transition is conflict, never default.
 
+Browser Jira routes call `jiraActions` from `lib/operations/jira.ts`. Session guards
+and legacy connection selection remain transport responsibilities; MCP requires
+explicit owned connections and granted scopes. Approval eligibility, transition
+revalidation, writes, preference transactions and cache changes use shared actions.
+Browser response shapes remain unchanged, including flag-comment warnings and
+per-item start-date outcomes. MCP start-date results contain either confirmed
+`{ok:true,id}` or `{id,status:"refused"|"uncertain",code:"state_changed"|"uncertain_outcome"}`.
+Each item owns its receipt, so uncertain items are never automatically resubmitted.
+Flag writes followed by an unconfirmed comment persist an uncertain receipt with
+only issue identity and a safe code; they never claim complete success.
+
 ## GitHub
 
 | Tool group | Required actions | Existing route or source |
@@ -146,9 +157,30 @@ Evidence keys:
   behaviors, including safe uncertain outcomes, explicit connection ownership,
   disabled modules and runtime result-enum validation. This is not a full success
   and provider-failure matrix for every operation.
-- **J**: `tests/lib/operations/jiraParity.test.ts`; focused Jira shared-operation
-  behaviors listed per row. Approval mocks derive from the recorded approval
-  fixture; other focused mocks are not evidence of newly captured live writes.
+- **J**: `tests/lib/operations/jiraParity.test.ts`; all 19 Jira operations have direct
+  success/result-schema, scope, foreign-connection, deleted-user and strict-input cases.
+  External reads and writes have provider-failure cases; seven individual external
+  writes have known-refusal, retry and replay cases. Bulk dates cover refusal,
+  uncertainty and successful items together; flags cover persisted partial outcomes.
+  Transition, approval and comment-resource mocks reuse captured GET fixtures
+  and documented resource projections in `tests/fixtures/jira-write/README.md`.
+  Mutation/failure replies are derived test scenarios, not assertions that a
+  live external write was performed.
+- **GH**: `tests/lib/operations/github.test.ts`; all ten GitHub operations have
+  direct scope, foreign-connection and strict-input cases. Shared successes,
+  captured read projections, replay, provider refusals/uncertainty, partial jobs,
+  SHA/draft/self-review checks and real Jira-sync preflight are exercised.
+  `tests/api/pullsActions.test.ts`, `tests/api/pullsRepos.test.ts` and
+  `tests/api/pullJiraSync.test.ts` verify preserved browser contracts using those
+  same operations/helpers.
+- **MH**: `tests/mcp/github.test.ts`; scoped registration, strict inputs,
+  confirmed replay, authoritative grant revocation and sanitized partial-job
+  counts/IDs on both the first response and replay, without repeated writes.
+- **P**: `tests/lib/operations/personalParity.test.ts`, direct personal-task reads,
+  CRUD, board/completion/reopen and every subtask action, captured Microsoft To Do
+  read models and provider-write replay/uncertainty; connection setup/edit/test/remove,
+  metadata secrecy, source ownership and focus creation from all three source kinds.
+  `I` also covers module toggling, due grouping and invalid configuration boundaries.
 - **R**: `tests/api/agents/reporting.test.ts` exercises every reporting route;
   `tests/lib/agents/storage.test.ts` covers expiry, replay, versioning and restore.
 
@@ -172,51 +204,51 @@ purely local agent persistence, whose local failure cases are covered by A/R.
 | `agents_tasks_activity` | `agents:write` | write | Reporting activity API | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_tasks_list_activity` | `agents:read` | read | Task detail activity timeline | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_tasks_delete` | `agents:write` | write | Task delete dialog | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
-| `jira_work` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: delivered filters/order; I: followed-person denial | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_transitions` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_transition` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_approvals` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_approval` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: replay confirmed approval | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_comment` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_flag` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_priorities` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_edit` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_story_create` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_epics` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_parent` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_start_suggest` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: safe provider error text | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_start_apply` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_people` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_people_search` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_people_follow` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: concurrent follow, replay, changed-input conflict | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_watch` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: watch replay and changed-input conflict | B; G2 per-operation failure/real-provider proof incomplete |
-| `jira_summary` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: explicit GitHub sources and incomplete result | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_work` | `github:read` | read | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | I: partial read and invalid provider enum | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_repositories` | `github:read` | read | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_repository_add` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_repository_remove` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_review` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_comment` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | I: confirmed replay and changed-input conflict | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_request_review` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_merge` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_rerun` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `github_jira_sync` | `github:read` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_list` | `tasks:read` | read | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: due-window grouping | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_get` | `tasks:read` | read | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_create` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: owner-scoped local creation | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_edit` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: date/time validation and accepted past date | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_transition` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: local completion lifecycle | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_delete` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_subtask_create` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: local subtask creation | B; G2 per-operation failure/real-provider proof incomplete |
-| `tasks_subtask_edit` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | I: repeated subtask deletion | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_list` | `connections:read` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | I: secret-free metadata | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_setup` | `connections:write` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_update` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_remove` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_test` | `connections:read` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `connections_toggle` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | I: owner module toggle | B; G2 per-operation failure/real-provider proof incomplete |
-| `focus_targets` | `agenda:focus` | read | FocusBlockProvider / app/api/agenda/focus-blocks | `lib/operations/focus.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
-| `focus_create` | `agenda:focus` | write | FocusBlockProvider / app/api/agenda/focus-blocks | `lib/operations/focus.ts` / `lib/operations/results.ts` | GAP: direct adapter success case | B; G2 per-operation failure/real-provider proof incomplete |
+| `jira_work` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_transitions` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_transition` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_approvals` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_approval` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_comment` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_flag` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_priorities` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_edit` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_story_create` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_epics` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_parent` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_start_suggest` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_start_apply` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_people` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_people_search` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_people_follow` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_watch` | `jira:write` | write | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `jira_summary` | `jira:read` | read | JiraPanel / app/api/jira | `lib/operations/jira.ts` / `lib/operations/results.ts` | J: direct success/schema; scope, owner, input and identity boundaries | J: provider failure/refusal/replay where applicable; local people read has no provider; captured GET/resource projections with derived mutation/failure scenarios; no live write asserted |
+| `github_work` | `github:read` | read | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: tracked/review/mine captures, filters, paging and default branches | GH: partial data, unknown result enum/cursor, safe provider failure |
+| `github_repositories` | `github:read` | read | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: owned configuration read; browser GET | GH/B: owner/scope/input; local configuration has no provider failure |
+| `github_repository_add` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: atomic local add/replay; browser POST capacity boundary | GH/B: owner/scope/input; no remote write |
+| `github_repository_remove` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: atomic local remove/replay; browser DELETE | GH/B: owner/scope/input; no remote write |
+| `github_review` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: current-pull/viewer preflight, review and replay; browser reviews | GH: self/draft/closed refusal, 4xx denial, malformed result and unknown outcome |
+| `github_comment` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH/MH: confirmed identity/URL and replay; browser idempotency | GH/MH: 4xx denial, uncertainty, foreign connection, Origin and grant revocation |
+| `github_request_review` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: users/teams, deduplication and replay; browser reviewers | GH: author/draft refusal, invalid response, 4xx denial and unknown outcome |
+| `github_merge` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: exact-SHA merge and confirmed replay; browser merge | GH: stale SHA/draft/closed/conflict/unknown mergeability, 4xx denial and unknown outcome |
+| `github_rerun` | `github:write` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: bounded eligible jobs/zero jobs; browser legacy partial result | GH/MH: stale SHA, all/partial failures, sanitized partialOutcome and replay without repeated jobs |
+| `github_jira_sync` | `github:read` | write | PullsPanel / app/api/pulls | `lib/operations/github.ts` / `lib/operations/results.ts` | GH: shared Jira suggestion/apply and replay; browser shared suggestion | GH: both providers/scopes, expected transition/intent/screen, provider failure and uncertainty |
+| `tasks_list` | `tasks:read` | read | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_get` | `tasks:read` | read | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_create` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_edit` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_transition` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_delete` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_subtask_create` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `tasks_subtask_edit` | `tasks:write` | write | TasksPanel / app/api/tasks | `lib/operations/tasks.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_list` | `connections:read` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_setup` | `connections:write` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_update` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_remove` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_test` | `connections:read` | read | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `connections_toggle` | `connections:write` | write | IntegrationsPanel / app/api/integrations | `lib/operations/connections.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `focus_targets` | `agenda:focus` | read | FocusBlockProvider / app/api/agenda/focus-blocks | `lib/operations/focus.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
+| `focus_create` | `agenda:focus` | write | FocusBlockProvider / app/api/agenda/focus-blocks | `lib/operations/focus.ts` / `lib/operations/results.ts` | P; I: direct shared-operation success and action variants | B; P/I: owner/scope/input boundaries; provider failure and replay where external; local configuration has no provider write |
 
 
 ## Composite permissions and precise parity limits
@@ -242,20 +274,26 @@ Task titles are limited to the same 200 characters as persistence. The agent
 lifecycle and parity suites exercise these contracts; generic JSON output is
 not used for this boundary.
 
-**G2 — Full per-operation behavioral proof.** B covers denied scopes and invalid
-inputs for every registered adapter. The success column records only focused
-existing cases. Operations marked GAP still need their direct success cases;
-external operations need corresponding provider refusal/timeout/unknown-outcome
-and permission cases using verified fixture provenance. Existing tests such as
-`tests/lib/integrations/githubActions.test.ts`, Jira provider tests and legacy
-`tests/api/*` route tests remain useful supporting evidence, not replacement for
-this adapter-level matrix. No 100% behavioral-parity claim is made.
+**G2 — Behavioral evidence now distinguished from live execution.** Jira and
+GitHub have direct shared-operation success, authorization, invalid-input and
+provider-failure/refusal/uncertain-outcome cases, with replay and partial behavior
+where applicable (J/GH/MH). Their browser handlers use the shared orchestration;
+legacy HTTP and provider tests provide additional supporting coverage. Fixture
+READMEs distinguish captured GET/resource projections from derived mutation
+replies and adversarial failures. A live external mutation is not implied by a
+green test and is not fabricated as a remaining fixture requirement. Personal tasks, connections and focus use P/I evidence; every inventoried operation
+has a direct success case, with provider failures tested where an external call exists.
 
-**G3 — Product-action completeness.** The group inventories remain the checklist
-for checking all panel action variants, view filters, hierarchy/default-branch
-information and connection configuration options. Registry equality proves no
-untracked tool appeared; it cannot prove that every UI action and option was
-implemented. Retain this separate acceptance gate.
+**G3 — Product-action completeness is checked beyond registry equality.**
+The Jira/GitHub group inventories map concrete action variants to the shared
+orchestration and browser adapters. GitHub details and source/test mapping are in
+`contracts/github-parity.md`: views/filters, default branches, repository
+configuration, approve/request changes, comments, reviewer users/teams, merge
+methods, failed-job reruns and cross-provider Jira synchronization. Named scopes,
+state/SHA preflight, refusal, replay and partial results are tested. Registry
+comparison remains a regression guard, not the sole evidence of parity. New
+panel actions introduced by later upstream changes require the same inventory
+and behavior review before integration.
 
 **G4 — Deployment/client acceptance.** Unit and disposable-provider HTTP tests
 exercise OAuth behavior and immediate revocation. Actual Claude/Codex/Gemini

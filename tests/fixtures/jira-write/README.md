@@ -41,3 +41,26 @@ host → `example.atlassian.net`. Issue keys, status/transition/field/priority i
 - **Priorities** (id/name): `1 Crítica`, `2 Alta`, `3 Média`, `4 Baixa`, `5 Trivial`. `/priority/search` reports `isDefault: false` on all five.
 - **Create in TT**: story-level type is `10005 História` (`hierarchyLevel 0`, `subtask false`). Other types: `10000 Epic` (1), `10099 Subtarefa` (-1, subtask), `10108 Bug` (0), `10177 Iniciativa` (2), `10850 Objective` (3). Required create fields for História: `issuetype`, `project`, `summary`. `parent` is optional (`{"type":"issuelink","system":"parent"}`, operation `set`).
 - **Changelog status changes**: `values[]` = `{id, author, created, items[]}` with `created` like `"2026-10-20T16:10:02.227-0300"`; status item `{field:"status", fieldtype:"jira", fieldId:"status", from, fromString, to, toString}` (`from`/`to` are status ids, e.g. `11540` = `Em Andamento`). To suggest a start date, take the earliest history whose status item has `to` in an `indeterminate` category status (map ids via the transitions' `to.statusCategory`). TT-4404 shows a status can enter `Em Andamento`, go back to `Backlog` and enter again — the first entry (2026-10-09) is the earliest.
+
+## Agent workspace operation projections (2026-10-23)
+
+`comments-resource.json` was captured with a read-only GET against the real Jira
+Cloud comment resource on 2026-10-23. The capture retains pagination and comment
+identity, replaces the host and removes authors, dates and all comment content.
+No POST, PUT or DELETE was issued. An empty list was initially observed on TT-5019;
+the retained fixture uses TT-5007, which has an existing comment.
+
+`tests/lib/operations/jiraParity.test.ts` projects comment-create confirmation
+`{id}` from that captured resource. It projects transitions with the production
+parser from `transitions-story.json`, priority choices from `priorities.json`,
+approval identity from `approvals-pending.json` and account identity from
+`myself.json`. Story creation uses the issue identity/key/URL shape represented
+by `issue-flagged.json`; supported create metadata comes from the existing
+`createmeta-*` captures and parser/adapter suites. These are documented response
+projections, not claims that live mutations were captured. Void successful
+writes use Jira's documented 204 contract plus the captured preflight resources;
+refusal and network interruption scenarios are synthetic tests.
+
+People display names are synthetic sanitized text. Follow/watch mutations are
+local preferences and have no remote mutation response. Summary generation is
+local composition of the already validated issue and pull-request resources.

@@ -99,3 +99,12 @@ describe('middleware', () => {
     }
   });
 });
+
+describe('MCP OAuth public protocol routes',()=>{
+  it.each(['/oauth/auth','/oauth/token','/oauth/reg','/.well-known/oauth-authorization-server','/.well-known/oauth-authorization-server/oauth','/.well-known/openid-configuration','/.well-known/openid-configuration/oauth'])('delegates %s authentication to the provider',async path=>{
+    process.env.SESSION_SECRET='';expect((await middleware(makeRequest(path))).status).toBe(200);
+  });
+  it.each(['/access/consent','/api/agent-access/grants','/oauth-elsewhere'])('keeps %s browser-authenticated',async path=>{
+    process.env.SESSION_SECRET='';expect((await middleware(makeRequest(path))).status).not.toBe(200);
+  });
+});

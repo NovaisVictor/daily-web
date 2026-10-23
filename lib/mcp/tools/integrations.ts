@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Principal } from '@/lib/access/principal';
+import { ExternalPartialOutcome } from '@/lib/access/receipts';
 import { AccessError } from '@/lib/access/principal';
 import { revalidatePrincipal } from '@/lib/mcp/auth';
 import { githubOperations } from '@/lib/operations/github';
@@ -24,7 +25,8 @@ export function registerIntegrationTools(server:McpServer,principal:Principal):v
         return {content:[{type:'text' as const,text:JSON.stringify(result)}],structuredContent:{result}};
       }catch(error){
         const known=error instanceof AccessError;
-        const result={code:known?error.code:'operation_failed',message:known?error.message:'The operation could not be completed',retry:known&&error.code==='uncertain_outcome'?'reconcile':'correct_request'};
+        const partial=known&&error.cause instanceof ExternalPartialOutcome?error.cause.outcome:undefined;
+        const result={...(partial?{partialOutcome:partial}:{}),code:known?error.code:'operation_failed',message:known?error.message:'The operation could not be completed',retry:known&&error.code==='uncertain_outcome'?'reconcile':'correct_request'};
         return {isError:true,content:[{type:'text' as const,text:JSON.stringify(result)}]};
       }
     });

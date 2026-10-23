@@ -1,7 +1,7 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api/context';
 import { jiraConnectionOf } from '@/lib/jiraPeople';
-import { searchPeople } from '@/lib/integrations/jiraApi';
 
 export async function GET(request: NextRequest) {
   const auth = await requireUser();
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const people = await searchPeople(conn, q);
+    const people = await jiraActions.searchPeople(conn, q);
     return NextResponse.json({ people });
   } catch (err) {
     return NextResponse.json(

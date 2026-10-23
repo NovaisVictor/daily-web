@@ -1,7 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { addComment, commentText } from '@/lib/integrations/jira/comments';
+import { commentText } from '@/lib/integrations/jira/comments';
 import { COMMENT_MAX } from '@/lib/jiraLimits';
 
 type Params = { params: Promise<{ key: string }> };
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const comment = await addComment(auth.value.connection, key, text);
+    const comment = await jiraActions.comment({userId: auth.value.user.id, connection: auth.value.connection}, key, text);
     return writeDone(auth.value.user.id, { comment });
   } catch (err) {
     return upstreamError(err);

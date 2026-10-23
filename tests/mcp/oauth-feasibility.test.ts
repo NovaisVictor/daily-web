@@ -28,7 +28,7 @@ describe('official OAuth provider feasibility',()=>{
   const cookies=new Map<string,string>();
   const call=async(path:string,init:RequestInit={})=>{const response=await fetch(new URL(path,origin),{...init,headers:{...Object.fromEntries(new Headers(init.headers)),Cookie:[...cookies].map(([k,v])=>`${k}=${v}`).join('; ')},redirect:'manual',signal:AbortSignal.timeout(5000)});for(const cookie of response.headers.getSetCookie()){const first=cookie.split(';')[0];const index=first.indexOf('=');cookies.set(first.slice(0,index),first.slice(index+1));}return response;};
   const metadata=await (await call('/oauth/.well-known/openid-configuration')).json();
-  expect(metadata.issuer).toBe(`${origin}/oauth`);expect(metadata.registration_endpoint).toBe(`${origin}/oauth/reg`);expect(metadata.code_challenge_methods_supported).toContain('S256');
+  expect(metadata.issuer).toBe(`${origin}/oauth`);expect(metadata.registration_endpoint).toBe(`${origin}/oauth/reg`);expect(metadata.code_challenge_methods_supported).toContain('S256');expect(metadata.scopes_supported).not.toContain('offline_access');
   const registration=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Feasibility client',application_type:'native',redirect_uris:['http://127.0.0.1:18181/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'})});
   expect(registration.status).toBe(201);const client=await registration.json();
   const unsafeClient=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Unsafe callback',application_type:'web',redirect_uris:['http://external.invalid/callback'],grant_types:['authorization_code'],response_types:['code'],token_endpoint_auth_method:'none'})});
@@ -71,5 +71,45 @@ describe('official OAuth provider feasibility',()=>{
   const next=await call(outcome.redirect);const wrongCode=new URL(next.headers.get('location')!).searchParams.get('code')!;
   expect((await exchange({...common,code:wrongCode,code_verifier:randomBytes(32).toString('base64url')})).status).toBe(400);
 
+ },20000);
+});
+
+
+describe('MCP refresh without OIDC control scopes',()=>{
+ it('advertises application scopes and preserves strict scope narrowing on refresh',async()=>{
+  dir=mkdtempSync(join(tmpdir(),'daily-mcp-refresh-'));
+  process.env.DAILY_WEB_DB_PATH=join(dir,'test.db');process.env.DAILY_WEB_SECRET_KEY=randomBytes(32).toString('base64');
+  const db=getDb();db.prepare('INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES(?,?,?,?,?)').run('refresh-owner','refresh-owner','unused',0,new Date().toISOString());
+  let provider:Provider;
+  server=createServer((req,res)=>{(req as typeof req & {originalUrl?:string}).originalUrl=req.url;req.url=(req.url??'/').replace(/^\/oauth/,'') || '/';provider.callback()(req,res);});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const address=server.address();if(!address||typeof address==='string')throw new Error('No port');
+  const origin=`http://127.0.0.1:${address.port}`;process.env.DAILY_WEB_ORIGIN=origin;
+  const store=new OAuthStore(db);provider=createProvider(store);
+  const cookies=new Map<string,string>();
+  const call=async(path:string,init:RequestInit={})=>{
+   const response=await fetch(new URL(path,origin),{...init,headers:{Accept:'application/json',...Object.fromEntries(new Headers(init.headers)),Cookie:[...cookies].map(([key,value])=>`${key}=${value}`).join('; ')},redirect:'manual',signal:AbortSignal.timeout(5000)});
+   for(const cookie of response.headers.getSetCookie()){const first=cookie.split(';')[0];const index=first.indexOf('=');cookies.set(first.slice(0,index),first.slice(index+1));}
+   return response;
+  };
+  const metadata=await (await call('/oauth/.well-known/openid-configuration')).json();
+  expect(metadata.scopes_supported).toContain('agents:read');expect(metadata.scopes_supported).not.toContain('offline_access');expect(metadata.grant_types_supported).toContain('refresh_token');
+  const registration=await call('/oauth/reg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'MCP refresh client',application_type:'native',redirect_uris:['http://127.0.0.1:18181/callback'],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'})});
+  expect(registration.status).toBe(201);const client=await registration.json();
+  const verifier=randomBytes(32).toString('base64url');
+  const parameters=new URLSearchParams({client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',response_type:'code',scope:'agents:read',resource:`${origin}/mcp`,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});
+  const authorization=await call(`/oauth/auth?${parameters}`);expect(authorization.status).toBe(303);
+  const id=new URL(authorization.headers.get('location')!).searchParams.get('interaction')!;
+  const binding={userId:'refresh-owner',browserSecret:cookies.get(BROWSER_BINDING_COOKIE)!};
+  const consent=await inspectInteraction(provider,store,id,binding);
+  const decision=await decideInteraction(provider,store,{id,nonce:consent.nonce,...binding,decision:'approve',scopes:['agents:read']});
+  const resumed=await call(decision.redirect);const code=new URL(resumed.headers.get('location')!).searchParams.get('code')!;
+  const exchange=(values:Record<string,string>)=>call('/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(values)});
+  const issued=await exchange({grant_type:'authorization_code',client_id:client.client_id,redirect_uri:'http://127.0.0.1:18181/callback',code_verifier:verifier,code,resource:`${origin}/mcp`});
+  expect(issued.status).toBe(200);const tokens=await issued.json();expect(tokens.refresh_token).toBeTruthy();expect(tokens.scope).toBe('agents:read');expect(tokens.expires_in).toBe(900);
+  const refresh={grant_type:'refresh_token',client_id:client.client_id,refresh_token:tokens.refresh_token,resource:`${origin}/mcp`};
+  const ungranted=await exchange({...refresh,scope:'agents:read offline_access'});expect(ungranted.status).toBe(400);expect((await ungranted.json()).error).toBe('invalid_scope');
+  const narrowed=await exchange({...refresh,scope:'agents:read'});expect(narrowed.status).toBe(200);const rotated=await narrowed.json();expect(rotated.scope).toBe('agents:read');expect(rotated.refresh_token).not.toBe(tokens.refresh_token);
+  const elevated=await exchange({...refresh,refresh_token:rotated.refresh_token,scope:'agents:read github:write'});expect(elevated.status).toBe(400);expect((await elevated.json()).error).toBe('invalid_scope');
  },20000);
 });

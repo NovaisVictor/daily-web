@@ -1,0 +1,35 @@
+{
+  "recordedAt": "2026-10-23",
+  "mode": "read-only production inspection; no service changes during preparation",
+  "publicOrigin": "https://dashboard.joaosouzacoder.com.br",
+  "application": {
+    "service": "daily-web",
+    "state": "active",
+    "accountMode": "non-root",
+    "workingDirectory": "/srv/daily-web",
+    "environmentFile": "/etc/daily-web/env",
+    "nodeVersion": "24.15.0"
+  },
+  "beforeUpgrade": {
+    "oauthServiceInstalled": false,
+    "existingReverseProxy": "Traefik routes to existing Next application",
+    "readableCronFilesAudited": 17,
+    "applicationRawBackupJobsFound": 0,
+    "systemdApplicationBackupJobsFound": 0
+  },
+  "upgrade": {
+    "installer": "deploy/install-services.mjs",
+    "preflight": "Read-only unit/path validation before stopping or copying",
+    "publicOAuthRoutes": "Bounded loopback proxy in Next; no shared Traefik changes",
+    "serviceHealthRequired": [
+      "application",
+      "oauth"
+    ],
+    "backup": "Managed daily timer, logical data export excluding agent history; private directory and file permissions",
+    "existingBackups": "Preserved; no deletion"
+  },
+  "limits": [
+    "Host audit does not cover external provider snapshots or unmanaged off-host backups.",
+    "Local renderer/mock/compiled CLI checks do not alone prove deployed service health; exact-commit deployment acceptance is separate."
+  ]
+}

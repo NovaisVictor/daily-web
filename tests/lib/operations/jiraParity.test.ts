@@ -14,6 +14,9 @@ import {jiraFollowedPeople,jiraWatchedKeys} from '@/lib/preferences';
 import type {Principal} from '@/lib/access/principal';
 import type {JiraDatedItem,PullRequestItem} from '@/lib/types';
 import approvalFixture from '../../fixtures/jira-write/approvals-pending.json';
+import commentFixture from '../../fixtures/jira-write/comments-resource.json';
+import priorityFixture from '../../fixtures/jira-write/priorities.json';
+import myselfFixture from '../../fixtures/jira-write/myself.json';
 let dir:string,connectionId:string,githubId:string;
 const p:Principal={userId:'owner',kind:'oauth',scopes:['jira:read','jira:write','github:read']};
 const mutation=()=>({operationId:randomBytes(12).toString('hex'),requestedAt:new Date().toISOString()});
@@ -39,4 +42,140 @@ it('does not expose provider error text in start-date suggestions',async()=>{
  const result=await run('jira_start_suggest',{connectionId,keys:['TT-1']});
  expect(result).toEqual({suggestions:[{status:'failed',key:'TT-1',error:'Jira could not suggest a start date'}]});
  expect(JSON.stringify(result)).not.toContain('sensitive');
+});
+
+const jiraInputs = () => [
+ ['jira_work', {connectionId}],
+ ['jira_transitions', {connectionId,key:'TT-1'}],
+ ['jira_transition', {connectionId,key:'TT-1',transitionId:'1',...mutation()}],
+ ['jira_approvals', {connectionId,key:'TT-1'}],
+ ['jira_approval', {connectionId,key:'TT-1',approvalId:'1',decision:'approve',...mutation()}],
+ ['jira_comment', {connectionId,key:'TT-1',text:'Comment',...mutation()}],
+ ['jira_flag', {connectionId,key:'TT-1',action:'flag',reason:'Blocked',...mutation()}],
+ ['jira_priorities', {connectionId,key:'TT-1'}],
+ ['jira_edit', {connectionId,key:'TT-1',change:'assign-self',...mutation()}],
+ ['jira_story_create', {connectionId,key:'TT-1',summary:'Story',...mutation()}],
+ ['jira_epics', {connectionId,project:'TT'}],
+ ['jira_parent', {connectionId,key:'TT-1',epicKey:'TT-2',...mutation()}],
+ ['jira_start_suggest', {connectionId,keys:['TT-1']}],
+ ['jira_start_apply', {connectionId,items:[{key:'TT-1',date:'2020-01-01'}],...mutation()}],
+ ['jira_people', {connectionId}],
+ ['jira_people_search', {connectionId,query:'Person'}],
+ ['jira_people_follow', {connectionId,accountId:'person',action:'follow',...mutation()}],
+ ['jira_watch', {connectionId,key:'TT-1',action:'watch',...mutation()}],
+ ['jira_summary', {connectionId,period:'daily'}],
+] as const;
+
+describe('every Jira operation authorization and input boundary',()=>{
+ for(const name of jiraOperations.map(operation=>operation.name)) {
+  it(`${name}: denies missing scope, foreign connection and malformed input before provider access`,async()=>{
+   const operation=jiraOperations.find(operation=>operation.name===name)!;
+   const input=jiraInputs().find(([operation])=>operation===name)![1];
+   await expect(operation.run({...p,scopes:[]},input)).rejects.toMatchObject({status:403,code:'insufficient_scope'});
+   const foreign=saveConnection('other','jira','Other Jira',{cloud:'other.invalid',email:'test@example.invalid',token:randomBytes(12).toString('hex')});
+   await expect(operation.run(p,{...input,connectionId:foreign})).rejects.toMatchObject({status:404});
+   await expect(operation.run(p,{...input,unexpected:'field'})).rejects.toMatchObject({status:400,code:'invalid_input'});
+   await expect(operation.run({...p,userId:'deleted'},input)).rejects.toMatchObject({status:401});
+  });
+ }
+});
+
+it('continues bulk dates after refusal and uncertainty, and never resubmits uncertain items',async()=>{
+ const {ProviderRefusal}=await import('@/lib/integrations/refusal');
+ const write=vi.spyOn(jira,'setStartDate').mockRejectedValueOnce(new ProviderRefusal('refused')).mockRejectedValueOnce(new Error('network interrupted')).mockResolvedValue();
+ const input={connectionId,items:[{key:'TT-1',date:'2020-01-01'},{key:'TT-2',date:'2020-01-01'},{key:'TT-3',date:'2020-01-01'}],...mutation()};
+ expect(await run('jira_start_apply',input)).toEqual({results:[{id:'TT-1',status:'refused',code:'state_changed'},{id:'TT-2',status:'uncertain',code:'uncertain_outcome'},{id:'TT-3',ok:true}]});
+ const replay=await run('jira_start_apply',input) as {results:unknown[]};
+ expect(replay.results[1]).toEqual({id:'TT-2',status:'uncertain',code:'uncertain_outcome'});
+ expect(write).toHaveBeenCalledTimes(4);
+});
+
+it('persists flag partial outcome without exposing provider text or repeating a changed flag',async()=>{
+ const {FlagCommentFailed}=await import('@/lib/integrations/jira/flag');
+ const flags=await import('@/lib/integrations/jira/flag');
+ const change=vi.spyOn(flags,'changeFlag').mockRejectedValue(new FlagCommentFailed('flag',new Error('private vendor body')));
+ const input={connectionId,key:'TT-1',action:'flag',reason:'Blocking reason',...mutation()};
+ for(let attempt=0;attempt<2;attempt++)await expect(run('jira_flag',input)).rejects.toMatchObject({code:'uncertain_outcome',cause:{outcome:{id:'TT-1',code:'flag_changed_comment_unconfirmed'}}});
+ expect(change).toHaveBeenCalledTimes(1);
+ const receipts=getDb().prepare('SELECT jsn_outcome AS outcome FROM main.tb_mutation_receipt').all();
+ expect(JSON.stringify(receipts)).not.toContain('private');expect(JSON.stringify(receipts)).not.toContain('Blocking');
+});
+
+async function stubJiraProviders() {
+ const transitions=await import('@/lib/integrations/jira/transitions');
+ const comments=await import('@/lib/integrations/jira/comments');
+ const flags=await import('@/lib/integrations/jira/flag');
+ const edits=await import('@/lib/integrations/jira/edits');
+ const fixture=await import('../../fixtures/jira-write/transitions-story.json');
+ const raw=fixture.default as {transitions:unknown[]};
+ const parsed=transitions.parseTransitions(raw,'unrelated-status');
+ const mocks={
+  jira_work:vi.spyOn(jira,'fetchIssues').mockResolvedValue([]),
+  jira_transitions:vi.spyOn(transitions,'fetchTransitions').mockResolvedValue(parsed),
+  jira_transition:vi.spyOn(transitions,'applyTransition').mockResolvedValue(),
+  jira_approvals:vi.spyOn(approvals,'fetchPendingApprovals').mockResolvedValue([{id:'1',name:'Approval'}]),
+  jira_approval:vi.spyOn(approvals,'answerApproval').mockResolvedValue(),
+  jira_comment:vi.spyOn(comments,'addComment').mockResolvedValue({id:commentFixture.response.comments[0].id}),
+  jira_flag:vi.spyOn(flags,'changeFlag').mockResolvedValue(),
+  jira_priorities:vi.spyOn(edits,'fetchPriorityOptions').mockResolvedValue({priorities:priorityFixture.map(({id,name})=>({id,name})),current:null}),
+  jira_edit:vi.spyOn(edits,'applyEdit').mockResolvedValue(),
+  jira_story_create:vi.spyOn(edits,'createStoryInEpic').mockResolvedValue({key:'TT-2',url:'https://example.invalid/browse/TT-2'}),
+  jira_epics:vi.spyOn(jira,'fetchOpenEpics').mockResolvedValue([]),
+  jira_parent:vi.spyOn(jira,'setEpic').mockResolvedValue(),
+  jira_start_suggest:vi.spyOn(startDates,'suggestStartDates').mockResolvedValue([{key:'TT-1',status:'suggested',date:'2020-01-01',basis:'started'}]),
+  jira_start_apply:vi.spyOn(jira,'setStartDate').mockResolvedValue(),
+  jira_people_search:vi.spyOn(jira,'searchPeople').mockResolvedValue([{accountId:'person',displayName:'Person'}]),
+  jira_people_follow:vi.spyOn(jira,'fetchPerson').mockResolvedValue({accountId:myselfFixture.accountId,displayName:'Person'}),
+  jira_watch:vi.spyOn(jira,'fetchByKeys').mockResolvedValue([{key:'TT-1'}] as never),
+ };
+ vi.spyOn(jira,'fetchAncestors').mockResolvedValue([]);
+ vi.spyOn(jira,'fetchDelivered').mockResolvedValue([]);
+ vi.spyOn(jira,'fetchApproved').mockResolvedValue([]);
+ return mocks;
+}
+
+describe('direct Jira operation execution matrix',()=>{
+ for(const name of jiraOperations.map(operation=>operation.name)) {
+  it(`${name}: executes its valid input through the shared application boundary`,async()=>{
+   await stubJiraProviders();
+   const input=jiraInputs().find(([operation])=>operation===name)![1];
+   const result=await run(name,input);
+   expect(jiraOperations.find(operation=>operation.name===name)!.resultSchema.safeParse(result).success).toBe(true);
+  });
+ }
+ for(const name of ['jira_work','jira_transitions','jira_transition','jira_approvals','jira_approval','jira_comment','jira_flag','jira_priorities','jira_edit','jira_story_create','jira_epics','jira_parent','jira_start_suggest','jira_people_search','jira_people_follow','jira_watch'] as const) {
+  it(`${name}: fails visibly and safely when the provider fails`,async()=>{
+   const mocks=await stubJiraProviders();
+   mocks[name].mockRejectedValue(new Error('private provider details'));
+   const input=jiraInputs().find(([operation])=>operation===name)![1];
+   const externalWrite=['jira_transition','jira_approval','jira_comment','jira_flag','jira_edit','jira_story_create','jira_parent'].includes(name);
+   await expect(run(name,input)).rejects.toMatchObject(externalWrite?{status:409,code:'uncertain_outcome'}:{status:502,code:'upstream_failed'});
+   await run(name,input).catch(error=>expect(error.message).not.toContain('private'));
+  });
+ }
+});
+
+describe('Jira write refusal and replay matrix',()=>{
+ for(const name of ['jira_transition','jira_approval','jira_comment','jira_flag','jira_edit','jira_story_create','jira_parent'] as const) {
+  it(`${name}: records known refusal and permits a corrected retry without claiming success`,async()=>{
+   const mocks=await stubJiraProviders();
+   const {ProviderRefusal}=await import('@/lib/integrations/refusal');
+   mocks[name].mockRejectedValueOnce(new ProviderRefusal('private refusal body'));
+   const input=jiraInputs().find(([operation])=>operation===name)![1];
+   await expect(run(name,input)).rejects.toMatchObject({status:409,code:'state_changed'});
+   expect(await run(name,input)).toMatchObject({ok:true});
+   await run(name,input);
+   expect(mocks[name]).toHaveBeenCalledTimes(2);
+  });
+ }
+ it('fails summary visibly if its Jira source cannot be read',async()=>{
+  const mocks=await stubJiraProviders();mocks.jira_work.mockRejectedValue(new Error('private source details'));
+  await expect(run('jira_summary',{connectionId,period:'daily'})).rejects.toMatchObject({status:502,code:'upstream_failed'});
+ });
+});
+
+it('rejects unknown transition result enums instead of silently accepting provider drift',async()=>{
+ const transitions=await import('@/lib/integrations/jira/transitions');
+ vi.spyOn(transitions,'fetchTransitions').mockResolvedValue([{id:'1',name:'Changed',to:{name:'Changed',category:'future-category'},requires:'nothing'}] as never);
+ await expect(run('jira_transitions',{connectionId,key:'TT-1'})).rejects.toMatchObject({status:502,code:'invalid_result'});
 });

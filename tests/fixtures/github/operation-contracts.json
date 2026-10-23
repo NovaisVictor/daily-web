@@ -1,0 +1,47 @@
+{
+  "pull": {
+    "number": 42,
+    "state": "open",
+    "draft": false,
+    "mergeable": true,
+    "user": {
+      "login": "author"
+    },
+    "head": {
+      "sha": "ffe33b666d91bcd2ce1130998506ac4763c91c3d",
+      "ref": "feature/captured"
+    },
+    "requested_reviewers": [
+      {
+        "login": "reviewer-1"
+      }
+    ],
+    "requested_teams": []
+  },
+  "viewer": {
+    "login": "viewer"
+  },
+  "comment": {
+    "id": 6372514497,
+    "html_url": "https://github.com/acme/repo-4/issues/42#issuecomment-6372514497"
+  },
+  "refusal": {
+    "status": 401,
+    "response": {
+      "message": "Requires authentication",
+      "documentation_url": "https://docs.github.com/rest",
+      "status": "401"
+    }
+  },
+  "provenance": {
+    "capturedAt": "2026-10-23T21:19:16.008Z",
+    "requests": [
+      "GET /repos/github/spec-kit/pulls/5099",
+      "GET /repos/github/spec-kit/issues/5099/comments?per_page=1",
+      "GET /users/octocat",
+      "GET /user"
+    ],
+    "method": "read-only unauthenticated public GitHub REST",
+    "sanitization": "owner/repo/number,logins,teams,branch and comment URL normalized; bodies and personal data excluded"
+  }
+}

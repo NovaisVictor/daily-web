@@ -1,96 +1,98 @@
 # Implementation Validation Guide
 
-Implementation checks below use only disposable development users and sanitized
-fixtures. No production provider writes or deployment were performed. The verified
-results and remaining acceptance gaps are recorded first; the rest of this document
-is the reproducible validation procedure.
+Validation uses disposable users and sanitized fixtures. Captured provider reads
+and derived mutation replies are identified explicitly; no production Jira or
+GitHub write was performed to manufacture a fixture. Deployment acceptance is
+separate from local implementation validation.
 
+## Verified evidence — 2026-10-23
 
-## Verified implementation evidence — 2026-10-23
+The feature began from `6a5d646022703870c70f52d0615dd03c7578f1e6` on
+`feature/agent-workspace`. Codebase Memory was indexed before structural work.
+The additive SQLite migration is version 15; remote migration versions were
+checked before introducing it. Existing CI runs the native tests, production
+build and production dependency audit at the critical threshold.
 
-Branch: `feature/agent-workspace`, based on `6a5d646022703870c70f52d0615dd03c7578f1e6`.
-The repository was initially clean. Codebase Memory was fully indexed before
-structural exploration. Remote migration versions were checked: maximum 14;
-this additive migration is version 15. Existing CI runs `npm test`, the build,
-and production dependency audit at the critical threshold.
+- Original baseline: 2,385 tests, production build and critical dependency gate
+  passed. The original implementation checkpoint `d1421dd` passed 2,515 tests
+  across 165 files and its optimized build. Ruflo-tracked independent review 4
+  and its exception-subclass delta approved that checkpoint.
+- Continuation pre-integration gate: **2,699 tests across 171 files passed**.
+  This is an intermediate gate, preceding integration of the newer upstream task
+  form and final release validation; it is not represented as the release gate.
+- Jira: all 19 shared operations have direct success/result-schema, input, scope,
+  owner and deleted-user cases, provider failures where external, refusal/retry,
+  replay and mixed bulk outcomes. All browser Jira action handlers now use
+  shared `jiraActions`, preserving cookie/Origin guards and HTTP contracts.
+- GitHub: all ten operations and seven browser action handlers use shared
+  orchestration. Focused GitHub/core validation passed 374 tests. Current SHA,
+  self-review/draft/permission refusal, malformed output, partial reruns and
+  persistent replay without duplicate provider effects are covered. See
+  `contracts/github-parity.md` and the per-operation capability inventory.
+- Personal tasks, connections and focus: direct shared-operation tests cover
+  task CRUD, completion/reopen/board moves, every subtask action, provider
+  failure/uncertainty/replay, private metadata, connection setup/edit/test/remove,
+  ownership and focus creation from task, Jira and GitHub sources.
+- Generated reporting instructions were copied unchanged from the browser API
+  and executed by real Claude Code, Codex and Antigravity agy (Gemini family).
+  The reporting token was supplied through each child process environment only.
+  Each run created a working task with progress, then verified revocation and
+  HTTP 401. Measured elapsed time: Claude **18.101 s**, Codex **9.058 s**, agy
+  **46.190 s**, including agy's one-shot command approval. Artifact:
+  `validation/reporting-clients.json`; reproduction: `scripts/validation/README.md`.
+- Actual OAuth clients completed DCR, PKCE, browser-bound consent and a real
+  `agents_sessions_list` invocation. Natural-expiry testing found and fixed
+  Codex's refresh-scope incompatibility: `offline_access` is no longer advertised;
+  issued refresh tokens still follow the provider's explicit policy. Regressions
+  reject ungranted scopes and escalation; final timed client proof is separate.
+- The bounded Next proxy serves `/oauth/` and authorization metadata through the
+  existing public origin. Nine proxy tests plus middleware isolation tests cover
+  canonical Host, cookies, safe redirects, CORS preflight, payload/deadline bounds,
+  unknown paths and companion failure. No global Traefik change is required.
+- Deployment and backup: 21 focused tests, OAuth compilation, TypeScript and
+  shell/Node syntax passed. Compiled backup and restore commands ran against a
+  disposable database: retained settings, zero agent rows and private 0600 files.
+  The idempotent installer checks unmanaged units before stopping/copying, installs
+  the companion on first upgrade, requires app and OAuth health, and enables a
+  daily logical backup timer. Existing backups are preserved. A read-only host
+  audit inspected 17 cron files and systemd inventory and found no application
+  raw backup job to replace. This does not certify off-host storage snapshots.
+  See `validation/deployment-readiness.json` and `../../docs/backup-and-services.md`.
+- Browser acceptance against the optimized disposable application passed empty
+  state, two task cards in one session, lifecycle/details/timeline, URL navigation
+  and refresh, legacy workspace, two-user isolation, 500/unknown-enum failures,
+  prompt without secrets, token revocation/401 and zero page errors.
+- Browser load: 20 users, 100 sessions, 10,000 retained tasks, 100 reports at 10/s,
+  20 Chromium contexts. All reports appeared in React cards: p95 **1,834.47 ms**,
+  p99 **1,867.93 ms**, maximum **1,869.33 ms**, zero errors. Application RSS
+  202.54 MB initially and 345.52 MB peak. Artifact:
+  `validation/agents-browser-performance.json`. Local proxy/Next/DOM/polling are
+  included; physical display paint and production network latency are excluded.
+- Core retention passed bounded expiry/cleanup and logical restore tests,
+  including a 1,200-event history, 500-row cleanup batches, content-free tombstones,
+  secure deletion and WAL checkpointing. No filesystem/SSD forensic erase claim.
+- Initial React Doctor 0.9.14: zero errors, 51 advisory warnings, no baseline
+  increase. React Scan offers instrumentation/init rather than a static gate;
+  unrequested runtime instrumentation was not installed. A final stack scan and
+  integrated gates follow the last source changes.
 
-- Baseline: 2,385 tests passed; production build passed; no critical production
-  dependency advisory. One moderate `ip-address` advisory was already present.
-- Integrated implementation suite: 2,515 tests across 165 files passed after
-  the final provider-refusal corrections. No application source edits followed
-  this passing suite.
-- `npm run build`: companion TypeScript/bundle and optimized Next production build
-  passed. The first attempt caught a benchmark type error; that error was corrected
-  before the passing build. External runtime socket paths are explicitly excluded
-  from Turbopack artifact tracing.
-- Focused remediation: 463 provider/operation/access tests passed, covering local atomic
-  rollback, deterministic missing resources, safe uncertain external retries,
-  non-secret connection settings, and maximum-length bulk idempotency keys.
-- Core retention: 22 focused tests passed, including a 1,200-event history, bounded
-  total deletion batches, content-free deletion tombstones, secure deletion and
-  WAL checkpointing. No forensic erase guarantee for filesystem snapshots/SSD.
-- Browser acceptance was repeated against the optimized production application
-  behind a disposable loopback reverse proxy. Passed: empty state, two tasks in
-  one session, reporting/lifecycle/details/timeline, URL navigation and refresh,
-  legacy workspace access, two-user isolation, 500 and unknown-enum errors, prompt
-  without secrets, UI token revocation followed by 401, and zero page errors.
-- Real browser load: 20 users, 100 sessions, 10,000 retained tasks, 100 reports at
-  10/s, 20 visible Chromium contexts. All 100 reports appeared in React cards;
-  p95 1,834.47 ms, p99 1,867.93 ms, maximum 1,869.33 ms, zero errors. Application
-  RSS 202.54 MB initially, 345.52 MB peak. Artifact:
-  `validation/agents-browser-performance.json`. This measures local proxy + Next
-  production + React DOM and natural two-second polling; physical display paint,
-  production network latency and agents' own reporting overhead are excluded.
-- OAuth provider tests exercise actual HTTP discovery/DCR/PKCE/token exchange,
-  persistence/restart, replay/rotation, immediate revocation, private-socket
-  verification, browser-bound consent, scope/audience isolation and bounded
-  registrations. Real Claude Code 2.1.309, Codex CLI 0.163.0 and Antigravity
-  (agy) 1.4.6 completed DCR, browser consent, PKCE authorization and an actual
-  `agents_sessions_list` call returning one item. Each used the disposable
-  production runtime; agy required one-shot approval for the exact read-only call.
-  Revoked grants returned 200 from the browser API; Codex subsequently received
-  `AuthRequired` with `invalid_token` at transport initialization. Artifact:
-  `validation/oauth-clients.json`. Provider refresh/replay/restart tests are
-  distinct from these real-client checks; timed client auto-refresh was not tested.
-- Deployment script syntax passed. Isolated shell mocks verified normal publish,
-  rsync failure and application restart failure. No live service deployment or
-  systemd/Traefik production acceptance was performed.
+## Release gates still being executed
 
-### Explicit remaining acceptance and operational gaps
+The continuation's independent review, integration of upstream `main`, final
+integrated tests/build/audit, timed real-client refresh and new Next-proxy client
+smoke must all complete before delivery. Source/test completion alone is not a
+production acceptance assertion. No deployment is claimed by the local evidence.
 
-- A standalone official Gemini CLI was unavailable; the Gemini-family result is
-  from installed Antigravity agy. All three installed clients completed positive
-  tool calls before the final integrated rebuild with frozen OAuth sources. After
-  that rebuild and a companion restart, agy rejected the revoked fixture grant
-  with `initialize: Unauthorized [Auth Needed]`, as expected. Positive tool calls
-  were not repeated after that last rebuild. All temporary client configurations
-  and fixture grants were removed/revoked; disposable CLI/browser drivers stopped.
-- Independent implementation review 4 and its final exception-subclass delta
-  review both approved the source. The final optimized production build passed after the source freeze.
-- The capability inventory lists 58 registered tools. Registry/scope/schema and
-  lifecycle tests are executable; successful and failed live-provider evidence
-  for every Jira/GitHub write is not yet captured. Existing sanitized captures
-  are reused with their recorded provenance. No production write was made just
-  to manufacture a fixture.
-- Existing cookie-authenticated Jira/GitHub handlers continue to call the same
-  provider domain adapters used by the new application operations. They have not
-  all been migrated to the new operation facade; their browser response contracts
-  are preserved. This is an implementation-plan deviation, not a claim that such
-  route migration was executed.
-- Logical backup/restore excludes agent content and revokes restored access.
-  Existing host-level raw backup jobs have not been audited/replaced on a deployed
-  host. Deployment must do this before asserting the retention policy covers
-  external snapshots and backups.
-- Uncertain external writes fail closed and remain persisted. The internal
-  reconciliation helper requires authoritative server verification; a generic
-  provider reconciliation MCP tool is not yet exposed. Clients must inspect
-  provider state and must never retry an unknown outcome under a new key blindly.
-- React Doctor 0.9.14: zero errors, 51 advisory warnings. Reviewed categories include
-  supported-but-deprecated Zod compatibility methods, deliberate sequential receipt
-  writes, polling effects, URL state and edit-version snapshots. No baseline or
-  allowlist was expanded. React Scan has an instrumentation/init workflow rather
-  than a static gate; no unrequested runtime instrumentation was installed.
-- No push, PR, deployment or production acceptance is asserted by local checks.
+## Practical boundaries
+
+- Gemini-family acceptance uses installed Antigravity agy 1.4.6. A standalone
+  official Gemini CLI was not installed; no separate-client result is claimed.
+- External writes with unknown outcomes persist and require reconciliation.
+  Inspect authoritative provider state before issuing another mutation; never
+  blindly retry using a new key. No general automatic reconciliation tool is
+  advertised.
+- Live provider account permissions, network conditions and off-host backup
+  systems are not inferred from offline fixtures or local benchmark results.
 
 ## Prerequisites
 

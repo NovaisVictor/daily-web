@@ -74,6 +74,22 @@ proxy with the same issuer/path layout and all three actual clients. Its harness
 provides routing needed for the proof independently of production deployment T037.
 T037 repeats the proof with the production-style Traefik/systemd configuration.
 
+## Refresh scope interoperability
+
+The authorization-server metadata advertises application scopes and `openid`,
+not `offline_access`. Refresh-token eligibility is explicitly determined by the
+registered `refresh_token` grant type and the established provider's
+`issueRefreshToken` policy; no OIDC offline-access scope is needed for MCP.
+Interactive user consent remains mandatory for application permissions.
+
+This avoids advertising an OIDC control scope which the provider removes from
+requests without `prompt=consent`. Real Codex 0.163.0 retains originally requested
+scopes and re-sends them on refresh; advertising `offline_access` caused a real
+`invalid_scope` response after the access token expired. Do not work around this
+by allowing scope escalation or stripping an ungranted scope from refresh
+requests. Existing affected clients must reauthorize once to replace credentials
+that cached that original scope. Unknown or broader refresh scopes still fail.
+
 ## Token lifecycle
 
 Opaque access tokens: 15 minutes. Refresh family idle expiry: 30 days; absolute

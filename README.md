@@ -326,8 +326,10 @@ write is recorded and must be reconciled before it can be retried.
 `PUBLIC_ORIGIN`, database path and vault key for the application and companion;
 configure its private Unix socket with `DAILY_WEB_OAUTH_SOCKET` and loopback port
 with `DAILY_WEB_OAUTH_PORT`. Complete the application migrations before starting
-`node dist/oauth-server.js`. The example systemd service and Traefik snippets in
-`deploy/` show startup ordering, internal routing and health checks. Do not publish
+`node dist/oauth-server.js`. The deployment installer discovers the existing app
+service and installs the companion, startup migration and logical-backup timer.
+The app proxies public OAuth routes to the loopback companion, so an existing
+Traefik route to Next is sufficient. See `docs/backup-and-services.md`. Do not publish
 the internal socket or the loopback port directly. The browser application remains
 usable if the companion is unavailable; MCP authentication fails closed.
 
@@ -339,12 +341,12 @@ OAuth tokens are different credentials and are not interchangeable.
 
 ### Backup and restore
 
-Use the supported `scripts/backup.ts` and `scripts/restore.ts` flows for logical
-backups. Agent tracking data is excluded; restore invalidates API/MCP credentials
-before service startup, so an old backup cannot reactivate revoked access. Replace
-raw database backup jobs before enabling agent reporting. Restoring requires users
-to issue new reporting tokens and authorize MCP clients again.
-
-Design, module scope and acceptance criteria live in `specs/001-agent-workspace/`.
-Client interoperability and production-style routing must pass the documented
-acceptance gates before deployment.
+Use compiled `node dist/backup.js <database> <new-backup-file>` and
+`node dist/restore.js <backup-file> <new-database-file>` for logical backups.
+The managed daily timer runs scheduled logical backups into a private directory;
+agent tracking data is excluded, and restored API/MCP credentials are revoked
+before service startup. Existing personal/provider information is preserved.
+The restore command creates a new database and never overwrites the running one.
+Audit any external raw backup or snapshot system separately; the application's
+retention policy cannot delete copies maintained outside its control. Operational
+configuration and rollout details are in `docs/backup-and-services.md`.

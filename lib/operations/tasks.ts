@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { operation, mutationShape, pageShape, page, connection, mutate } from './context';
 import { AccessError } from '@/lib/access/principal';
-import { localMutation } from '@/lib/access/receipts';
+import { ExternalPartialOutcome, localMutation } from '@/lib/access/receipts';
+import type { EditTaskInput } from '@/lib/tasks/types';
 import type { ProviderTask } from '@/lib/types';
 import * as local from '@/lib/tasks/local';
 import * as mstodo from '@/lib/cli/mstodo';
@@ -15,6 +16,21 @@ import type { Principal } from '@/lib/access/principal';
 const sourceShape={provider:z.enum(['local','mstodo']),connectionId:z.string().min(1).optional()};
 const taskShape={...sourceShape,id:z.string().refine(isValidTaskId)};
 const title=z.string().trim().min(1).max(500).refine(isSafePositionalValue);
+const metadataShape={
+  due:z.string().refine(value=>value===''||isCalendarDate(value)).optional(),
+  time:z.string().regex(/^(|([01]\d|2[0-3]):[0-5]\d)$/).optional(),
+  priority:z.enum(['low','normal','high']).optional(),
+  recur:z.enum(['none','daily','weekly','monthly','']).optional(),
+};
+type TaskMetadata=z.infer<z.ZodObject<typeof metadataShape>>;
+function metadataEdit(input:TaskMetadata,task:ProviderTask|null):EditTaskInput {
+  const due=input.due??task?.due??'';
+  const time=input.time??task?.time??'';
+  const recur=input.recur??task?.recur??'';
+  if(!due&&(time||recur&&recur!=='none'))throw new AccessError(400,'invalid_input','A time or repeating task requires a due date');
+  return {due:input.due===''?'none':input.due,time:input.time===''?'none':input.time,priority:input.priority,recur:input.recur};
+}
+
 function source(p:Principal,i:{provider:'local'|'mstodo';connectionId?:string}) {
   if(i.provider==='local')return null;
   if(!i.connectionId)throw new AccessError(400,'connection_required','Choose a task connection');
@@ -57,11 +73,26 @@ export const taskOperations=[
     return i.groupBy==='due'?{...result,groups:groupTasksByDueWindow(result.items)}:result;
   }),
   operation('tasks_get','Read a personal task and its subtasks','tasks:read','read',taskShape,async(p,i)=>({task:await readPersonalTask(p,i)})),
-  operation('tasks_create','Create a personal task','tasks:write','write',{...sourceShape,...mutationShape,title},async(p,i)=>
-    writePersonal(p,i,'tasks_create',()=>({ok:true,id:local.addTask(p.userId,i.title)}),async env=>({ok:true,id:await mstodo.addTask(env,i.title)}))),
-  operation('tasks_edit','Edit title, due date, time, priority or recurrence','tasks:write','write',{...taskShape,...mutationShape,title:title.optional(),due:z.string().refine(value=>value===''||isCalendarDate(value)).optional(),time:z.string().regex(/^(|([01]\d|2[0-3]):[0-5]\d)$/).optional(),priority:z.enum(['low','normal','high']).optional(),recur:z.enum(['none','daily','weekly','monthly','']).optional()},async(p,i)=>{
-    const edit={title:i.title,due:i.due===''?'none':i.due,time:i.time===''?'none':i.time,priority:i.priority,recur:i.recur};
-    return writePersonal(p,i,'tasks_edit',()=>{local.editTask(p.userId,i.id,edit);return {ok:true};},async env=>{await mstodo.editTask(env,i.id,edit);return {ok:true};});
+  operation('tasks_create','Create a personal task with optional scheduling, priority and recurrence','tasks:write','write',{...sourceShape,...mutationShape,title,...metadataShape},async(p,i)=>{
+    const edit=metadataEdit(i,null);
+    const metadataFields=Object.values(edit).filter(value=>value!==undefined);
+    return writePersonal(p,i,'tasks_create',()=>{
+      const id=local.addTask(p.userId,i.title);
+      if(metadataFields.length)local.editTask(p.userId,id,edit);
+      return {ok:true,id};
+    },async env=>{
+      const id:unknown=await mstodo.addTask(env,i.title);
+      if(!isValidTaskId(id))throw new ExternalPartialOutcome({code:'created_task_unidentified'});
+      if(metadataFields.length){
+        try{await mstodo.editTask(env,id,edit);}
+        catch{throw new ExternalPartialOutcome({id,code:'task_metadata_unconfirmed'});}
+      }
+      return {ok:true,id};
+    });
+  }),
+  operation('tasks_edit','Edit title, due date, time, priority or recurrence','tasks:write','write',{...taskShape,...mutationShape,title:title.optional(),...metadataShape},async(p,i)=>{
+    const edit=(task:ProviderTask|null)=>({...metadataEdit(i,task),title:i.title});
+    return writePersonal(p,i,'tasks_edit',task=>{local.editTask(p.userId,i.id,edit(task));return {ok:true};},async(env,task)=>{await mstodo.editTask(env,i.id,edit(task));return {ok:true};});
   }),
   operation('tasks_transition','Complete, reopen, or move a personal task on its board','tasks:write','write',{...taskShape,...mutationShape,status:z.enum(['todo','doing','done'])},async(p,i)=>{
     const board=()=>{if(i.status==='doing')markDoing(p.userId,i.id);else clearBoardStatus(p.userId,i.id);};

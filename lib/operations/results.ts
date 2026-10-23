@@ -1,6 +1,9 @@
 import { z } from 'zod';
 const identity=z.union([z.string(),z.number()]);
 const success=z.object({ok:z.literal(true),id:identity.optional(),sha:z.string().optional(),state:z.enum(['APPROVED','CHANGES_REQUESTED']).optional(),code:z.string().optional(),number:z.number().int().optional()}).strict();
+const githubUrl=z.url().max(2048).refine(value=>{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='github.com'&&!url.username&&!url.password&&!url.search;});
+const reviewerId=z.string().regex(/^(team:)?[A-Za-z0-9_-]{1,100}$/);
+const githubSuccess=success.extend({url:githubUrl.optional(),review:z.object({id:z.number().int(),state:z.enum(['APPROVED','CHANGES_REQUESTED'])}).optional(),comment:z.object({id:z.number().int(),url:githubUrl}).optional(),requested:z.array(reviewerId).max(15).optional(),rerun:z.number().int().nonnegative().max(5).optional(),failed:z.array(z.object({id:z.number().int(),error:z.string()})).max(5).optional(),complete:z.boolean().optional()});
 const pager={nextCursor:z.string().nullable(),complete:z.boolean()};
 const statusCategory=z.enum(['new','indeterminate','done']);
 const jiraItem=z.object({key:z.string(),summary:z.string(),status:z.string(),statusCategory,project:z.string(),url:z.string(),parent:z.object({key:z.string(),summary:z.string()}).nullable(),role:z.enum(['assignee','reporter','both']),awaitingApproval:z.boolean(),kind:z.string(),subtask:z.boolean(),hierarchyLevel:z.number().nullable(),updatedAt:z.string(),dueDate:z.string(),priority:z.object({name:z.string(),rank:z.number().nullable()}).nullable(),flag:z.enum(['impediment','none'])}).passthrough();
@@ -17,7 +20,7 @@ const schemas:Record<string,z.ZodType>={
   jira_priorities:z.object({priorities:z.object({priorities:z.array(z.object({id:z.string(),name:z.string()})),current:z.object({id:z.string(),name:z.string()}).nullable()})}),
   jira_epics:z.object({items:z.array(jiraItem)}),
   jira_start_suggest:z.object({suggestions:z.array(z.discriminatedUnion('status',[z.object({status:z.literal('suggested'),key:z.string(),date:z.string(),basis:z.enum(['started','finished','created'])}),z.object({status:z.literal('failed'),key:z.string(),error:z.string()})]))}),
-  jira_start_apply:z.object({results:z.array(success)}),
+  jira_start_apply:z.object({results:z.array(z.union([success,z.object({id:z.string(),status:z.enum(['refused','uncertain']),code:z.enum(['state_changed','uncertain_outcome'])}).strict()]))}),
   jira_people:z.object({people:z.array(z.object({accountId:z.string(),displayName:z.string()}))}),
   jira_people_search:z.object({people:z.array(z.object({accountId:z.string(),displayName:z.string()}))}),
   jira_summary:z.object({text:z.string(),complete:z.boolean(),githubIncluded:z.boolean(),githubSources:z.array(z.object({connectionId:z.string(),complete:z.boolean()}))}),
@@ -31,6 +34,7 @@ const schemas:Record<string,z.ZodType>={
 const writes=new Set(['github_repository_add','github_repository_remove','github_review','github_comment','github_request_review','github_merge','github_rerun','jira_transition','jira_approval','jira_comment','jira_flag','jira_edit','jira_story_create','jira_parent','jira_people_follow','jira_watch','tasks_create','tasks_edit','tasks_transition','tasks_delete','tasks_subtask_create','tasks_subtask_edit','connections_update','connections_remove','connections_toggle','focus_create']);
 export function resultSchemaFor(name:string):z.ZodType {
   if(name==='github_jira_sync')return z.union([success,z.object({transition})]);
+  if(name.startsWith('github_')&&writes.has(name))return githubSuccess;
   if(writes.has(name))return success;
   const schema=schemas[name];if(!schema)throw new Error(`Missing result contract: ${name}`);return schema;
 }

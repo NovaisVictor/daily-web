@@ -1,0 +1,67 @@
+{
+  "recordedAt": "2026-10-23",
+  "runtime": "optimized production build d1421dd; disposable SQLite database and user; local loopback origin",
+  "instructionSource": "GET /api/agent-access/prompt, copied unchanged with credential placeholder",
+  "measurement": "From before browser-authenticated API credential creation through prompt retrieval, actual client execution and API verification of working task plus matching progress activity. Includes one-shot command approval for agy; excludes client installation and initial sign-in.",
+  "clients": [
+    {
+      "client": "claude",
+      "provider": "claude",
+      "startedAt": "2026-10-23T21:27:18.199Z",
+      "elapsedMs": 18101,
+      "generatedPrompt": "unmodified server-generated instructions with secret placeholder",
+      "tokenDelivery": "child process environment only",
+      "taskStatus": "working",
+      "progressAccepted": true,
+      "result": "passed",
+      "revocationHttpStatus": 204,
+      "revokedTokenHttpStatus": 401,
+      "credentialLiteralInOutput": false,
+      "approvedCommands": 0
+    },
+    {
+      "client": "codex",
+      "provider": "codex",
+      "startedAt": "2026-10-23T21:27:19.350Z",
+      "elapsedMs": 9058,
+      "generatedPrompt": "unmodified server-generated instructions with secret placeholder",
+      "tokenDelivery": "child process environment only",
+      "taskStatus": "working",
+      "progressAccepted": true,
+      "result": "passed",
+      "revocationHttpStatus": 204,
+      "revokedTokenHttpStatus": 401,
+      "credentialLiteralInOutput": false,
+      "approvedCommands": 0
+    },
+    {
+      "client": "agy",
+      "provider": "gemini",
+      "startedAt": "2026-10-23T21:27:20.556Z",
+      "elapsedMs": 46190,
+      "generatedPrompt": "unmodified server-generated instructions with secret placeholder",
+      "tokenDelivery": "child process environment only",
+      "taskStatus": "working",
+      "progressAccepted": true,
+      "result": "passed",
+      "revocationHttpStatus": 204,
+      "revokedTokenHttpStatus": 401,
+      "credentialLiteralInOutput": false,
+      "approvedCommands": 1
+    }
+  ],
+  "targetMs": 180000,
+  "allWithinTarget": true,
+  "secretHandling": "Reporting credentials injected only through each child process environment, never prompt or command arguments. Captured private CLI output checked for the actual credential value. No credential literal found. Credentials revoked after each run; subsequent request returned401.",
+  "reproduction": [
+    "scripts/validation/bootstrap.ts",
+    "scripts/validation/runtime.mjs",
+    "scripts/validation/reporting-client.mjs",
+    "scripts/validation/README.md"
+  ],
+  "limitations": [
+    "One disposable local run per client in this recorded sample; timings are not a performance percentile or production network benchmark.",
+    "The onboarding measurement automates existing-user credential creation and prompt retrieval; it does not measure a human first visiting the UI.",
+    "Gemini-family acceptance uses installed Antigravity agy1.4.6 rather than an unavailable standalone Gemini CLI."
+  ]
+}

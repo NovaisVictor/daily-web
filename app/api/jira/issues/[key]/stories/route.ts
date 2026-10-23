@@ -1,7 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { invalidKey, issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
-import { createStoryInEpic, InvalidEdit, parseNewStory } from '@/lib/integrations/jira/edits';
+import { InvalidEdit, parseNewStory } from '@/lib/integrations/jira/edits';
 import { SUMMARY_MAX } from '@/lib/jiraLimits';
 
 type Params = { params: Promise<{ key: string }> };
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   let created: { key: string; url: string };
   try {
-    created = await createStoryInEpic(auth.value.connection, key, story);
+    created = await jiraActions.createStory({userId: auth.value.user.id, connection: auth.value.connection}, key, story);
   } catch (err) {
     if (err instanceof InvalidEdit) return NextResponse.json({ error: err.message }, { status: 400 });
     return upstreamError(err);

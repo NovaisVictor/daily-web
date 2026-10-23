@@ -6,6 +6,11 @@ import { parseTasks } from '@/lib/parsers/mstodo';
 const fixture = readFileSync(path.join(__dirname, '../../fixtures/mstodo-tasks.json'), 'utf8');
 
 describe('parseTasks', () => {
+  it('normalizes only the known Microsoft monthly recurrence', () => {
+    const tasks = parseTasks(JSON.stringify(['absoluteMonthly', 'monthly', 'future-pattern'].map(recur => ({id: recur, title: 'Task', completed: false, recur}))));
+    expect(tasks.map(task => task.recur)).toEqual(['monthly', 'monthly', 'future-pattern']);
+  });
+
   it('faz o parse dos campos básicos', () => {
     const raw = '[{"id":"a1","title":"Comprar café","completed":false,"due":"2026-06-10","notes":""},' +
       '{"id":"b2","title":"Feito","completed":true,"due":"","notes":"obs"}]';

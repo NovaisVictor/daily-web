@@ -1,7 +1,9 @@
+import { AccessError } from '@/lib/access/principal';
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api/context';
-import { isJiraKey, jiraWatchedKeys, setJiraWatchedKeys } from '@/lib/preferences';
-import { dropCache, refreshAll } from '@/lib/refresher';
+import { isJiraKey } from '@/lib/preferences';
+import { refreshAll } from '@/lib/refresher';
 
 /** Acrescenta uma issue à lista de acompanhamento. */
 export async function POST(request: NextRequest) {
@@ -16,10 +18,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const atuais = jiraWatchedKeys(auth.value.id);
-  setJiraWatchedKeys(auth.value.id, [...atuais, body.key]);
-  // Acompanhar uma issue nova exige buscá-la: o estado em cache não a tem.
-  dropCache(auth.value.id);
+  try {
+    jiraActions.watch(auth.value.id, String(body.key).toUpperCase(), 'watch');
+  } catch(error) {
+    if(error instanceof AccessError) return NextResponse.json({error: error.message}, {status: error.status});
+    throw error;
+  }
   return NextResponse.json(await refreshAll(auth.value.id));
 }
 
@@ -32,9 +36,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'chave inválida' }, { status: 400 });
   }
 
-  const alvo = String(body.key).toUpperCase();
-  const restantes = jiraWatchedKeys(auth.value.id).filter((k) => k !== alvo);
-  setJiraWatchedKeys(auth.value.id, restantes);
-  dropCache(auth.value.id);
+  try {
+    jiraActions.watch(auth.value.id, String(body.key).toUpperCase(), 'unwatch');
+  } catch(error) {
+    if(error instanceof AccessError) return NextResponse.json({error: error.message}, {status: error.status});
+    throw error;
+  }
   return NextResponse.json(await refreshAll(auth.value.id));
 }

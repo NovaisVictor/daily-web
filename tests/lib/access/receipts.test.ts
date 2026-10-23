@@ -44,3 +44,25 @@ it('preserves personal-task receipts across a logical backup without retaining a
  expect(backup.prepare('SELECT nam_capability AS capability FROM tb_mutation_receipt').all()).toEqual([{capability:'tasks_create'}]);
  backup.close();
 });
+it('retains safe partial outcomes across retries without a second provider effect',async()=>{
+ const {ExternalPartialOutcome}=await import('@/lib/access/receipts');
+ const mutation={key:'partial-rerun',requestedAt:new Date().toISOString()};
+ const call=vi.fn(async()=>{throw new ExternalPartialOutcome({rerun:1,number:1,complete:false,failed:[{id:12,error:'sensitive provider credential'}],token:'must not persist'});});
+ for(let attempt=0;attempt<2;attempt++){
+  await expect(externalMutation('a','github_rerun',{id:'acme/app#1'},mutation,call)).rejects.toMatchObject({outcome:{rerun:1,failed:[{id:12,error:'The provider outcome was not confirmed'}]}});
+ }
+ expect(call).toHaveBeenCalledTimes(1);
+ const receipt=getDb().prepare('SELECT typ_state AS state,jsn_outcome AS outcome FROM tb_mutation_receipt WHERE ref_key=?').get(mutation.key) as {state:string;outcome:string};
+ expect(receipt.state).toBe('unknown');expect(receipt.outcome).not.toMatch(/sensitive|credential|token/);
+});
+it('replays safe rich GitHub metadata without retaining credential-bearing URLs',async()=>{
+ const mutation={key:'rich-github-result',requestedAt:new Date().toISOString()};
+ const call=vi.fn(async()=>({ok:true,id:42,url:'https://github.com/acme/app/issues/1#issuecomment-42',comment:{id:42,url:'https://github.com/acme/app/issues/1#issuecomment-42'},requested:['person','team:reviewers']}));
+ const first=await externalMutation('a','github_comment',{id:'acme/app#1'},mutation,call);
+ expect(await externalMutation('a','github_comment',{id:'acme/app#1'},mutation,call)).toEqual(first);
+ expect(call).toHaveBeenCalledTimes(1);
+ const unsafe={key:'unsafe-url-result',requestedAt:new Date().toISOString()};
+ await externalMutation('a','github_comment',{id:'acme/app#2'},unsafe,async()=>({ok:true,url:'https://github.com/acme/app?token=must-not-persist'}));
+ const receipt=getDb().prepare('SELECT jsn_outcome AS outcome FROM tb_mutation_receipt WHERE ref_key=?').get(unsafe.key) as {outcome:string};
+ expect(receipt.outcome).not.toContain('must-not-persist');
+});

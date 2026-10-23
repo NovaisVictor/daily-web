@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { AccessError, requireScope, type Principal } from '@/lib/access/principal';
 import { findConnection, isModuleEnabled, type Connection } from '@/lib/vault/connections';
 import type { ModuleId } from '@/lib/modules';
-import { externalMutation, ExternalNotSubmittedError } from '@/lib/access/receipts';
+import { externalMutation, ExternalNotSubmittedError, ExternalPartialOutcome } from '@/lib/access/receipts';
 import { resultSchemaFor, mutationResultSchemaFor } from './results';
 import { ProviderRefusal } from '@/lib/integrations/refusal';
 
@@ -32,6 +32,11 @@ export function operation<S extends z.ZodRawShape>(name: string, description: st
     try { const result=resultSchema.safeParse(await run(principal, parsed.data));if(!result.success)throw new AccessError(502,'invalid_result','The provider returned an unsupported response');return result.data; }
     catch (error) {
       if (error instanceof AccessError) throw error;
+      if (error instanceof ExternalPartialOutcome) {
+        const failure=new AccessError(409,'uncertain_outcome','Only part of the provider operation was confirmed; reconcile before retry');
+        failure.cause=error;
+        throw failure;
+      }
       if (error instanceof ExternalNotSubmittedError || error instanceof ProviderRefusal) throw new AccessError(409, 'state_changed', 'The resource changed before the operation was submitted');
       throw new AccessError(502, 'upstream_failed', 'The provider operation failed; no success was confirmed');
     }

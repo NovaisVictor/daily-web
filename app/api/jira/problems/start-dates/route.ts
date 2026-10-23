@@ -1,8 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { upstreamError } from '@/lib/api/context';
 import { issueKeyParam, requireJira, writeDone } from '@/lib/api/jira';
 import { isCalendarDate } from '@/lib/integrations/jira/parse';
-import { suggestStartDates, writeStartDates } from '@/lib/integrations/jira/startDates';
 import { START_DATE_BATCH } from '@/lib/jiraLimits';
 
 function badRequest(error: string): NextResponse {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (!keys) return badRequest(`chaves inválidas — informe de 1 a ${START_DATE_BATCH} no formato ABC-123`);
 
   try {
-    const suggestions = await suggestStartDates(auth.value.connection, keys);
+    const suggestions = await jiraActions.suggestStartDates(auth.value.connection, keys);
     const failed = suggestions.flatMap((s) => (s.status === 'failed' ? [s.error] : []));
     if (failed.length === suggestions.length) return upstreamError(new Error(failed[0]));
     return NextResponse.json({ suggestions });
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
   let results;
   try {
-    results = await writeStartDates(auth.value.connection, items);
+    results = await jiraActions.startDates({userId: auth.value.user.id, connection: auth.value.connection}, items);
   } catch (err) {
     return upstreamError(err);
   }

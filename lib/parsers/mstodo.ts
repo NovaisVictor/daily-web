@@ -33,7 +33,7 @@ export function parseTasks(json: string): ProviderTask[] {
     due: task.due ?? '',
     priority: toPriority(task.priority),
     time: task.time ?? '',
-    recur: task.recur ?? '',
+    recur: task.recur === 'absoluteMonthly' ? 'monthly' : task.recur ?? '',
     notes: task.notes ?? '',
     subtasks: (task.subtasks ?? []).map(
       (s): SubTask => ({ id: s.id, title: s.title, completed: s.completed }),

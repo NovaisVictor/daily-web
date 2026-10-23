@@ -36,7 +36,7 @@ function runsOf(repo: keyof typeof runsFixture) {
 }
 
 function openPull(over: Record<string, unknown> = {}) {
-  return { number: 42, state: 'open', mergeable: true, head: { sha: SHA, ref: 'feature/x' }, ...over };
+  return { number: 42, state: 'open', draft: false, user:{login:'author'}, mergeable: true, head: { sha: SHA, ref: 'feature/x' }, ...over };
 }
 
 afterEach(() => {

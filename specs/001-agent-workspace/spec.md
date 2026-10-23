@@ -1,10 +1,10 @@
 # Feature Specification: Daily Web Agent Workspace
 
-**Feature Branch**: `main` (documentation only; no feature branch created)
+**Feature Branch**: `feature/agent-workspace`
 
 **Created**: 2026-10-23
 
-**Status**: Approved by Ruflo review round 2 — implementation starting
+**Status**: Specification approved by Ruflo review round 2; implementation and release validation tracked in `tasks.md` and `quickstart.md`
 
 **Input**: Transform Daily Web from a passive monitor dashboard into a personal
 workspace for tracking Claude, Codex, and Gemini agents. Every user can report

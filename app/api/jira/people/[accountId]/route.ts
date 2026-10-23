@@ -1,7 +1,8 @@
+import { jiraActions } from '@/lib/operations/jira';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api/context';
 import { isJiraAccountId, jiraFollowedPeople } from '@/lib/preferences';
-import { fetchPersonView, jiraConnectionOf } from '@/lib/jiraPeople';
+import { jiraConnectionOf } from '@/lib/jiraPeople';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ accountId: string }> }) {
   const auth = await requireUser();
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   try {
-    const view = await fetchPersonView(conn, accountId);
+    const view = await jiraActions.personView(conn, accountId);
     return NextResponse.json(view);
   } catch (err) {
     return NextResponse.json(

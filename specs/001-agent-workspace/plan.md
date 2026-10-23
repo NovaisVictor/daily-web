@@ -1,8 +1,8 @@
 # Implementation Plan: Daily Web Agent Workspace
 
-**Branch**: documentation remains on `main`; feature identity is `001-agent-workspace`.
+**Branch**: `feature/agent-workspace`; feature identity is `001-agent-workspace`.
 **Date**: 2026-10-23. **Spec**: [spec.md](spec.md).
-**State**: Proposed implementation plan. No application implementation performed.
+**State**: Implemented; final client and integrated release validation in progress.
 
 ## Summary
 
@@ -20,9 +20,8 @@ persisted operation receipts and explicit uncertain outcomes.
 
 **Language/Version**: TypeScript; Node 24 (local v24.15.0 confirmed).
 **Primary Dependencies**: Existing Next.js 16, React 19, better-sqlite3 and Vitest;
-add official MCP server v2, its compatible schema dependency, and oidc-provider
-with its types only during implementation. Pin versions after the interoperability
-spike and security review. No framework rewrite or package-manager migration.
+official MCP server 2.4.0, Zod schemas, and oidc-provider 9.13.0
+with matching types. Versions were pinned after the interoperability spike. No framework rewrite or package-manager migration.
 **Storage**: Existing SQLite/WAL; additive agent, access, and operation-receipt
 records. Persistent encrypted OAuth-provider adapter. No generic deletion of
 personal tasks or upstream Jira/GitHub data.
@@ -57,7 +56,7 @@ returns setup links. This preserves, rather than exempts, the constitution.
 The companion process is justified by the established OAuth library's Node HTTP
 interface and SDK guidance against implementing a new authorization server with
 legacy helpers. It owns protocol handling and token issuance only. The app keeps
-account authentication and consent UI. No operational readiness is claimed yet.
+account authentication and consent UI. Operational readiness is recorded separately in `quickstart.md` and deployment evidence.
 
 ## Project Structure
 
@@ -77,7 +76,7 @@ Existing files reused or changed:
 - `deploy/`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`:
   add companion lifecycle, health, proxy discovery, and required gates.
 
-Proposed new files/directories (not yet implemented):
+Implemented new files/directories:
 
 ```text
 lib/agents/             model.ts, schemas.ts, store.ts, operations.ts, retention.ts

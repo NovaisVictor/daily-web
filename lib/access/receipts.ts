@@ -30,6 +30,29 @@ export function insertReceipt(owner: string, capability: string, mutation: Mutat
   getDb().prepare(`INSERT INTO main.tb_mutation_receipt (uid_receipt,uid_user,nam_capability,ref_key,txt_digest,typ_class,ref_resource,ref_connection,typ_state,jsn_outcome,tsz_insert,tsz_resolved,tsz_expires) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(randomUUID(),owner,capability,mutation.key,requestDigest(input),kind,resource,connection,state,outcome === null ? null : JSON.stringify(outcome),new Date(now).toISOString(),resolved,resolved ? new Date(now+RETENTION_MS).toISOString() : null);
 }
 export class ExternalNotSubmittedError extends Error {}
+function safeExternalOutcome(value:Record<string,unknown>):Record<string,unknown> {
+  const result=Object.fromEntries(Object.entries(value).filter(([key,item])=>['ok','id','sha','state','code','number','rerun','complete'].includes(key)&&['string','number','boolean'].includes(typeof item)));
+  const safeUrl=(item:unknown):item is string=>{
+    if(typeof item!=='string'||item.length>2048)return false;
+    try{const url=new URL(item);return url.protocol==='https:'&&url.hostname==='github.com'&&!url.username&&!url.password&&!url.search;}catch{return false;}
+  };
+  if(safeUrl(value.url))result.url=value.url;
+  if(Array.isArray(value.requested)&&value.requested.length<=15&&value.requested.every(item=>typeof item==='string'&&/^(team:)?[A-Za-z0-9_-]{1,100}$/.test(item)))result.requested=value.requested;
+  if(Array.isArray(value.failed)&&value.failed.length<=5)result.failed=value.failed.flatMap(item=>item&&typeof item==='object'&&Number.isSafeInteger(item.id)?[{id:item.id,error:'The provider outcome was not confirmed'}]:[]);
+  if(value.review&&typeof value.review==='object'){
+    const review=value.review as Record<string,unknown>;
+    if(Number.isSafeInteger(review.id)&&['APPROVED','CHANGES_REQUESTED'].includes(String(review.state)))result.review={id:review.id,state:review.state};
+  }
+  if(value.comment&&typeof value.comment==='object'){
+    const comment=value.comment as Record<string,unknown>;
+    if(Number.isSafeInteger(comment.id)&&safeUrl(comment.url))result.comment={id:comment.id,url:comment.url};
+  }
+  return result;
+}
+export class ExternalPartialOutcome extends Error {
+  readonly outcome:Record<string,unknown>;
+  constructor(outcome:Record<string,unknown>){super('The provider outcome was only partially confirmed');this.outcome=safeExternalOutcome(outcome);}
+}
 export function localMutation<T extends Record<string, unknown>>(owner:string,capability:string,resource:{id:string;connectionId?:string;input?:unknown},mutation:Mutation,work:()=>T):T {
   if(!findUserById(owner))throw new AccessError(401,'invalid_identity','Authentication required');
   return getDb().transaction(()=>{
@@ -50,7 +73,10 @@ export async function externalMutation<T extends Record<string, unknown>>(owner:
     const receipt = findReceipt(owner, capability, mutation, input);
     if (receipt) {
       if(receipt.state==='not_submitted'){getDb().prepare(`UPDATE main.tb_mutation_receipt SET typ_state='pending',tsz_insert=?,tsz_resolved=NULL,tsz_expires=NULL WHERE uid_user=? AND nam_capability=? AND ref_key=?`).run(new Date().toISOString(),owner,capability,mutation.key);return null;}
-      if (receipt.state !== 'success') throw new AccessError(409,'uncertain_outcome','The prior operation requires reconciliation before retry');
+      if (receipt.state !== 'success') {
+        if(receipt.state==='unknown'&&receipt.outcome)throw new ExternalPartialOutcome(JSON.parse(receipt.outcome));
+        throw new AccessError(409,'uncertain_outcome','The prior operation requires reconciliation before retry');
+      }
       return JSON.parse(receipt.outcome ?? '{}') as T;
     }
     insertReceipt(owner,capability,mutation,input,resource.id,'external','pending',null,Date.now(),resource.connectionId ?? null);
@@ -60,11 +86,15 @@ export async function externalMutation<T extends Record<string, unknown>>(owner:
   try {
     let deadline:ReturnType<typeof setTimeout>|undefined;
     const result = await Promise.race([work(),new Promise<never>((_,reject)=>{deadline=setTimeout(()=>reject(new Error('Provider deadline exceeded')),15000);})]).finally(()=>clearTimeout(deadline));
-    const safe = Object.fromEntries(Object.entries(result).filter(([key,value]) => ['ok','id','sha','state','code','number'].includes(key) && ['string','number','boolean'].includes(typeof value)));
+    const safe = safeExternalOutcome(result);
     const now = Date.now();
     getDb().prepare(`UPDATE main.tb_mutation_receipt SET typ_state='success',jsn_outcome=?,tsz_resolved=?,tsz_expires=? WHERE uid_user=? AND nam_capability=? AND ref_key=?`).run(JSON.stringify(safe),new Date(now).toISOString(),new Date(now+RETENTION_MS).toISOString(),owner,capability,mutation.key);
     return result;
   } catch (error) {
+    if(error instanceof ExternalPartialOutcome){
+      getDb().prepare(`UPDATE main.tb_mutation_receipt SET typ_state='unknown',jsn_outcome=? WHERE uid_user=? AND nam_capability=? AND ref_key=?`).run(JSON.stringify(error.outcome),owner,capability,mutation.key);
+      throw error;
+    }
     if (error instanceof ExternalNotSubmittedError || error instanceof ProviderRefusal || error instanceof AccessError) {
       const now=Date.now();getDb().prepare(`UPDATE main.tb_mutation_receipt SET typ_state='not_submitted',tsz_resolved=?,tsz_expires=? WHERE uid_user=? AND nam_capability=? AND ref_key=?`).run(new Date(now).toISOString(),new Date(now+RETENTION_MS).toISOString(),owner,capability,mutation.key);
       throw error;

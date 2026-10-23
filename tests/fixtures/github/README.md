@@ -73,3 +73,23 @@ GraphQL **queries** were sent; no mutation, no write.
   merge states: none existed at capture time.
 - A PR authored by a deleted user (`author: null`).
 - Fine-grained token responses (the stored token is classic).
+
+## Shared-operation captures (2026-10-23)
+
+`operation-contracts.json` contains additional **read-only** public GitHub REST
+captures. Its `provenance` object records exact GET endpoints and UTC time. The
+pull snapshot comes from the public `github/spec-kit` repository. The comment
+identity/URL comes from that existing PR's comments; the public user lookup
+provides the selected login shape for viewer validation. The unauthenticated
+`GET /user` response records a real, non-mutating authorization refusal.
+Owners, repositories, numbers, logins, teams and branches are normalized; comment
+bodies, profile fields and unrelated personal data are omitted.
+
+Tests derive review success from the previously captured `APPROVED` review in
+`pull-reviews.json`. They derive comment/reviewer identities, pull preflight and
+merge SHA scenarios from the selected captured records. A simulated merged reply
+or POST success is a mock derived from those contracts, **not** a claim that a
+live merge, review, comment, rerun or reviewer mutation was performed. Unknown
+states, permission statuses, moved SHAs and partial-job scenarios are explicitly
+adversarial variations of these captures. No production writes were needed to
+obtain these fixtures.
