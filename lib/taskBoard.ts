@@ -54,14 +54,17 @@ export function planMove(task: TodoTask, to: BoardColumn): MoveStep[] {
   return steps;
 }
 
-/**
- * A small tilt, the same for a task every time it is drawn: a random one would
- * make the whole board shuffle on each refresh. Range is -2deg to 2deg.
- */
-export function noteTilt(id: string): number {
+/** A stable number per task, so a note keeps its look across refreshes: a
+ *  random one would make the whole board shuffle on every poll. */
+function idHash(id: string): number {
   let hash = 0;
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  const steps = Math.abs(hash) % 41;
+  return Math.abs(hash);
+}
+
+/** A small tilt, the same for a task every time it is drawn. Range is -2deg to 2deg. */
+export function noteTilt(id: string): number {
+  const steps = idHash(id) % 41;
   return Math.round((steps / 10 - 2) * 10) / 10;
 }
 
@@ -75,4 +78,30 @@ export function noteTone(task: TodoTask): NoteTone {
   if (task.priority === 'high') return 'pink';
   if (task.priority === 'low') return 'blue';
   return 'yellow';
+}
+
+export type PinColor = 'red' | 'blue' | 'yellow' | 'green';
+
+const PIN_COLORS: PinColor[] = ['red', 'blue', 'yellow', 'green'];
+
+/** The pin a paper colour would swallow: a yellow pin vanishes on a yellow
+ *  note, and red reads as a smudge on pink. */
+const CLASHES: Record<NoteTone, PinColor> = {
+  yellow: 'yellow',
+  pink: 'red',
+  blue: 'blue',
+  green: 'green',
+};
+
+/** A pin colour per note, varied across the board like a real one, but never
+ *  the colour the note's paper would hide. */
+export function notePin(task: TodoTask): PinColor {
+  const options = PIN_COLORS.filter((c) => c !== CLASHES[noteTone(task)]);
+  // A different stride from the tilt, so pin and angle do not move together.
+  return options[Math.floor(idHash(task.id) / 7) % options.length];
+}
+
+/** About one note in three has its bottom corner peeling off the board. */
+export function noteCurls(id: string): boolean {
+  return Math.floor(idHash(id) / 3) % 3 === 0;
 }

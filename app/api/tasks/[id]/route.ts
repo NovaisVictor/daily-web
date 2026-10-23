@@ -48,6 +48,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
+    // Without a date there is nothing to roll over to: completing a repeating
+    // task with no due date completes it for good, while the panel promises it
+    // comes back. Refuse the combination instead of keeping that promise.
+    if (body.recur !== undefined && body.recur !== 'none' && due === 'none') {
+      return NextResponse.json({ error: 'uma tarefa que repete precisa de data' }, { status: 400 });
+    }
+
     await editTask(user.id, id, { title: body.title, due, time, recur: body.recur, priority: body.priority });
     await refreshTasks(user.id);
     return NextResponse.json({ ok: true });

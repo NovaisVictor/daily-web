@@ -27,6 +27,11 @@ export const RELEASES: Release[] = [
         detail:
           'Arraste a nota de uma coluna para outra, ou use os botões "A fazer", "Fazendo" e "Feito" na própria nota, que também funcionam pelo teclado. Levar para Feito conclui a tarefa; tirar de lá a reabre.',
       },
+      {
+        title: 'Alfinetes de verdade',
+        detail:
+          'As notas agora ficam presas por alfinetes coloridos vistos de lado, e algumas têm o canto descolando do quadro.',
+      },
     ],
   },
   {

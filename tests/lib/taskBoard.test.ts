@@ -3,6 +3,8 @@ import {
   columnOf,
   groupByColumn,
   neighbours,
+  noteCurls,
+  notePin,
   noteTilt,
   noteTone,
   planMove,
@@ -91,5 +93,27 @@ describe('aparência da nota', () => {
     expect(noteTone(task({ priority: 'high' }))).toBe('pink');
     expect(noteTone(task({ priority: 'low' }))).toBe('blue');
     expect(noteTone(task({ priority: 'high', completed: true }))).toBe('green');
+  });
+
+  it('o alfinete nunca tem a cor que o papel esconderia', () => {
+    const ids = Array.from({ length: 40 }, (_, i) => `t-${i}`);
+    for (const id of ids) {
+      expect(notePin(task({ id }))).not.toBe('yellow');
+      expect(notePin(task({ id, priority: 'high' }))).not.toBe('red');
+      expect(notePin(task({ id, priority: 'low' }))).not.toBe('blue');
+      expect(notePin(task({ id, completed: true }))).not.toBe('green');
+    }
+  });
+
+  it('o alfinete e o canto são os mesmos a cada desenho e variam pelo quadro', () => {
+    const ids = Array.from({ length: 40 }, (_, i) => `t-${i}`);
+    for (const id of ids) {
+      expect(notePin(task({ id }))).toBe(notePin(task({ id })));
+      expect(noteCurls(id)).toBe(noteCurls(id));
+    }
+    expect(new Set(ids.map((id) => notePin(task({ id })))).size).toBeGreaterThan(1);
+    const curled = ids.filter(noteCurls).length;
+    expect(curled).toBeGreaterThan(0);
+    expect(curled).toBeLessThan(ids.length);
   });
 });

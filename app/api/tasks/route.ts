@@ -36,6 +36,13 @@ export async function POST(request: Request) {
     }
   }
 
+  // Without a date there is nothing to roll over to: completing a repeating
+  // task with no due date completes it for good, while the panel promises it
+  // comes back. Refuse the combination instead of keeping that promise.
+  if (body.recur !== undefined && body.recur !== 'none' && (due === undefined || due === 'none')) {
+    return NextResponse.json({ error: 'uma tarefa que repete precisa de data' }, { status: 400 });
+  }
+
   try {
     const id = await addTask(user.id, title.trim());
 
