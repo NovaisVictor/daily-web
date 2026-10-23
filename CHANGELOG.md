@@ -98,6 +98,10 @@ Only `main` is maintained; there are no release branches.
   no longer applied to everyone; it is opt-in through the new choice.
 
 ### Fixed
+- An AI-drafted e-mail reply no longer speaks as the project's author. The
+  prompt named one person, so every other user got drafts written, and
+  sometimes signed, in his name. The draft is now written on behalf of the
+  mailbox the reply goes out from, and leaves the signature to the sender.
 - A delivered or approved story whose epic is still one of your open issues
   now shows under that epic. The server never re-fetches as an ancestor what
   is already in a list, so the tree of each tab now takes its path from every

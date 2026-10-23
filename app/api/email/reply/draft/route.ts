@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchBody } from '@/lib/integrations/imap';
+import { fetchBody, mailConfig } from '@/lib/integrations/imap';
 import { getCachedBody, putCachedBody } from '@/lib/emailCache';
 import { draftReply, MissingApiKeyError } from '@/lib/ai/replyDraft';
 import { isValidEmailId } from '@/lib/api/validation';
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       putCachedBody(user.id, account, id, body);
     }
     const text = await draftReply({
+      sender: mailConfig(connection).user,
       from: typeof from === 'string' ? from : '',
       subject: typeof subject === 'string' ? subject : '',
       body,
