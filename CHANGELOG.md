@@ -173,6 +173,10 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- The Slack panel shows unread direct messages again instead of "o Slack não
+  informou as mensagens não lidas". Slack's conversation list does not carry
+  unread counts, so the app now finds the latest direct messages through
+  search and asks only those conversations for their counts.
 - Menus and dialogs no longer let the content behind them show through in
   the dark themes. They used a 5% glass, so a post-it's colour and text sat
   under the menu items; they now use the theme's popover surface at 94%.
