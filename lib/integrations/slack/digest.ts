@@ -42,7 +42,7 @@ interface OkResponse {
 }
 
 type SearchResponse = OkResponse & { messages?: { matches?: SearchMatch[] } };
-type ConversationsResponse = OkResponse & { channels?: ImChannel[] };
+type InfoResponse = OkResponse & { channel?: ImChannel };
 type HistoryResponse = OkResponse & { messages?: HistoryMessage[] };
 type UserResponse = OkResponse & { user?: SlackUser };
 
@@ -160,18 +160,36 @@ async function fetchDirects(
   token: string,
   resolveName: (id: string) => Promise<string>,
 ): Promise<SlackMessage[]> {
-  const response = await slackCall<ConversationsResponse>(token, 'conversations.list', {
-    types: 'im',
-    exclude_archived: 'true',
-    limit: '200',
+  // conversations.list leaves the unread counts out; only conversations.info
+  // carries them, one call per conversation. The latest DMs in search tell
+  // which conversations are worth asking about.
+  const response = await slackCall<SearchResponse>(token, 'search.messages', {
+    query: 'is:dm',
+    count: '100',
+    sort: 'timestamp',
+    sort_dir: 'desc',
   });
-  const channels = response.channels ?? [];
-  if (!channels.some((channel) => channel.unread_count_display !== undefined)) {
+  const recent = [
+    ...new Set(
+      (response.messages?.matches ?? [])
+        .filter((match) => match.channel?.is_im && match.channel.id)
+        .map((match) => match.channel?.id ?? ''),
+    ),
+  ].slice(0, 15);
+  const channels = (
+    await Promise.all(
+      recent.map((channel) => slackCall<InfoResponse>(token, 'conversations.info', { channel })),
+    )
+  ).flatMap((info) => (info.channel ? [info.channel] : []));
+  if (
+    channels.length > 0 &&
+    !channels.some((channel) => channel.unread_count_display !== undefined)
+  ) {
     throw new Error('o Slack não informou as mensagens não lidas');
   }
-  const unread = channels
-    .filter((channel) => (channel.unread_count_display ?? 0) > 0 && channel.id)
-    .slice(0, 15);
+  const unread = channels.filter(
+    (channel) => (channel.unread_count_display ?? 0) > 0 && channel.id,
+  );
   const messages = await Promise.all(
     unread.map(async (channel): Promise<SlackMessage | null> => {
       const history = await slackCall<HistoryResponse>(token, 'conversations.history', {
