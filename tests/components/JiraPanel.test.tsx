@@ -1026,6 +1026,40 @@ describe('filtros do Jira', () => {
     expect(params().get('jiraStatusModo')).toBe('exclude');
   });
 
+  it('remove um valor de uma seleção múltipla e mostra a dimensão com a contagem', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: /abrir menu filtrar por status/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Aberto' }));
+
+    const gatilho = screen.getByRole('button', { name: /abrir menu filtrar por status/i });
+    expect(gatilho).toHaveTextContent('Status (2)');
+    expect(gatilho).toHaveAccessibleName('abrir menu filtrar por status, incluindo Status (2)');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
+    expect(params().get('jiraStatus')).toBe('Aberto');
+  });
+
+  it('fecha o menu de filtro com Escape e devolve o foco ao gatilho', async () => {
+    montar();
+    const gatilho = screen.getByRole('button', { name: /abrir menu filtrar por status/i });
+    gatilho.focus();
+    fireEvent.click(gatilho);
+    const marcar = screen.getByRole('checkbox', { name: 'Backlog' });
+
+    fireEvent.keyDown(marcar, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'Backlog' })).not.toBeInTheDocument(),
+    );
+    expect(gatilho).toHaveFocus();
+  });
+
+  it('deixa o trio da hierarquia quebrar linha em telas estreitas', () => {
+    montar();
+    expect(screen.getByRole('group', { name: 'hierarquia do Jira' })).toHaveClass('flex-wrap', 'max-w-full');
+  });
+
   it('oferece só os status que existem na lista', () => {
     montar();
     expect(opcoesDe('filtrar por status')).toEqual(['Aberto', 'Backlog', 'Em Andamento']);
