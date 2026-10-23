@@ -9,6 +9,15 @@ Only `main` is maintained; there are no release branches.
 ## [Unreleased]
 
 ### Added
+- An optional board view for the tasks panel. A "Lista / Quadro" toggle in the
+  panel header switches between the grouped list, which stays the default, and
+  three columns, "A fazer", "Fazendo" and "Feito", with each task drawn as a
+  pinned sticky note coloured by priority. The choice is saved per user.
+  "Fazendo" is kept in a new local table (migration 14) keyed by user and task
+  id, so it works for local tasks and Microsoft To Do alike; "Feito" is the
+  task's own completion, so moving a note there completes it through the
+  existing path and moving it out reopens it. Notes move by drag and drop or
+  with per-note buttons that work from the keyboard and announce the result.
 - The "Resumo para a daily" dialog has a "Semanal" view next to "Diário":
   what you delivered or approved since Monday, the pull requests you opened
   since Monday and are still open, and what blocks you now. Like the daily

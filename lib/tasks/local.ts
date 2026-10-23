@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '@/lib/db';
-import type { SubTask, TaskPriority, TodoTask } from '@/lib/types';
+import type { ProviderTask, SubTask, TaskPriority } from '@/lib/types';
 import type { EditTaskInput, Recur } from './types';
 
 interface TaskRow {
@@ -28,7 +28,7 @@ function nextPosition(table: 'tasks' | 'subtasks', column: string, value: string
   return row.next;
 }
 
-export function listTasks(userId: string): TodoTask[] {
+export function listTasks(userId: string): ProviderTask[] {
   const db = getDb();
   const rows = db
     .prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY position')

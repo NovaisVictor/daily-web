@@ -34,7 +34,7 @@ describe('TaskFormModal', () => {
     const onSaved = vi.fn();
     render(
       <TaskFormModal
-        task={{ id: 'T1', title: 'Tarefa', completed: false, due: '', priority: 'normal', time: '', recur: '', notes: '', subtasks: [] }}
+        task={{ id: 'T1', title: 'Tarefa', completed: false, due: '', priority: 'normal', time: '', recur: '', notes: '', subtasks: [], doing: false }}
         onClose={() => {}}
         onSaved={onSaved}
       />,
@@ -120,7 +120,7 @@ describe('proteção contra envio duplicado', () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'));
     const tarefa = {
       id: 'AQMk+ADAw/abc==', title: 'Existente', completed: false, due: '', priority: 'normal' as const,
-      time: '', recur: '', notes: '', subtasks: [],
+      time: '', recur: '', notes: '', subtasks: [], doing: false,
     };
     render(<TaskFormModal task={tarefa} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));

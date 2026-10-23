@@ -1,6 +1,6 @@
 import { runCli } from './run';
 import { parseTasks } from '@/lib/parsers/mstodo';
-import type { TodoTask } from '@/lib/types';
+import type { ProviderTask } from '@/lib/types';
 import type { EditTaskInput } from '@/lib/tasks/types';
 
 // Provedor opcional de tarefas. Continua sendo uma CLI da máquina porque o
@@ -8,7 +8,7 @@ import type { EditTaskInput } from '@/lib/tasks/types';
 // celular, e quem não tem cai no provedor local, que é o padrão.
 type Env = Record<string, string>;
 
-export async function fetchTasks(env: Env): Promise<TodoTask[]> {
+export async function fetchTasks(env: Env): Promise<ProviderTask[]> {
   const { stdout } = await runCli('mstodo', ['list'], { env });
   return parseTasks(stdout);
 }

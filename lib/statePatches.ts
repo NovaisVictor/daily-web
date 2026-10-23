@@ -79,8 +79,18 @@ export function setTaskCompleted(
   id: string,
   completed: boolean,
 ): DashboardState {
+  // Completing ends "Fazendo" on the server too; mirroring it keeps the card
+  // from flashing back into that column before the reload lands.
   return mapTasks(state, (list) =>
-    list.map((task) => (task.id === id ? { ...task, completed } : task)),
+    list.map((task) =>
+      task.id === id ? { ...task, completed, doing: completed ? false : task.doing } : task,
+    ),
+  );
+}
+
+export function setTaskDoing(state: DashboardState, id: string, doing: boolean): DashboardState {
+  return mapTasks(state, (list) =>
+    list.map((task) => (task.id === id ? { ...task, doing } : task)),
   );
 }
 

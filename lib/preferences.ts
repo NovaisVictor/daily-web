@@ -9,7 +9,7 @@ import {
 } from './dashboardLayout';
 import type { PanelPlacement, SizedLayout } from './dashboardLayout';
 import { isJiraAccountId } from './jiraAccount';
-import type { JiraPerson } from './types';
+import type { JiraPerson, TasksView } from './types';
 import { isJiraKey } from './jiraKey';
 
 // Preferências de visualização por usuário. São escolhas de como olhar, não
@@ -18,6 +18,7 @@ import { isJiraKey } from './jiraKey';
 export const AGENDA_DAYS = 'agendaDays';
 export const DASHBOARD_LAYOUT = 'dashboardLayout';
 export const DASHBOARD_LAYOUTS = 'dashboardLayouts';
+export const TASKS_VIEW = 'tasksView';
 
 function read(userId: string, key: string): string | null {
   const row = getDb()
@@ -47,6 +48,20 @@ export function agendaDays(userId: string): number {
 
 export function setAgendaDays(userId: string, days: number): void {
   setPreference(userId, AGENDA_DAYS, String(days));
+}
+
+export function isTasksView(value: unknown): value is TasksView {
+  return value === 'list' || value === 'board';
+}
+
+/** The board is opt-in: anyone who never picked keeps the list they had. */
+export function tasksView(userId: string): TasksView {
+  const stored = read(userId, TASKS_VIEW);
+  return isTasksView(stored) ? stored : 'list';
+}
+
+export function setTasksView(userId: string, view: TasksView): void {
+  setPreference(userId, TASKS_VIEW, view);
 }
 
 /** Disposição dos painéis na grade. Um JSON ilegível — de uma versão antiga

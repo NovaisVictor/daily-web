@@ -1,4 +1,4 @@
-import type { SubTask, TaskPriority, TodoTask } from '@/lib/types';
+import type { ProviderTask, SubTask, TaskPriority } from '@/lib/types';
 
 interface RawSubtask {
   id: string;
@@ -24,7 +24,7 @@ function toPriority(value: string | undefined): TaskPriority {
   return VALID_PRIORITIES.includes(value ?? '') ? (value as TaskPriority) : 'normal';
 }
 
-export function parseTasks(json: string): TodoTask[] {
+export function parseTasks(json: string): ProviderTask[] {
   const raw: RawTask[] = JSON.parse(json);
   return raw.map((task) => ({
     id: task.id,

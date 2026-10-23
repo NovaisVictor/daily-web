@@ -8,6 +8,7 @@ import {
   removeTask,
   setSubtaskCompleted,
   setTaskCompleted,
+  setTaskDoing,
 } from '@/lib/statePatches';
 import { defaultLayout } from '@/lib/dashboardLayout';
 import type { DashboardState, EmailEnvelope, NotificationItem, TodoTask } from '@/lib/types';
@@ -41,6 +42,7 @@ function task(over: Partial<TodoTask>): TodoTask {
     recur: '',
     notes: '',
     subtasks: [],
+    doing: false,
     ...over,
   };
 }
@@ -56,6 +58,7 @@ function state(over: Partial<DashboardState> = {}): DashboardState {
     mailboxes: [{ id: 'mail-1', label: 'Trabalho' }],
     agendaDays: 2,
     agendaCalendars: [],
+    tasksView: 'list',
     layout: defaultLayout(),
     layouts: [],
     email: { data: [envelope({ id: '1' }), envelope({ id: '2' })], error: null },
@@ -182,6 +185,19 @@ describe('tarefas', () => {
     const feita = setTaskCompleted(state(), 't1', true);
     expect(feita.tasks.data?.[0].completed).toBe(true);
     expect(setTaskCompleted(feita, 't1', false).tasks.data?.[0].completed).toBe(false);
+  });
+
+  it('põe e tira a tarefa de Fazendo', () => {
+    const fazendo = setTaskDoing(state(), 't1', true);
+    expect(fazendo.tasks.data?.[0].doing).toBe(true);
+    expect(setTaskDoing(fazendo, 't1', false).tasks.data?.[0].doing).toBe(false);
+  });
+
+  // O servidor tira de Fazendo ao concluir; sem espelhar isto, o cartão
+  // voltaria para Fazendo ao ser reaberto antes de o recarregamento chegar.
+  it('concluir tira a tarefa de Fazendo', () => {
+    const feita = setTaskCompleted(setTaskDoing(state(), 't1', true), 't1', true);
+    expect(feita.tasks.data?.[0]).toMatchObject({ completed: true, doing: false });
   });
 
   it('remove a tarefa', () => {

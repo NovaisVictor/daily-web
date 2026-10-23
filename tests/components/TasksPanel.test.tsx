@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { TasksPanel, formatDue } from '@/components/TasksPanel';
 import type { TodoTask } from '@/lib/types';
 import { FocusBlockProvider } from '@/components/FocusBlockProvider';
@@ -15,6 +16,7 @@ function task(over: Partial<TodoTask>): TodoTask {
     recur: '',
     notes: '',
     subtasks: [],
+    doing: false,
     ...over,
   };
 }
@@ -341,5 +343,195 @@ describe('TasksPanel', () => {
   it('mostra o estado vazio quando não há tarefas', () => {
     render(<TasksPanel onCompletedChanged={() => {}} onRemoved={() => {}} onSubtaskChanged={() => {}} tasks={{ data: [], error: null }} onChanged={() => {}} />);
     expect(screen.getByText(/nenhuma tarefa/i)).toBeInTheDocument();
+  });
+});
+
+describe('TasksPanel em quadro', () => {
+  function renderBoard(over: Partial<ComponentProps<typeof TasksPanel>> = {}) {
+    const props: ComponentProps<typeof TasksPanel> = {
+      onCompletedChanged: vi.fn(),
+      onRemoved: () => {},
+      onSubtaskChanged: () => {},
+      onDoingChanged: vi.fn(),
+      onChanged: vi.fn(),
+      view: 'board',
+      tasks: {
+        data: [
+          task({ id: '1', title: 'Escrever proposta' }),
+          task({ id: '2', title: 'Revisar PR', doing: true }),
+          task({ id: '3', title: 'Pagar boleto', completed: true }),
+        ],
+        error: null,
+      },
+      ...over,
+    };
+    render(<TasksPanel {...props} />);
+    return props;
+  }
+
+  function column(name: string) {
+    return screen.getByRole('region', { name: new RegExp(`^${name}`) });
+  }
+
+  function okFetch() {
+    return vi.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}'));
+  }
+
+  function sentBodies(spy: ReturnType<typeof okFetch>) {
+    return spy.mock.calls.map(([url, init]) => [url, JSON.parse(String(init?.body))]);
+  }
+
+  it('a lista continua sendo a visualização padrão', () => {
+    render(
+      <TasksPanel
+        onCompletedChanged={() => {}}
+        onRemoved={() => {}}
+        onSubtaskChanged={() => {}}
+        tasks={{ data: [task({ title: 'Escrever proposta' })], error: null }}
+        onChanged={() => {}}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Lista' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('region', { name: /^A fazer/ })).toBeNull();
+  });
+
+  it('trocar para Quadro mostra as colunas e guarda a escolha', async () => {
+    const fetchSpy = okFetch();
+    const onViewChanged = vi.fn();
+    renderBoard({ view: 'list', onViewChanged });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quadro' }));
+
+    expect(screen.getByRole('button', { name: 'Quadro' })).toHaveAttribute('aria-pressed', 'true');
+    expect(column('A fazer')).toBeInTheDocument();
+    expect(column('Fazendo')).toBeInTheDocument();
+    expect(column('Feito')).toBeInTheDocument();
+    expect(onViewChanged).toHaveBeenCalledWith('board');
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/preferences', { tasksView: 'board' }]]),
+    );
+  });
+
+  it('avisa quando a escolha da visualização não foi guardada, sem desfazê-la', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ error: 'banco travado' }), { status: 500 }),
+    );
+    renderBoard({ view: 'list' });
+    fireEvent.click(screen.getByRole('button', { name: 'Quadro' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('banco travado'));
+    expect(column('Feito')).toBeInTheDocument();
+  });
+
+  it('cada tarefa aparece na coluna dela, e as colunas mostram quantas têm', () => {
+    renderBoard();
+    expect(within(column('A fazer')).getByRole('button', { name: 'Escrever proposta' })).toBeInTheDocument();
+    expect(within(column('Fazendo')).getByRole('button', { name: 'Revisar PR' })).toBeInTheDocument();
+    // Feito aparece sem precisar do filtro de concluídas, que a lista usa.
+    expect(within(column('Feito')).getByRole('button', { name: 'Pagar boleto' })).toBeInTheDocument();
+    expect(column('A fazer')).toHaveAccessibleName('A fazer, 1 tarefa');
+  });
+
+  it('mostra prazo, prioridade e progresso das subtarefas na nota', () => {
+    renderBoard({
+      tasks: {
+        data: [
+          task({
+            id: '1',
+            title: 'Escrever proposta',
+            priority: 'high',
+            due: '2026-10-24',
+            subtasks: [
+              { id: 's1', title: 'a', completed: true },
+              { id: 's2', title: 'b', completed: false },
+            ],
+          }),
+        ],
+        error: null,
+      },
+    });
+    const note = within(column('A fazer'));
+    expect(note.getByText('Alta')).toBeInTheDocument();
+    expect(note.getByText('24/10')).toBeInTheDocument();
+    expect(note.getByText('1/2', { exact: false })).toBeInTheDocument();
+  });
+
+  it('pelo teclado, move a nota para Fazendo e anuncia a mudança', async () => {
+    const fetchSpy = okFetch();
+    const props = renderBoard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mover Escrever proposta para Fazendo' }));
+
+    expect(props.onDoingChanged).toHaveBeenCalledWith('1', true);
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks/1/board', { status: 'doing' }]]),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Escrever proposta movida para Fazendo.'),
+    );
+    expect(props.onChanged).toHaveBeenCalled();
+  });
+
+  it('mover para Feito conclui a tarefa pelo mesmo caminho do checkbox', async () => {
+    const fetchSpy = okFetch();
+    const props = renderBoard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mover Revisar PR para Feito' }));
+
+    expect(props.onCompletedChanged).toHaveBeenCalledWith('2', true);
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks/2', { completed: true }]]),
+    );
+  });
+
+  it('tirar de Feito reabre a tarefa antes de pô-la em Fazendo', async () => {
+    const fetchSpy = okFetch();
+    const props = renderBoard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mover Pagar boleto para Fazendo' }));
+
+    expect(props.onCompletedChanged).toHaveBeenCalledWith('3', false);
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([
+        ['/api/tasks/3', { completed: false }],
+        ['/api/tasks/3/board', { status: 'doing' }],
+      ]),
+    );
+  });
+
+  it('arrastar a nota para outra coluna faz o mesmo movimento', async () => {
+    const fetchSpy = okFetch();
+    renderBoard();
+    const store = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => store.set(type, value),
+      getData: (type: string) => store.get(type) ?? '',
+      get types() {
+        return [...store.keys()];
+      },
+      effectAllowed: 'none',
+      dropEffect: 'none',
+    };
+
+    const note = within(column('A fazer')).getByRole('listitem');
+    fireEvent.dragStart(note, { dataTransfer });
+    fireEvent.dragOver(column('Feito'), { dataTransfer });
+    fireEvent.drop(column('Feito'), { dataTransfer });
+
+    await waitFor(() =>
+      expect(sentBodies(fetchSpy)).toEqual([['/api/tasks/1', { completed: true }]]),
+    );
+  });
+
+  it('quando mover falha, mostra o erro e recarrega para a nota voltar', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ error: 'mstodo falhou' }), { status: 502 }),
+    );
+    const props = renderBoard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mover Escrever proposta para Fazendo' }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('mstodo falhou'));
+    expect(screen.getByRole('status')).toHaveTextContent('Não foi possível mover Escrever proposta');
+    expect(props.onChanged).toHaveBeenCalled();
   });
 });

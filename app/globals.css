@@ -97,6 +97,20 @@
      as a missing dark value. It is not. */
   --plate: oklch(0.19 0.012 250);
 
+  /* Sticky notes on the tasks board. Paper carries its own ink rather than
+     --ink: the note stays light paper in every theme, so page ink (white in
+     dark) would vanish on it. Every ink/paper pair here is at least 4.5:1. */
+  --postit-yellow: oklch(0.95 0.11 98);
+  --postit-pink: oklch(0.925 0.055 355);
+  --postit-blue: oklch(0.93 0.045 235);
+  --postit-green: oklch(0.935 0.065 150);
+  --postit-ink: oklch(0.27 0.03 70);
+  --postit-ink-mid: oklch(0.42 0.03 70);
+  --postit-shadow: oklch(0.3 0.04 70 / 30%);
+  --postit-pin: oklch(0.58 0.2 27);
+  --postit-pin-light: oklch(0.86 0.08 27);
+  --postit-pin-dark: oklch(0.38 0.15 27);
+
   /* Declared for documentation and deliberately NOT mapped into @theme: there is no
      `duration-fast` utility. Every real duration here is stock Tailwind. */
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -237,6 +251,19 @@
     --chart-3: oklch(0.78 0.12 90);
     --chart-4: oklch(0.68 0.15 320);
     --chart-5: oklch(0.75 0.1 200);
+
+    /* Dimmed paper, not inverted: a note is still a light square on a dark
+       board, just without the glare. */
+    --postit-yellow: oklch(0.82 0.1 95);
+    --postit-pink: oklch(0.8 0.065 355);
+    --postit-blue: oklch(0.8 0.055 235);
+    --postit-green: oklch(0.81 0.075 150);
+    --postit-ink: oklch(0.2 0.02 70);
+    --postit-ink-mid: oklch(0.33 0.02 70);
+    --postit-shadow: oklch(0 0 0 / 55%);
+    --postit-pin: oklch(0.62 0.19 27);
+    --postit-pin-light: oklch(0.88 0.07 27);
+    --postit-pin-dark: oklch(0.4 0.15 27);
   }
 }
 
@@ -309,6 +336,19 @@
   --chart-3: oklch(0.78 0.12 90);
   --chart-4: oklch(0.68 0.15 320);
   --chart-5: oklch(0.75 0.1 200);
+
+  /* Dimmed paper, not inverted: a note is still a light square on a dark
+     board, just without the glare. */
+  --postit-yellow: oklch(0.82 0.1 95);
+  --postit-pink: oklch(0.8 0.065 355);
+  --postit-blue: oklch(0.8 0.055 235);
+  --postit-green: oklch(0.81 0.075 150);
+  --postit-ink: oklch(0.2 0.02 70);
+  --postit-ink-mid: oklch(0.33 0.02 70);
+  --postit-shadow: oklch(0 0 0 / 55%);
+  --postit-pin: oklch(0.62 0.19 27);
+  --postit-pin-light: oklch(0.88 0.07 27);
+  --postit-pin-dark: oklch(0.4 0.15 27);
 }
 
 /* Catppuccin backdrop: a flat base instead of the mesh, only when the account
@@ -395,6 +435,16 @@
     --chart-3: var(--ctp-yellow);
     --chart-4: var(--ctp-pink);
     --chart-5: var(--ctp-teal);
+
+    --postit-yellow: var(--ctp-yellow);
+    --postit-pink: var(--ctp-pink);
+    --postit-blue: var(--ctp-blue);
+    --postit-green: var(--ctp-green);
+    --postit-ink: var(--ctp-crust);
+    --postit-ink-mid: var(--ctp-base);
+    --postit-pin: var(--ctp-red);
+    --postit-pin-light: oklch(0.9 0.06 2.764);
+    --postit-pin-dark: oklch(0.5 0.13 2.764);
   }
 }
 
@@ -442,6 +492,16 @@
   --chart-3: var(--ctp-yellow);
   --chart-4: var(--ctp-pink);
   --chart-5: var(--ctp-teal);
+
+  --postit-yellow: var(--ctp-yellow);
+  --postit-pink: var(--ctp-pink);
+  --postit-blue: var(--ctp-blue);
+  --postit-green: var(--ctp-green);
+  --postit-ink: var(--ctp-crust);
+  --postit-ink-mid: var(--ctp-base);
+  --postit-pin: var(--ctp-red);
+  --postit-pin-light: oklch(0.9 0.06 2.764);
+  --postit-pin-dark: oklch(0.5 0.13 2.764);
 }
 
 /* Dracula, dark theme only. The official palette names one background and one
@@ -1103,6 +1163,238 @@
   }
 }
 
+/* ---------- tasks board ----------
+   The notes are drawn by hand because a pin, a curled corner and a lifted
+   shadow are pseudo-elements and composed shadows no utility expresses. Colour
+   comes only from the --postit-* tokens, so every theme and backdrop that sets
+   them gets matching paper. */
+@layer components {
+  .board-lane {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    background: oklch(from var(--muted) l c h / 35%);
+    padding: 0.75rem 0.75rem 1rem;
+    transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .board-lane[data-over] {
+    border-color: var(--brand-edge);
+    background: var(--brand-tint);
+  }
+  .board-lane-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink-mid);
+  }
+  .board-lane-count {
+    display: inline-flex;
+    min-width: 1.5rem;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--signal-neutral-tint);
+    padding: 0 0.45rem;
+    font-weight: 500;
+    color: var(--ink-mid);
+  }
+  .board-lane-empty {
+    padding: 1.25rem 0.5rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--ink-dim);
+  }
+  .board-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    /* Room for the pin, which sticks out above the first note. */
+    padding-top: 0.625rem;
+  }
+
+  .postit-slot {
+    cursor: grab;
+  }
+  .postit-slot:active {
+    cursor: grabbing;
+  }
+  .postit-slot[data-dragging] {
+    opacity: 0.45;
+  }
+
+  .postit {
+    --postit-paper: var(--postit-yellow);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.1rem 0.9rem 0.6rem;
+    color: var(--postit-ink);
+    /* A faint fall-off toward the bottom: paper catches the light at the
+       glued strip and is a touch darker where it lifts off the board. */
+    background: linear-gradient(
+      172deg,
+      var(--postit-paper) 0%,
+      var(--postit-paper) 62%,
+      oklch(from var(--postit-paper) calc(l - 0.035) c h) 100%
+    );
+    border-radius: 2px 2px 2px 2px;
+    /* The curled corner: a long, shallow radius on one corner only. */
+    border-bottom-right-radius: 48px 6px;
+    box-shadow:
+      0 1px 1px var(--postit-shadow),
+      6px 9px 10px -6px var(--postit-shadow);
+    transform: rotate(var(--note-tilt, 0deg));
+    transition:
+      transform var(--dur) var(--ease),
+      box-shadow var(--dur) var(--ease);
+  }
+  .postit[data-tone='pink'] {
+    --postit-paper: var(--postit-pink);
+  }
+  .postit[data-tone='blue'] {
+    --postit-paper: var(--postit-blue);
+  }
+  .postit[data-tone='green'] {
+    --postit-paper: var(--postit-green);
+  }
+  .postit-slot:hover .postit,
+  .postit:focus-within {
+    transform: rotate(0deg) translateY(-3px);
+    box-shadow:
+      0 2px 2px var(--postit-shadow),
+      8px 16px 18px -8px var(--postit-shadow);
+  }
+  /* The global reduced-motion rule only shortens transitions; the note would
+     still jump. Here it stays put and only the shadow deepens. */
+  @media (prefers-reduced-motion: reduce) {
+    .postit {
+      transition: none;
+    }
+    .postit-slot:hover .postit,
+    .postit:focus-within {
+      transform: rotate(var(--note-tilt, 0deg));
+    }
+  }
+
+  /* The pushpin, seen from above: a glossy round head, and the shadow it
+     casts down and to the right. */
+  .postit-pin {
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    width: 15px;
+    height: 15px;
+    margin-left: -7.5px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 35% 30%,
+      var(--postit-pin-light) 0%,
+      var(--postit-pin) 42%,
+      var(--postit-pin-dark) 100%
+    );
+    box-shadow:
+      inset -1px -1px 2px oklch(0 0 0 / 25%),
+      2px 3px 3px var(--postit-shadow);
+  }
+  .postit-pin::after {
+    content: '';
+    position: absolute;
+    top: 11px;
+    left: 9px;
+    width: 7px;
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--postit-shadow);
+    transform: rotate(35deg);
+    transform-origin: left center;
+  }
+
+  .postit-title {
+    display: block;
+    width: 100%;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.005em;
+    overflow-wrap: anywhere;
+  }
+  .postit-title-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+  }
+  .postit[data-tone='green'] .postit-title {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--postit-ink-mid);
+  }
+  .postit-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    color: var(--postit-ink-mid);
+  }
+  .postit-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid oklch(from var(--postit-ink) l c h / 30%);
+    border-radius: 9999px;
+    padding: 0 0.45rem;
+  }
+  .postit-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .postit-progress-bar {
+    position: relative;
+    width: 2.25rem;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: oklch(from var(--postit-ink) l c h / 15%);
+  }
+  .postit-progress-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--progress, 0%);
+    border-radius: inherit;
+    background: var(--postit-ink-mid);
+  }
+  .postit-moves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    border-top: 1px dashed oklch(from var(--postit-ink) l c h / 18%);
+    padding-top: 0.35rem;
+  }
+  .postit-move {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 9999px;
+    padding: 0.125rem 0.45rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--postit-ink-mid);
+  }
+  .postit-move:hover {
+    background: oklch(from var(--postit-ink) l c h / 10%);
+    color: var(--postit-ink);
+  }
+}
+
 /* Compact density. OUTSIDE any @layer, on purpose: the cells carry utilities and a
    utility beats @layer by LAYER ORDER, not specificity. Inside any layer these rules
    apply nothing. Keep them last in the file. */
@@ -1111,4 +1403,11 @@
 }
 [data-density='compact'] [data-slot='table-head'] {
   height: 2.5rem;
+}
+[data-density='compact'] .postit {
+  gap: 0.375rem;
+  padding: 0.85rem 0.75rem 0.45rem;
+}
+[data-density='compact'] .board-notes {
+  gap: 1rem;
 }

@@ -4,7 +4,9 @@ import { isAgendaRange } from '@/lib/agendaWindow';
 import { parseLayout, putSizedLayout } from '@/lib/dashboardLayout';
 import {
   dashboardLayouts,
+  isTasksView,
   setAgendaDays,
+  setTasksView,
   setDashboardLayout,
   setDashboardLayouts,
   resetDashboardLayout,
@@ -97,6 +99,18 @@ export async function PATCH(request: NextRequest) {
     setAgendaDays(userId, body.agendaDays);
     dropCache(userId);
     return NextResponse.json(await refreshAll(userId));
+  }
+
+  // Like the layout, the view only changes how the tasks already on screen are
+  // drawn, so it patches the cache instead of refetching the integrations.
+  if ('tasksView' in body) {
+    if (!isTasksView(body.tasksView)) {
+      return NextResponse.json({ error: 'visualização inválida' }, { status: 400 });
+    }
+    const view = body.tasksView;
+    setTasksView(userId, view);
+    patchCachedState(userId, (state) => ({ ...state, tasksView: view }));
+    return NextResponse.json({ tasksView: view });
   }
 
   return NextResponse.json({ error: 'nenhuma preferência informada' }, { status: 400 });

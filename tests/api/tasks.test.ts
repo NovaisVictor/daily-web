@@ -19,13 +19,16 @@ vi.mock('@/lib/tasks', () => ({
   editSubtask: vi.fn(),
   deleteSubtask: vi.fn(),
   checkSubtask: vi.fn(),
+  setDoing: vi.fn(),
 }));
 
-import { addTask, editTask, setCompleted, deleteTask, addSubtask, editSubtask, checkSubtask } from '@/lib/tasks';
+import { addTask, editTask, setCompleted, deleteTask, addSubtask, editSubtask, checkSubtask, setDoing } from '@/lib/tasks';
+import { getCurrentUser } from '@/lib/auth/currentUser';
 import { POST as createRoute } from '@/app/api/tasks/route';
 import { PATCH as patchRoute, DELETE as deleteRoute } from '@/app/api/tasks/[id]/route';
 import { POST as createSubtaskRoute } from '@/app/api/tasks/[id]/subtasks/route';
 import { PATCH as patchSubtaskRoute, DELETE as deleteSubtaskRoute } from '@/app/api/tasks/[id]/subtasks/[itemId]/route';
+import { PATCH as boardRoute } from '@/app/api/tasks/[id]/board/route';
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -177,5 +180,46 @@ describe('DELETE /api/tasks/[id]/subtasks/[itemId]', () => {
   it('itemId iniciado com "-" devolve 400', async () => {
     const res = await deleteSubtaskRoute(req({}), params({ id: 'T1', itemId: '-rf' }));
     expect(res.status).toBe(400);
+  });
+});
+
+describe('PATCH /api/tasks/[id]/board', () => {
+  it('"doing" põe a tarefa em Fazendo para o usuário logado', async () => {
+    const res = await boardRoute(req({ status: 'doing' }), params({ id: 'T1' }));
+    expect(res.status).toBe(200);
+    expect(setDoing).toHaveBeenCalledWith('u-1', 'T1', true);
+  });
+
+  it('"todo" tira a tarefa de Fazendo', async () => {
+    await boardRoute(req({ status: 'todo' }), params({ id: 'T1' }));
+    expect(setDoing).toHaveBeenCalledWith('u-1', 'T1', false);
+  });
+
+  // Concluir passa pela rota da tarefa, a mesma do checkbox: é ela que faz a
+  // recorrente pular de data e que avisa o Microsoft To Do.
+  it('"done" devolve 400 sem gravar nem concluir', async () => {
+    const res = await boardRoute(req({ status: 'done' }), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(setDoing).not.toHaveBeenCalled();
+    expect(setCompleted).not.toHaveBeenCalled();
+  });
+
+  it('corpo sem status devolve 400', async () => {
+    const res = await boardRoute(req({}), params({ id: 'T1' }));
+    expect(res.status).toBe(400);
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('id iniciado com "-" devolve 400 sem gravar', async () => {
+    const res = await boardRoute(req({ status: 'doing' }), params({ id: '-rf' }));
+    expect(res.status).toBe(400);
+    expect(setDoing).not.toHaveBeenCalled();
+  });
+
+  it('sem sessão devolve 401 sem gravar', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
+    const res = await boardRoute(req({ status: 'doing' }), params({ id: 'T1' }));
+    expect(res.status).toBe(401);
+    expect(setDoing).not.toHaveBeenCalled();
   });
 });

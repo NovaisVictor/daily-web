@@ -13,7 +13,14 @@ import { replayPendingActions } from './email/replay';
 import { loadInbox } from './email/inbox';
 import { listUsers } from './auth/users';
 import { enabledModules, listConnections } from './vault/connections';
-import { agendaDays, dashboardLayout, dashboardLayouts, jiraWatchedKeys, jiraFollowedPeople } from './preferences';
+import {
+  agendaDays,
+  dashboardLayout,
+  dashboardLayouts,
+  jiraWatchedKeys,
+  jiraFollowedPeople,
+  tasksView,
+} from './preferences';
 import type { Connection } from './vault/connections';
 import { fetchSlack, SlackDigestError } from './integrations/slack/digest';
 import type { JiraProblem, JiraProblemItem, SlackDigest } from '@/lib/types';
@@ -363,6 +370,7 @@ async function buildState(
     mailboxes,
     agendaDays: days,
     agendaCalendars,
+    tasksView: tasksView(userId),
     layout: dashboardLayout(userId),
     layouts: dashboardLayouts(userId),
     email: emailReconciliado,

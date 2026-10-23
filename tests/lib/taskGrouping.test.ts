@@ -9,6 +9,7 @@ function task(over: Partial<TodoTask>): TodoTask {
     id: over.id ?? 'x', title: over.title ?? 't', completed: over.completed ?? false,
     due: over.due ?? '', priority: over.priority ?? 'normal', time: '', recur: '', notes: '',
     subtasks: [],
+    doing: false,
   };
 }
 

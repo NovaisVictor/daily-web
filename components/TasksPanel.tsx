@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CalendarPlus, Plus } from 'lucide-react';
+import { CalendarPlus, List, Plus, StickyNote } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
-import type { PanelResult, TaskPriority, TodoTask } from '@/lib/types';
+import type { PanelResult, TaskPriority, TasksView, TodoTask } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
 import { matchesQuery } from '@/lib/filters';
@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { focusRing, tabular } from '@/lib/theme';
 import { FOCUS_DRAG_TYPE, type FocusSource } from '@/lib/focusBlock';
 import { useFocusBlock } from '@/components/FocusBlockProvider';
+import { TaskBoard } from '@/components/tasks/TaskBoard';
+import { columnLabel, planMove, type BoardColumn } from '@/lib/taskBoard';
 
 /** A failing integration is information, not an alarm: contained block, side marker. */
 
@@ -58,8 +60,16 @@ interface Props {
   onCompletedChanged: (id: string, completed: boolean) => void;
   onRemoved: (id: string) => void;
   onSubtaskChanged: (taskId: string, itemId: string, completed: boolean) => void;
+  onDoingChanged?: (id: string, doing: boolean) => void;
+  /** The saved choice between the list and the board. The list is the default
+   *  because the board is an extra, not a replacement. */
+  view?: TasksView;
+  onViewChanged?: (view: TasksView) => void;
   loading?: boolean;
 }
+
+const viewToggle =
+  'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-sm text-ink-mid transition-colors duration-100 ease-brand hover:text-ink aria-pressed:bg-brand-tint aria-pressed:text-ink aria-pressed:shadow-control motion-reduce:transition-none';
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   high: 'Alta',
@@ -213,9 +223,21 @@ export function TasksPanel({
   onCompletedChanged,
   onRemoved,
   onSubtaskChanged,
+  onDoingChanged,
+  view: savedView = 'list',
+  onViewChanged,
   loading = false,
 }: Props) {
   const focus = useFocusBlock();
+  // Local so the toggle answers at once; re-synced when the saved choice
+  // arrives or changes, which on first paint is after the state loads.
+  const [view, setView] = useState<TasksView>(savedView);
+  const [syncedView, setSyncedView] = useState<TasksView>(savedView);
+  if (savedView !== syncedView) {
+    setSyncedView(savedView);
+    setView(savedView);
+  }
+  const [announcement, setAnnouncement] = useState('');
   const [editing, setEditing] = useState<TodoTask | 'new' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -263,8 +285,22 @@ export function TasksPanel({
     return windowKey === 'all' ? grouped : grouped.filter((g) => g.key === windowKey);
   }, [filtered, windowKey]);
 
+  // The board always shows "Feito": a done column that hides what is done
+  // would be empty by default. The other filters apply as they do to the list,
+  // and the window order (overdue first) carries into each column.
+  const boardTasks = useMemo(() => {
+    const base = all.filter(
+      (t) =>
+        matchesQuery([t.title], query) && (priority === 'all' || t.priority === priority),
+    );
+    return groupTasksByDueWindow(base)
+      .filter((g) => windowKey === 'all' || g.key === windowKey)
+      .flatMap((g) => g.tasks);
+  }, [all, query, priority, windowKey]);
+
   const availableWindows = useMemo(() => groupTasksByDueWindow(all), [all]);
-  const visibleCount = groups.reduce((sum, g) => sum + g.tasks.length, 0);
+  const visibleCount =
+    view === 'board' ? boardTasks.length : groups.reduce((sum, g) => sum + g.tasks.length, 0);
 
   const activeFilters: ActiveFilter[] = [
     ...(query.trim() ? [{ id: 'query', label: `Busca: ${query.trim()}` }] : []),
@@ -314,6 +350,65 @@ export function TasksPanel({
     onChanged();
   };
 
+  const chooseView = async (next: TasksView) => {
+    if (next === view) return;
+    setView(next);
+    onViewChanged?.(next);
+    setActionError(null);
+    const res = await fetch('/api/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasksView: next }),
+    });
+    // The view already changed and stays: it is what the person asked to see.
+    // Only remembering it failed, and that is what the message says.
+    if (!res.ok) {
+      const reason = await readErrorMessage(res, 'erro ao guardar');
+      setActionError(`A visualização mudou só nesta tela: não foi guardada (${reason}). Tente de novo.`);
+    }
+  };
+
+  const moveTask = async (task: TodoTask, to: BoardColumn) => {
+    const steps = planMove(task, to);
+    if (steps.length === 0) return;
+    setActionError(null);
+    // Same rule as the checkbox: a recurring task is not marked done ahead of
+    // the server, because it rolls over to its next date instead.
+    const recurring = task.recur !== '';
+    for (const step of steps) {
+      if (step.kind === 'status') onDoingChanged?.(task.id, step.status === 'doing');
+      else if (!(step.completed && recurring)) onCompletedChanged(task.id, step.completed);
+    }
+
+    for (const step of steps) {
+      const res =
+        step.kind === 'complete'
+          ? await fetch(`/api/tasks/${encodeURIComponent(task.id)}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ completed: step.completed }),
+            })
+          : await fetch(`/api/tasks/${encodeURIComponent(task.id)}/board`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: step.status }),
+            });
+      if (!res.ok) {
+        const message = await readErrorMessage(res, 'Falha ao mover tarefa');
+        setActionError(message);
+        setAnnouncement(`Não foi possível mover ${task.title}: ${message}`);
+        onChanged();
+        return;
+      }
+    }
+    setAnnouncement(
+      to === 'done' && recurring
+        ? `${task.title} concluída. Ela repete, então volta para A fazer com a próxima data.`
+        : `${task.title} movida para ${columnLabel(to)}.`,
+    );
+    onChanged();
+  };
+
   const remove = async (task: TodoTask) => {
     onRemoved(task.id);
     setActionError(null);
@@ -332,12 +427,38 @@ export function TasksPanel({
       eyebrow="Tarefas"
       count={activeFilters.length > 0 ? `${visibleCount} de ${all.length}` : undefined}
       actions={
-        <IconAction
-          variant="default"
-          label="Nova tarefa"
-          onClick={() => setEditing('new')}
-          icon={<Plus className="size-4" />}
-        />
+        <div className="flex items-center gap-2">
+          <div
+            role="group"
+            aria-label="Visualização das tarefas"
+            className="inline-flex items-center gap-0.5 rounded-full border border-line-strong bg-surface-2 p-0.5 shadow-e1"
+          >
+            <button
+              type="button"
+              className={cn(viewToggle, focusRing)}
+              aria-pressed={view === 'list'}
+              onClick={() => void chooseView('list')}
+            >
+              <List className="size-3.5" aria-hidden="true" />
+              Lista
+            </button>
+            <button
+              type="button"
+              className={cn(viewToggle, focusRing)}
+              aria-pressed={view === 'board'}
+              onClick={() => void chooseView('board')}
+            >
+              <StickyNote className="size-3.5" aria-hidden="true" />
+              Quadro
+            </button>
+          </div>
+          <IconAction
+            variant="default"
+            label="Nova tarefa"
+            onClick={() => setEditing('new')}
+            icon={<Plus className="size-4" />}
+          />
+        </div>
       }
     >
       <FilterBar label="Filtrar tarefas">
@@ -359,9 +480,11 @@ export function TasksPanel({
         >
           Baixa
         </Chip>
-        <Chip active={showCompleted} onClick={() => setShowCompleted((v) => !v)}>
-          Concluídas
-        </Chip>
+        {view === 'list' && (
+          <Chip active={showCompleted} onClick={() => setShowCompleted((v) => !v)}>
+            Concluídas
+          </Chip>
+        )}
         {availableWindows.map((g) => (
           <Chip
             key={g.key}
@@ -388,7 +511,22 @@ export function TasksPanel({
         <EmptyState title="Nenhuma tarefa com esses filtros." />
       )}
 
-      {groups.map((group) => (
+      {view === 'board' && (
+        <p role="status" className="sr-only">
+          {announcement}
+        </p>
+      )}
+
+      {view === 'board' && boardTasks.length > 0 && (
+        <TaskBoard
+          tasks={boardTasks}
+          onMove={(task, to) => void moveTask(task, to)}
+          onOpen={setEditing}
+          formatDue={formatDue}
+        />
+      )}
+
+      {view === 'list' && groups.map((group) => (
         <div key={group.key} className="mt-5 first:mt-0">
           <h3 className="mb-2 block type-caption text-ink-dim">{group.label}</h3>
           <ul>

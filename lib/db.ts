@@ -393,6 +393,23 @@ function addNoteFolders(instance: Database.Database): void {
   `);
 }
 
+// "In progress" for the kanban board. Neither provider has it — Microsoft To
+// Do only knows open and completed — so it lives here, beside the task rather
+// than inside it, keyed by the provider's own task id. That is what lets the
+// same board work for local and mstodo tasks. Only "doing" is stored: "to do"
+// is the absence of a row, and "done" stays the provider's completed flag.
+function addTaskBoardStatus(instance: Database.Database): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS task_board_status (
+      user_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('doing')),
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, task_id)
+    );
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -407,6 +424,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addEmailMessages,
   renameCopyActionToTag,
   addNoteFolders,
+  addTaskBoardStatus,
 ];
 
 function migrate(instance: Database.Database): void {

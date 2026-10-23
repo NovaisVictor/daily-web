@@ -81,3 +81,23 @@ describe('remoção de usuário', () => {
     expect(agendaDays(alvo.id)).toBe(DEFAULT_AGENDA_DAYS);
   });
 });
+
+describe('visualização das tarefas', () => {
+  it('quem nunca escolheu continua na lista', async () => {
+    const { tasksView } = await import('@/lib/preferences');
+    expect(tasksView(USER)).toBe('list');
+  });
+
+  it('guarda a escolha de cada usuário', async () => {
+    const { tasksView, setTasksView } = await import('@/lib/preferences');
+    setTasksView(USER, 'board');
+    expect(tasksView(USER)).toBe('board');
+    expect(tasksView(OTHER)).toBe('list');
+  });
+
+  it('um valor gravado à mão que não existe vira a lista', async () => {
+    const { tasksView, setPreference, TASKS_VIEW } = await import('@/lib/preferences');
+    setPreference(USER, TASKS_VIEW, 'kanban');
+    expect(tasksView(USER)).toBe('list');
+  });
+});

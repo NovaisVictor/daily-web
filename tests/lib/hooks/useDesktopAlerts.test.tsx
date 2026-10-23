@@ -27,6 +27,7 @@ function state(updatedAt: string, emails: EmailEnvelope[]): DashboardState {
     mailboxes: [],
     agendaDays: 2,
     agendaCalendars: [],
+    tasksView: 'list',
     layout: [],
     layouts: [],
     email: { data: emails, error: null },

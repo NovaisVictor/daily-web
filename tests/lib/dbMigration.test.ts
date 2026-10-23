@@ -222,3 +222,65 @@ describe('pastas das notas', () => {
     expect(relist('u-1')).toHaveLength(1);
   });
 });
+
+describe('coluna Fazendo do quadro de tarefas', () => {
+  // O banco como ficou depois das pastas das notas, com tarefas de verdade.
+  function seedTasksDatabase(): void {
+    const legacy = new Database(dbFile);
+    legacy.exec(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0, due TEXT NOT NULL DEFAULT '',
+        time TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL DEFAULT 'normal',
+        recur TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+        position INTEGER NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE subtasks (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL, title TEXT NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL
+      );
+      INSERT INTO tasks (id, user_id, title, completed, position, created_at)
+        VALUES ('t-1', 'u-1', 'Aberta', 0, 1, '2026-09-01'), ('t-2', 'u-1', 'Feita', 1, 2, '2026-09-01');
+      INSERT INTO subtasks VALUES ('s-1', 't-1', 'Etapa', 1, 1);
+    `);
+    legacy.pragma('user_version = 13');
+    legacy.close();
+  }
+
+  it('as tarefas que já existiam continuam lá, todas fora de Fazendo', async () => {
+    seedTasksDatabase();
+    const { listTasks } = await import('@/lib/tasks/local');
+    const { withBoardStatus } = await import('@/lib/tasks/boardStatus');
+
+    const tasks = withBoardStatus('u-1', listTasks('u-1'));
+    expect(tasks.map((t) => [t.title, t.completed, t.doing])).toEqual([
+      ['Aberta', false, false],
+      ['Feita', true, false],
+    ]);
+    expect(tasks[0].subtasks).toEqual([{ id: 's-1', title: 'Etapa', completed: true }]);
+  });
+
+  it('a migração roda uma vez só e não perde a marcação gravada', async () => {
+    seedTasksDatabase();
+    const { getDb } = await import('@/lib/db');
+    const { markDoing } = await import('@/lib/tasks/boardStatus');
+    markDoing('u-1', 't-1');
+    const version = getDb().pragma('user_version', { simple: true });
+    expect(version).toBe(14);
+
+    vi.resetModules();
+    const { getDb: reopen } = await import('@/lib/db');
+    expect(reopen().pragma('user_version', { simple: true })).toBe(version);
+    const { doingTaskIds } = await import('@/lib/tasks/boardStatus');
+    expect([...doingTaskIds('u-1')]).toEqual(['t-1']);
+  });
+
+  it('recusa um status que não é fazendo', async () => {
+    const { getDb } = await import('@/lib/db');
+    expect(() =>
+      getDb()
+        .prepare("INSERT INTO task_board_status VALUES ('u-1', 't-1', 'feito', '2026-10-23')")
+        .run(),
+    ).toThrow();
+  });
+});

@@ -88,6 +88,7 @@ const USER_SCOPED_TABLES = [
   'module_settings',
   'preferences',
   'tasks',
+  'task_board_status',
   'notes',
   'email_bodies',
   'notifications_read',

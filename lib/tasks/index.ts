@@ -4,6 +4,7 @@ import type { TodoTask } from '@/lib/types';
 import type { EditTaskInput } from './types';
 import * as local from './local';
 import * as mstodo from '@/lib/cli/mstodo';
+import { clearBoardStatus, markDoing, withBoardStatus } from './boardStatus';
 
 export type { EditTaskInput, Recur } from './types';
 
@@ -26,8 +27,10 @@ function mstodoEnv(userId: string): Record<string, string> {
 }
 
 export async function fetchTasks(userId: string): Promise<TodoTask[]> {
-  if (usesMstodo(userId)) return mstodo.fetchTasks(mstodoEnv(userId));
-  return local.listTasks(userId);
+  const tasks = usesMstodo(userId)
+    ? await mstodo.fetchTasks(mstodoEnv(userId))
+    : local.listTasks(userId);
+  return withBoardStatus(userId, tasks);
 }
 
 export async function addTask(userId: string, title: string): Promise<string> {
@@ -44,9 +47,20 @@ export async function setCompleted(
     const env = mstodoEnv(userId);
     if (completed) await mstodo.completeTask(env, id);
     else await mstodo.reopenTask(env, id);
-    return;
+  } else {
+    local.setCompleted(userId, id, completed);
   }
-  local.setCompleted(userId, id, completed);
+  // Completing ends "Fazendo". Cleared only after the provider accepted, so a
+  // failed completion leaves the card where it was. A recurring task rolls
+  // over to its next date and comes back as "A fazer", not still in progress.
+  if (completed) clearBoardStatus(userId, id);
+}
+
+/** Moves a task between "A fazer" and "Fazendo". "Feito" is not a status
+ *  here: it is `setCompleted`, so the provider stays the source of truth. */
+export function setDoing(userId: string, id: string, doing: boolean): void {
+  if (doing) markDoing(userId, id);
+  else clearBoardStatus(userId, id);
 }
 
 export async function editTask(
@@ -64,9 +78,10 @@ export async function editTask(
 export async function deleteTask(userId: string, id: string): Promise<void> {
   if (usesMstodo(userId)) {
     await mstodo.deleteTask(mstodoEnv(userId), id);
-    return;
+  } else {
+    local.deleteTask(userId, id);
   }
-  local.deleteTask(userId, id);
+  clearBoardStatus(userId, id);
 }
 
 export async function addSubtask(userId: string, taskId: string, title: string): Promise<void> {

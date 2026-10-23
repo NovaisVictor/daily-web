@@ -13,6 +13,23 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23-kanban',
+    date: '2026-10-23',
+    title: 'Tarefas em quadro',
+    items: [
+      {
+        title: 'Lista ou quadro, você escolhe',
+        detail:
+          'No painel de tarefas, o botão "Quadro" mostra as tarefas como post-its em três colunas: A fazer, Fazendo e Feito. A lista continua lá, e a escolha fica guardada para a próxima vez.',
+      },
+      {
+        title: 'Arraste ou use os botões',
+        detail:
+          'Arraste a nota de uma coluna para outra, ou use os botões "A fazer", "Fazendo" e "Feito" na própria nota, que também funcionam pelo teclado. Levar para Feito conclui a tarefa; tirar de lá a reabre.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-jira-pessoa',
     date: '2026-10-23',
     title: 'Jira: troca de pessoa pelo título',
