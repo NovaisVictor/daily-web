@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
-import { CalendarPlus, ChevronRight, Flag, GitPullRequest, Plus, X, UserPlus } from 'lucide-react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, useEffect } from 'react';
+import { CalendarPlus, ChevronRight, Flag, GitPullRequest, Plus, X } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -20,6 +20,7 @@ import { pullsByJiraKey } from '@/lib/pullJira';
 import { PanelError } from '@/components/data/PanelError';
 import type { ActiveFilter } from '@/lib/filters';
 import { JiraMultiFilterDropdown } from './JiraMultiFilterDropdown';
+import { PersonSwitcher } from './jira/PersonSwitcher';
 import {
   EMPTY_JIRA_FILTERS,
   JIRA_TIERS,
@@ -303,6 +304,7 @@ export function JiraPanel({
   const [ramos, setRamos] = useState<Map<string, boolean>>(new Map());
 
   const [formAberta, setFormAberta] = useState(false);
+  const campoBuscaPessoa = useRef<HTMLInputElement>(null);
   const [buscaNovaPessoa, setBuscaNovaPessoa] = useState('');
   const [resultadosPessoas, setResultadosPessoas] = useState<JiraPerson[]>([]);
   const [buscandoPessoas, setBuscandoPessoas] = useState(false);
@@ -609,7 +611,16 @@ export function JiraPanel({
     <JiraActionsProvider value={{ viewer, onChanged }}>
       <JiraPullsContext.Provider value={prsPorChave}>
         <Section
-          eyebrow={pessoaAtivaObj ? `Jira · ${pessoaAtivaObj.displayName}` : 'Jira'}
+          eyebrow={
+            <PersonSwitcher
+              people={people}
+              active={pessoaAtivaObj ?? null}
+              onSelect={setPessoa}
+              onFollow={() => setFormAberta(true)}
+              searchField={campoBuscaPessoa}
+              onUnfollow={(accountId) => void pararPessoa(accountId)}
+            />
+          }
           count={
             aba === 'abertas' && activeFilters.length > 0
               ? `${visible.length} de ${all.length}`
@@ -628,52 +639,28 @@ export function JiraPanel({
             )
           }
         >
-          <div className="flex min-w-0 items-start gap-2">
-            <Tabs
-              wrap
-              id="jira-pessoa"
-              label="de quem é o Jira"
-              active={pessoaAtiva ?? 'eu'}
-              onChange={setPessoa}
-              tabs={[
-                { id: 'eu', label: 'Eu' },
-                ...people.map((p) => ({
-                  id: p.accountId,
-                  label: p.displayName,
-                })),
-              ]}
-            />
-            <IconAction
-              variant="outline"
-              size="icon"
-              label="Acompanhar pessoa"
-              onClick={() => setFormAberta(!formAberta)}
-              icon={<UserPlus className="size-4" />}
-            />
-            {pessoaAtivaObj && (
-              <IconAction
-                variant="outline"
-                size="icon"
-                className="text-danger hover:bg-danger-tint hover:text-danger"
-                label={`parar de acompanhar ${pessoaAtivaObj.displayName}`}
-                onClick={() => void pararPessoa(pessoaAtivaObj.accountId)}
-                icon={<X className="size-4" />}
-              />
-            )}
-          </div>
-
           {formAberta && (
             <div className="mb-4 rounded-lg border border-line-soft bg-muted/30 p-4">
-              <Input
-                autoFocus
-                aria-label="buscar pessoa no Jira"
-                placeholder="nome da pessoa"
-                value={buscaNovaPessoa}
-                onChange={(e) => setBuscaNovaPessoa(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setFormAberta(false);
-                }}
-              />
+              {/* The menu that opens this card closes on choosing it, so this
+                  is the only way out besides Escape inside the field. */}
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={campoBuscaPessoa}
+                  autoFocus
+                  aria-label="buscar pessoa no Jira"
+                  placeholder="nome da pessoa"
+                  value={buscaNovaPessoa}
+                  onChange={(e) => setBuscaNovaPessoa(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setFormAberta(false);
+                  }}
+                />
+                <IconAction
+                  label="fechar busca de pessoa"
+                  onClick={() => setFormAberta(false)}
+                  icon={<X className="size-4" />}
+                />
+              </div>
               {erroPessoas && <PanelError>{erroPessoas}</PanelError>}
               {buscandoPessoas && <p className="mt-2 text-sm text-ink-dim">Buscando…</p>}
               {!buscandoPessoas && resultadosPessoas.length > 0 && (

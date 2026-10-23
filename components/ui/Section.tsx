@@ -3,7 +3,7 @@ import { Panel } from '@/components/data/Panel';
 import { tabular } from '@/lib/theme';
 
 interface Props {
-  eyebrow: string;
+  eyebrow: ReactNode;
   count?: string;
   actions?: ReactNode;
   /** Para o painel que precisa impor altura ao próprio conteúdo. */

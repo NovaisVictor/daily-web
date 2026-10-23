@@ -13,6 +13,18 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23-jira-pessoa',
+    date: '2026-10-23',
+    title: 'Jira: troca de pessoa pelo título',
+    items: [
+      {
+        title: 'De quem é o Jira, no próprio título',
+        detail:
+          'Clique em "Jira · Eu" no topo do painel para ver o Jira de outra pessoa, acompanhar alguém novo ou parar de acompanhar quem está na tela. As abas de pessoa saíram e as listas ganharam espaço.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-resumo-semanal',
     date: '2026-10-23',
     title: 'Resumo da semana',

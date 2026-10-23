@@ -101,6 +101,11 @@ Only `main` is maintained; there are no release branches.
   fix.
 
 ### Changed
+- Choosing whose Jira is on screen moved into the panel title: "Jira · Eu"
+  opens a menu with you, the people you follow, "Acompanhar pessoa" and, on a
+  followed person, "Parar de acompanhar". The row of person tabs above the
+  lists is gone, so the panel shows one more line of issues, and a few more
+  when you follow several people.
 - In the dark theme, the Catppuccin choice is now the full Mocha palette
   instead of only a Macchiato page base: background and sidebar (Base,
   Mantle), raised surfaces (Surface 0–2), text (Text, Subtext 1/0), borders,
