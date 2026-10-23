@@ -39,7 +39,7 @@ without imposing that implicit selection on new API/MCP contracts.
 | Tool group | Required actions | Existing source |
 | --- | --- | --- |
 | agents | register; sessions create/list/get/heartbeat; tasks create/list/get/update/transition/activity/list_activity/delete | New reporting contract, `contracts/reporting-api.md` |
-| tasks | list/get/create/update/complete/reopen/delete | `lib/tasks/index.ts`, `app/api/tasks/route.ts`, `app/api/tasks/[id]/route.ts`, state snapshot |
+| tasks | list/get/create (including scheduling, priority, recurrence, initial todo/doing and boardStyle)/update/complete/reopen/delete | `lib/tasks/index.ts`, `app/api/tasks/route.ts`, `app/api/tasks/[id]/route.ts`, state snapshot |
 | tasks.board | set todo/doing; completion via provider; read effective column | `app/api/tasks/[id]/board/route.ts`, `lib/taskBoard.ts` |
 | tasks.subtasks | create/update/complete/reopen/delete | `app/api/tasks/[id]/subtasks/` |
 | tasks.query | text/priority/due/status filters and grouping matching UI | `components/TasksPanel.tsx`, `lib/taskGrouping.ts` |
@@ -260,6 +260,9 @@ purely local agent persistence, whose local failure cases are covered by A/R.
   `tasks:read`, `jira:read` or `github:read`. It does not provide general agenda CRUD.
 - `connections_setup` is a read-only setup-link operation requiring
   `connections:write`; it does not accept or reveal credentials.
+- `tasks_create` and `tasks_edit` accept `boardStyle` paper/pin palettes and null
+  automatic resets; style-only edits are local atomic mutations without a provider
+  write. Task reads expose typed nullable paper/pin values.
 - `tasks_transition` represents board movement, complete and reopen;
   `tasks_subtask_edit` represents edit, complete, reopen and delete. Jira flag,
   approval, following and watching actions similarly use explicit action enums.
@@ -295,10 +298,13 @@ comparison remains a regression guard, not the sole evidence of parity. New
 panel actions introduced by later upstream changes require the same inventory
 and behavior review before integration.
 
-**G4 — Deployment/client acceptance.** Unit and disposable-provider HTTP tests
-exercise OAuth behavior and immediate revocation. Actual Claude/Codex/Gemini
-and production Traefik acceptance remain separately recorded gates; an SDK
-callback test is not proof of client interoperability.
+**G4 — Runtime evidence remains separate from static registry tests.** Real
+Claude/Codex/agy clients passed browser consent, an actual tool call and automatic
+refresh after the normal 900-second lifetime, through the Next fallback proxy
+and after companion/application restarts. Grant revocation and temporary-config
+cleanup are recorded in `validation/oauth-clients.json`. HTTPS provider/proxy
+cookies have an independent regression test. Production service/public-origin
+acceptance remains a separate deployment gate.
 
 The existing `npm test` CI step discovers the parity suite along with
 `tests/mcp/auth.test.ts`, `tests/mcp/oauth-feasibility.test.ts`, and retention/

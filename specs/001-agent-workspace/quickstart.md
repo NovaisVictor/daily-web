@@ -9,17 +9,20 @@ separate from local implementation validation.
 
 The feature began from `6a5d646022703870c70f52d0615dd03c7578f1e6` on
 `feature/agent-workspace`. Codebase Memory was indexed before structural work.
-The additive SQLite migration is version 15; remote migration versions were
-checked before introducing it. Existing CI runs the native tests, production
+The additive agent migration is version 16. Upstream introduced note colours as
+version 15 while this feature was being validated. All 24 remote refs were checked
+(maximum 15); the merged migration preserves upstream style data before adding
+agent tables. A version-15-to-16 regression preserves existing tasks and colours. Existing CI runs the native tests, production
 build and production dependency audit at the critical threshold.
 
 - Original baseline: 2,385 tests, production build and critical dependency gate
   passed. The original implementation checkpoint `d1421dd` passed 2,515 tests
   across 165 files and its optimized build. Ruflo-tracked independent review 4
   and its exception-subclass delta approved that checkpoint.
-- Continuation pre-integration gate: **2,699 tests across 171 files passed**.
-  This is an intermediate gate, preceding integration of the newer upstream task
-  form and final release validation; it is not represented as the release gate.
+- Continuation checkpoints: **2,699 tests across 171 files**, followed by
+  **2,754 tests across 174 files**, passed. The final integration also preserves
+  upstream task-board completeness/defaults, menu opacity and note colours from `7ca329c`;
+  source gates are rerun after that merge and recorded in the release PR.
 - Jira: all 19 shared operations have direct success/result-schema, input, scope,
   owner and deleted-user cases, provider failures where external, refusal/retry,
   replay and mixed bulk outcomes. All browser Jira action handlers now use
@@ -44,7 +47,14 @@ build and production dependency audit at the critical threshold.
   `agents_sessions_list` invocation. Natural-expiry testing found and fixed
   Codex's refresh-scope incompatibility: `offline_access` is no longer advertised;
   issued refresh tokens still follow the provider's explicit policy. Regressions
-  reject ungranted scopes and escalation; final timed client proof is separate.
+  reject ungranted scopes and escalation. All three real clients then passed
+  natural-expiry refresh after more than 900 seconds and repeated service restarts:
+  refresh HTTP 200, zero authorization-code exchanges/reconsent, and an actual
+  `agents_sessions_list` RPC success with one schema-validated item. All requests
+  traversed the Next proxy. Codex refreshed at 21:56:00 UTC, Claude at 21:56:13,
+  and agy at 21:56:43. agy recovered automatically from an initial invalid-request
+  response; no server validation was relaxed. Artifact: `validation/oauth-clients.json`.
+  Test grants were revoked and temporary clients/configuration removed afterwards.
 - The bounded Next proxy serves `/oauth/` and authorization metadata through the
   existing public origin. Nine proxy tests plus middleware isolation tests cover
   canonical Host, cookies, safe redirects, CORS preflight, payload/deadline bounds,
@@ -71,20 +81,31 @@ build and production dependency audit at the critical threshold.
 - Core retention passed bounded expiry/cleanup and logical restore tests,
   including a 1,200-event history, 500-row cleanup batches, content-free tombstones,
   secure deletion and WAL checkpointing. No filesystem/SSD forensic erase claim.
-- Final React Doctor changed-source scan: zero errors, 53 advisory warnings.
-  Full-repository scan: seven errors, all in files byte-identical to current
-  `origin/main`; 198 warnings. The warning delta from the earlier 51 is a bounded
-  serial Jira receipt loop and a guarded canonical-origin URL parse; Zod helper
-  warnings moved without increasing their total. No baseline/allowlist was changed.
+- Final React Doctor changed-source scan: zero errors, 58 advisory warnings.
+  An earlier full-repository scan at the prior UI integration found seven errors
+  in files byte-identical to that integration’s `origin/main`, plus 204 warnings. The warning delta from the earlier 51 includes a
+  bounded serial Jira receipt loop, a guarded canonical-origin URL parse and compatible Zod strict-schema helper advisories in the opt-in validation harness.
+  No baseline/allowlist was changed.
   React Scan offers instrumentation/init rather than a static gate; unrequested
   runtime instrumentation was not installed.
 
-## Release gates still being executed
+## Release acceptance
 
-The continuation's independent review, integration of upstream `main`, final
-integrated tests/build/audit, timed real-client refresh and new Next-proxy client
-smoke must all complete before delivery. Source/test completion alone is not a
-production acceptance assertion. No deployment is claimed by the local evidence.
+Independent continuation review is **APPROVED**; see
+`reviews/implementation-review-5.md`. Its conditional HTTPS-cookie concern was
+resolved by the existing canonical protocol normalization and a real-provider
+regression test. Timed real-client refresh and reporting acceptance both passed.
+The final upstream UI integration leaves the OAuth protocol implementation intact.
+
+The final Slack-only main synchronization preserves the reviewed feature source.
+Native integration passed **2,887 tests across 177 files** and the production build.
+
+Final integrating tests, build, critical dependency gate and changed-source scan
+run after the last source change. The protected `main` requires the remote
+**Tests and build** and **Dependency audit** checks before merge. Deployment then
+requires both application and OAuth health. Local evidence alone does not assert
+that production deployment occurred; the release PR and delivery report record
+that separate exact-commit result.
 
 ## Practical boundaries
 

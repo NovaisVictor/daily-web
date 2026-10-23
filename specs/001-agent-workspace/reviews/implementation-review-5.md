@@ -23,9 +23,20 @@ Secure/HttpOnly cookies despite forged protocol/host headers.
 | Suspected duplicate Jira watch keys | Root: false conditional; existing preference writer deduplicates uppercase keys | Existing `lib/preferences.ts` | Source inspection and watch parity tests |
 | Codex natural-expiry refresh invalid_scope | OAuth module owner: stop advertising unused OIDC offline-access scope; keep strict application scope checks | `00ac5d9`, `lib/oauth/provider.ts` | Actual provider refresh/no-escalation tests; timed client evidence separately recorded |
 | Upstream task create fields and recurring-task semantics | UI/domain owner: create metadata in same receipt, atomic local writes, safe partial remote creation, effective scheduling validation | `00ac5d9`, `lib/operations/tasks.ts` | 57 focused task/parser/CLI cases; integrated suite |
+| New upstream initial board column | UI/domain owner: todo/doing creation, local board atomicity and sanitized remote partial receipt; root independently checked the delta | `af9d54d`, task creation status branch | Local rollback, remote ordering/replay and invalid done-state cases |
 | Known monthly provider recurrence | UI/domain owner: normalize only absoluteMonthly; reject unknown enums visibly | `00ac5d9`, `lib/parsers/mstodo.ts` | Parser and MCP result-schema cases |
 | Partial reruns lose client reconciliation details | Root + GitHub owner: persist bounded sanitized partial outcomes and expose in MCP errors and browser adapters | `00ac5d9`, receipt/context/registry | Confirmed and uncertain replay tests; no repeated provider call |
 | Browser errors regress to English | UI owner: localize error presentation at the HTTP edge, preserve domain codes and statuses | Final browser adapter delta | Focused browser error-contract tests |
+
+The final upstream board integration was reviewed separately for action parity:
+the initial todo/doing creation column and later note colours added API contracts. Existing board
+menu/subtask/focus actions were already represented. The home remains the agent
+kanban; the legacy board default was relocated to `/workspace`. The note-colour migration remains version 15; agent migration moves to 16 after
+checking all 24 remote refs. Migration regression preserves production-version-15
+tasks/colours. Existing MCP create/edit operations cover boardStyle and local
+style-only writes, with typed reads, ownership and partial/replay tests.
+Final native gates run on this integrated tree; the model snapshot is not asserted to include later
+mechanical merge resolutions or localized presentation strings.
 
 ## Scope and non-blocking limits
 
@@ -45,3 +56,14 @@ Private raw reviewer responses and exact snapshot hashes remain under `/tmp`:
 `daily-continuation-review-{result,hashes}.json` and
 `daily-continuation-delta-{result,hashes}.json`. No private CLI credentials or
 transcripts are included in the repository.
+
+## Final appearance/migration integration approval
+
+An independent native agent reviewed `d094923` read-only and returned **APPROVED**,
+with no concrete blockers. It checked the published style migration15 and additive
+agent migration16, production-upgrade regression, local atomic style receipts,
+provider-free style-only writes, mixed remote partial outcomes and typed palettes.
+All seven OAuth/MCP authentication paths were byte/SHA256-identical to the earlier
+real-client natural-expiry proof. Later UI/schema integration did not substitute
+a simulated refresh or require another token-lifetime assumption. No source edits
+followed the final native gates or this read-only approval.
