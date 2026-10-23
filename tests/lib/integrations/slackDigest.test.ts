@@ -25,6 +25,7 @@ describe('digest do Slack', () => {
       const method = new URL(String(input)).pathname.split('/').pop();
       if (method === 'search.messages') {
         const body = new URLSearchParams(String(init?.body));
+        if (body.get('query') === 'is:dm') return response({ ok: true, messages: { matches: [] } });
         expect(body.get('query')).toBe('<@U1>');
         return response({
           ok: true,
@@ -41,7 +42,6 @@ describe('digest do Slack', () => {
           },
         });
       }
-      if (method === 'conversations.list') return response({ ok: true, channels: [{ id: 'D1', unread_count_display: 0 }] });
       if (method === 'users.info') {
         const id = new URLSearchParams(String(init?.body)).get('user');
         return response({ ok: true, user: { profile: { display_name: id === 'U2' ? 'Ana' : 'Bia' } } });
@@ -60,39 +60,64 @@ describe('digest do Slack', () => {
   });
 
   it('descarta permalink que não pertence ao Slack', async () => {
-    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
-      const method = new URL(String(input)).pathname.split('/').pop();
-      if (method === 'search.messages') return response({ ok: true, messages: { matches: [{ channel: { id: 'C1' }, username: 'Ana', text: 'x', ts: String(Date.now() / 1_000), permalink: 'https://evil.test/x' }] } });
-      return response({ ok: true, channels: [{ id: 'D1', unread_count_display: 0 }] });
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      if (new URLSearchParams(String(init?.body)).get('query') === 'is:dm') return response({ ok: true, messages: { matches: [] } });
+      return response({ ok: true, messages: { matches: [{ channel: { id: 'C1' }, username: 'Ana', text: 'x', ts: String(Date.now() / 1_000), permalink: 'https://evil.test/x' }] } });
     });
     expect((await fetchSlack(connection())).mentions[0].url).toBe('');
   });
 
-  it('busca histórico somente das DMs não lidas, com limite um', async () => {
+  it('pergunta pelas não lidas só nas DMs recentes da busca, e busca histórico só das não lidas', async () => {
+    const infos: string[] = [];
     const calls: URLSearchParams[] = [];
     vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const method = new URL(String(input)).pathname.split('/').pop();
+      const body = new URLSearchParams(String(init?.body));
+      if (method === 'search.messages' && body.get('query') === 'is:dm') {
+        return response({
+          ok: true,
+          messages: {
+            matches: [
+              { channel: { id: 'D1', is_im: true }, ts: '3.0' },
+              { channel: { id: 'D1', is_im: true }, ts: '2.0' },
+              { channel: { id: 'D2', is_im: true }, ts: '1.0' },
+              { channel: { id: 'G1', is_mpim: true }, ts: '1.5' },
+            ],
+          },
+        });
+      }
       if (method === 'search.messages') return response({ ok: true, messages: { matches: [] } });
-      if (method === 'conversations.list') return response({ ok: true, channels: [{ id: 'D1', user: 'U2', unread_count_display: 2 }, { id: 'D2', user: 'U3', unread_count_display: 0 }] });
+      if (method === 'conversations.info') {
+        const id = body.get('channel') ?? '';
+        infos.push(id);
+        return response({ ok: true, channel: { id, user: id === 'D1' ? 'U2' : 'U3', unread_count_display: id === 'D1' ? 2 : 0 } });
+      }
       if (method === 'conversations.history') {
-        calls.push(new URLSearchParams(String(init?.body)));
-        return response({ ok: true, messages: [{ user: 'U1', text: 'Olá', ts: '1000.1' }] });
+        calls.push(body);
+        return response({ ok: true, messages: [{ user: 'U2', text: 'Olá', ts: '1000.1' }] });
       }
       if (method === 'users.info') return response({ ok: true, user: { profile: { display_name: 'Ana' } } });
-      throw new Error('chamada inesperada');
+      throw new Error(`chamada inesperada: ${method}`);
     });
     const digest = await fetchSlack(connection());
-    expect(digest.directs).toHaveLength(1);
+    expect(infos).toEqual(['D1', 'D2']);
+    expect(digest.directs).toEqual([expect.objectContaining({ author: 'Ana', text: 'Olá' })]);
     expect(calls).toHaveLength(1);
     expect(calls[0].get('channel')).toBe('D1');
     expect(calls[0].get('limit')).toBe('1');
   });
 
+  it('não falha quando não há DM recente', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(async () => response({ ok: true, messages: { matches: [] } }));
+    expect((await fetchSlack(connection())).directs).toEqual([]);
+  });
+
   it('falha a lista quando o Slack não informa contagem de não lidas', async () => {
-    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const method = new URL(String(input)).pathname.split('/').pop();
-      if (method === 'search.messages') return response({ ok: true, messages: { matches: [] } });
-      return response({ ok: true, channels: [{ id: 'D1', user: 'U2' }] });
+      if (method === 'conversations.info') return response({ ok: true, channel: { id: 'D1', user: 'U2' } });
+      const dm = new URLSearchParams(String(init?.body)).get('query') === 'is:dm';
+      return response({ ok: true, messages: { matches: dm ? [{ channel: { id: 'D1', is_im: true }, ts: '1.0' }] : [] } });
     });
     const error = await fetchSlack(connection()).catch((value: unknown) => value);
     expect(error).toBeInstanceOf(SlackDigestError);
@@ -100,10 +125,9 @@ describe('digest do Slack', () => {
   });
 
   it('preserva as menções quando a lista de diretas falha', async () => {
-    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
-      const method = new URL(String(input)).pathname.split('/').pop();
-      if (method === 'search.messages') return response({ ok: true, messages: { matches: [{ channel: { id: 'C1' }, username: 'Ana', text: 'Oi', ts: String(Date.now() / 1_000) }] } });
-      return response({ ok: false, error: 'internal_error' });
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      if (new URLSearchParams(String(init?.body)).get('query') === 'is:dm') return response({ ok: false, error: 'internal_error' });
+      return response({ ok: true, messages: { matches: [{ channel: { id: 'C1' }, username: 'Ana', text: 'Oi', ts: String(Date.now() / 1_000) }] } });
     });
     const error = await fetchSlack(connection()).catch((value: unknown) => value);
     expect(error).toBeInstanceOf(SlackDigestError);
@@ -113,10 +137,10 @@ describe('digest do Slack', () => {
   it('limita a trinta consultas de nomes por ciclo', async () => {
     let lookups = 0;
     const mentions = Array.from({ length: 31 }, (_, index) => `<@U${index + 10}>`).join(' ');
-    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const method = new URL(String(input)).pathname.split('/').pop();
+      if (new URLSearchParams(String(init?.body)).get('query') === 'is:dm') return response({ ok: true, messages: { matches: [] } });
       if (method === 'search.messages') return response({ ok: true, messages: { matches: [{ channel: { id: 'C1' }, username: 'Ana', text: mentions, ts: String(Date.now() / 1_000) }] } });
-      if (method === 'conversations.list') return response({ ok: true, channels: [{ id: 'D1', unread_count_display: 0 }] });
       if (method === 'users.info') {
         lookups += 1;
         return response({ ok: true, user: { name: 'pessoa' } });
