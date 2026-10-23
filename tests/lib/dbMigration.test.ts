@@ -266,7 +266,7 @@ describe('coluna Fazendo do quadro de tarefas', () => {
     const { markDoing } = await import('@/lib/tasks/boardStatus');
     markDoing('u-1', 't-1');
     const version = getDb().pragma('user_version', { simple: true });
-    expect(version).toBe(16);
+    expect(version).toBe(17);
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
@@ -318,7 +318,7 @@ describe('cor das notas do quadro de tarefas', () => {
   it('as tarefas e a marcação de Fazendo continuam, todas com cor automática', async () => {
     seedBoardDatabase();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(16);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(17);
     const { listTasks } = await import('@/lib/tasks/local');
     const { withBoardOverlay } = await import('@/lib/tasks/boardStatus');
 
@@ -336,7 +336,7 @@ describe('cor das notas do quadro de tarefas', () => {
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
-    expect(reopen().pragma('user_version', { simple: true })).toBe(16);
+    expect(reopen().pragma('user_version', { simple: true })).toBe(17);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-1')).toEqual({ paper: 'grey', pin: 'red' });
   });
@@ -355,11 +355,11 @@ describe('cor das notas do quadro de tarefas', () => {
     `);
     half.close();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(16);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(17);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-2')).toEqual({ paper: 'white', pin: null });
   });
-  it('upgrades production version 15 with note colours to agent workspace version 16 without resetting tasks', async () => {
+  it('upgrades production version 15 with note colours to subtask version 17 without resetting tasks', async () => {
     seedBoardDatabase();
     const previous = new Database(dbFile);
     previous.exec(`CREATE TABLE task_board_style (
@@ -371,10 +371,35 @@ describe('cor das notas do quadro de tarefas', () => {
     previous.close();
     const {getDb} = await import('@/lib/db');
     const current = getDb();
-    expect(current.pragma('user_version', {simple:true})).toBe(16);
+    expect(current.pragma('user_version', {simple:true})).toBe(17);
     expect(current.prepare('SELECT COUNT(1) AS count FROM main.tb_agent').get()).toEqual({count:0});
     expect(current.prepare('SELECT paper, pin FROM main.task_board_style WHERE user_id=? AND task_id=?').get('u-1','t-2')).toEqual({paper:'white',pin:'blue'});
     expect(current.prepare('SELECT COUNT(1) AS count FROM main.tasks').get()).toEqual({count:2});
   });
 
+});
+
+it('adds subtasks to a version 16 database while preserving old task reads and writes',async()=>{
+ const legacy=new Database(dbFile);
+ legacy.exec(`CREATE TABLE tb_agent_task (
+  uid_task TEXT PRIMARY KEY, uid_user TEXT NOT NULL, ref_external TEXT NOT NULL,
+  nam_title TEXT NOT NULL, txt_description TEXT NOT NULL, typ_status TEXT NOT NULL
+   CHECK(typ_status IN ('queued','working','blocked','completed','failed','cancelled')),
+  uid_session TEXT, jsn_source TEXT, num_version INTEGER NOT NULL DEFAULT 1,
+  tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+  CONSTRAINT tb_agent_task_uk1 UNIQUE(uid_user,ref_external)
+ );`);
+ const oldInsert="INSERT INTO tb_agent_task(uid_task,uid_user,ref_external,nam_title,txt_description,typ_status,tsz_insert,tsz_update) VALUES(?,?,?,?,?,'queued',?,?)";
+ const at=new Date().toISOString();legacy.prepare(oldInsert).run('root','owner','root-external','Preserved root','Description',at,at);legacy.pragma('user_version = 16');legacy.close();
+ const {getDb}=await import('@/lib/db');const current=getDb();
+ expect(current.pragma('user_version',{simple:true})).toBe(17);
+ expect(current.prepare('SELECT nam_title,txt_description,num_version,uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('root')).toEqual({nam_title:'Preserved root',txt_description:'Description',num_version:1,uid_parent_task:null});
+ current.prepare(oldInsert).run('child','owner','child-external','Child','',at,at);
+ current.prepare('UPDATE tb_agent_task SET uid_parent_task=? WHERE uid_task=?').run('root','child');
+ const oldProcess=new Database(dbFile);
+ oldProcess.prepare('UPDATE tb_agent_task SET nam_title=? WHERE uid_user=? AND uid_task=?').run('Old process edit','owner','child');
+ oldProcess.prepare(oldInsert).run('old-root','owner','old-external','Legacy creation','',at,at);
+ expect(oldProcess.prepare('SELECT nam_title FROM tb_agent_task WHERE uid_user=? AND uid_task=?').get('owner','child')).toEqual({nam_title:'Old process edit'});oldProcess.close();
+ expect(current.prepare('SELECT uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('child')).toEqual({uid_parent_task:'root'});
+ expect(current.prepare('SELECT uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('old-root')).toEqual({uid_parent_task:null});
 });

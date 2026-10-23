@@ -150,3 +150,23 @@ Traefik, not only direct localhost.
 | Persisted mutation receipts | External retries can otherwise duplicate effects | In-memory keys lost on restart or blind automatic retry |
 
 No constitution exception requested. Design readiness does not equal runtime proof.
+
+## Agent subtask follow-up
+
+Use an additive nullable `tb_agent_task.uid_parent_task` reference plus an indexed
+parent/owner/updated/id access path (migration 17, after checking all remote refs).
+Reuse task operations, reporting routes and MCP tools rather than introduce a
+second task lifecycle. The prior application can read and update existing task
+columns without removing linkage; old wire responses remain accepted by the new
+browser during upgrades. Home requests roots; detail reads children with separate
+keyset pagination. Preserve atomic receipts and bounded cleanup; delete children
+before parents. Validate two-user isolation, expired parents, idempotency, child
+lifecycle, parent retention, migration from version 16 and UI navigation/errors.
+
+The self-reference uses `ON DELETE SET NULL` as a legacy compatibility safeguard:
+the previous application's cleanup/delete SQL can still run after migration and
+preserves child content and timestamps. The new application rejects deletion of
+parents with live children before reaching this database action. A rollback to
+v16 has no hierarchy UI or deletion guard: deleting a parent there promotes its
+children to roots, rather than deleting their data. Redeploy v17 to restore the
+hierarchy-aware experience; restoring a pre-feature database would lose new work.

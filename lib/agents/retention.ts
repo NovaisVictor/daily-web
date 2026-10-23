@@ -30,6 +30,7 @@ export function cleanupAgents(now=Date.now(),batch=500):CleanupCounts {
       remaining-=coupled;
       result.tasks=db.prepare(`DELETE FROM main.tb_agent_task WHERE uid_task IN (
         SELECT t.uid_task FROM main.tb_agent_task t WHERE t.tsz_update<=?
+        AND NOT EXISTS(SELECT 1 FROM main.tb_agent_task child WHERE child.uid_user=t.uid_user AND child.uid_parent_task=t.uid_task)
         AND NOT EXISTS(SELECT 1 FROM main.tb_agent_activity a WHERE a.uid_user=t.uid_user AND a.uid_task=t.uid_task)
         AND NOT EXISTS(SELECT 1 FROM main.tb_mutation_receipt r WHERE r.uid_user=t.uid_user AND r.ref_resource=t.uid_task AND r.typ_class='local' AND r.typ_state!='deleted')
         ORDER BY t.tsz_update,t.uid_task LIMIT ?

@@ -1,0 +1,257 @@
+{
+  "provenance": {
+    "capturedAt": "2026-10-23T23:06:50.468Z",
+    "transport": "HTTP",
+    "runtime": "Next.js development server on loopback with fresh disposable schema 17",
+    "endpoints": [
+      "GET /api/agents?scope=all",
+      "GET /api/agents?scope=roots",
+      "GET /api/agents/tasks/{rootTaskId}",
+      "GET /api/agents/tasks/{childTaskId}",
+      "DELETE /api/agents/tasks/{rootTaskId} -> 409"
+    ],
+    "normalization": "Opaque agent/session/task/activity IDs replaced consistently. No credentials or user records included."
+  },
+  "snapshot": {
+    "tasks": {
+      "items": [
+        {
+          "id": "root-fixture",
+          "parentTaskId": null,
+          "externalId": "hierarchy-root",
+          "title": "Hierarchy root task",
+          "description": "",
+          "status": "queued",
+          "version": 1,
+          "createdAt": "2026-10-23T23:06:50.946Z",
+          "lastActivityAt": "2026-10-23T23:06:51.842Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "freshness": "fresh"
+          }
+        },
+        {
+          "id": "child-fixture",
+          "parentTaskId": "root-fixture",
+          "externalId": "hierarchy-child",
+          "title": "Hierarchy child task",
+          "description": "",
+          "status": "working",
+          "version": 2,
+          "createdAt": "2026-10-23T23:06:50.951Z",
+          "lastActivityAt": "2026-10-23T23:06:51.842Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "freshness": "fresh"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    },
+    "sessions": {
+      "items": [
+        {
+          "id": "session-fixture",
+          "agentId": "agent-fixture",
+          "externalId": "hierarchy-session",
+          "version": 1,
+          "startedAt": "2026-10-23T23:06:50.914Z",
+          "lastActivityAt": "2026-10-23T23:06:50.914Z",
+          "freshness": "fresh",
+          "agent": {
+            "id": "agent-fixture",
+            "externalId": "hierarchy-agent",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "createdAt": "2026-10-23T23:06:50.880Z",
+            "lastActivityAt": "2026-10-23T23:06:50.880Z"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    }
+  },
+  "roots": {
+    "tasks": {
+      "items": [
+        {
+          "id": "root-fixture",
+          "parentTaskId": null,
+          "externalId": "hierarchy-root",
+          "title": "Hierarchy root task",
+          "description": "",
+          "status": "queued",
+          "version": 1,
+          "createdAt": "2026-10-23T23:06:50.946Z",
+          "lastActivityAt": "2026-10-23T23:06:51.842Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "freshness": "fresh"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    },
+    "sessions": {
+      "items": [
+        {
+          "id": "session-fixture",
+          "agentId": "agent-fixture",
+          "externalId": "hierarchy-session",
+          "version": 1,
+          "startedAt": "2026-10-23T23:06:50.914Z",
+          "lastActivityAt": "2026-10-23T23:06:50.914Z",
+          "freshness": "fresh",
+          "agent": {
+            "id": "agent-fixture",
+            "externalId": "hierarchy-agent",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "createdAt": "2026-10-23T23:06:50.880Z",
+            "lastActivityAt": "2026-10-23T23:06:50.880Z"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    }
+  },
+  "parentDetail": {
+    "task": {
+      "id": "root-fixture",
+      "parentTaskId": null,
+      "externalId": "hierarchy-root",
+      "title": "Hierarchy root task",
+      "description": "",
+      "status": "queued",
+      "version": 1,
+      "createdAt": "2026-10-23T23:06:50.946Z",
+      "lastActivityAt": "2026-10-23T23:06:51.842Z",
+      "source": null,
+      "assignment": {
+        "sessionId": "session-fixture",
+        "agentId": "agent-fixture",
+        "provider": "codex",
+        "displayName": "Hierarchy Codex",
+        "freshness": "fresh"
+      }
+    },
+    "activity": {
+      "items": [
+        {
+          "id": "activity-fixture-1",
+          "taskId": "root-fixture",
+          "kind": "created",
+          "summary": "",
+          "receivedAt": "2026-10-23T23:06:50.946Z",
+          "occurredAt": null
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    },
+    "subtasks": {
+      "items": [
+        {
+          "id": "child-fixture",
+          "parentTaskId": "root-fixture",
+          "externalId": "hierarchy-child",
+          "title": "Hierarchy child task",
+          "description": "",
+          "status": "working",
+          "version": 2,
+          "createdAt": "2026-10-23T23:06:50.951Z",
+          "lastActivityAt": "2026-10-23T23:06:51.842Z",
+          "source": null,
+          "assignment": {
+            "sessionId": "session-fixture",
+            "agentId": "agent-fixture",
+            "provider": "codex",
+            "displayName": "Hierarchy Codex",
+            "freshness": "fresh"
+          }
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    }
+  },
+  "childDetail": {
+    "task": {
+      "id": "child-fixture",
+      "parentTaskId": "root-fixture",
+      "externalId": "hierarchy-child",
+      "title": "Hierarchy child task",
+      "description": "",
+      "status": "working",
+      "version": 2,
+      "createdAt": "2026-10-23T23:06:50.951Z",
+      "lastActivityAt": "2026-10-23T23:06:51.842Z",
+      "source": null,
+      "assignment": {
+        "sessionId": "session-fixture",
+        "agentId": "agent-fixture",
+        "provider": "codex",
+        "displayName": "Hierarchy Codex",
+        "freshness": "fresh"
+      }
+    },
+    "activity": {
+      "items": [
+        {
+          "id": "activity-fixture-2",
+          "taskId": "child-fixture",
+          "kind": "progress",
+          "summary": "Hierarchy child progress",
+          "receivedAt": "2026-10-23T23:06:51.842Z",
+          "occurredAt": null
+        },
+        {
+          "id": "activity-fixture-3",
+          "taskId": "child-fixture",
+          "kind": "transition",
+          "summary": "working",
+          "receivedAt": "2026-10-23T23:06:51.341Z",
+          "occurredAt": null
+        },
+        {
+          "id": "activity-fixture-4",
+          "taskId": "child-fixture",
+          "kind": "created",
+          "summary": "",
+          "receivedAt": "2026-10-23T23:06:50.951Z",
+          "occurredAt": null
+        }
+      ],
+      "complete": true,
+      "nextCursor": null
+    },
+    "subtasks": {
+      "items": [],
+      "complete": true,
+      "nextCursor": null
+    }
+  },
+  "deleteRefusal": {
+    "error": {
+      "code": "task_has_subtasks",
+      "message": "Delete subtasks before deleting their parent",
+      "retry": "reconcile"
+    }
+  }
+}

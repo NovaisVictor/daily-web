@@ -136,3 +136,28 @@ Deleting a task keeps content-free tombstones for its former mutation keys for
 30 days after deletion. Old create/update/activity retries cannot resurrect it;
 repeated DELETE retains its prior 204 outcome. A new operation may explicitly
 create a new task identity using the same external identifier.
+
+## Agent subtask relationship
+
+`AgentTask.parentTaskId` is nullable for a root and immutable for a child. The
+additive nullable `tb_agent_task.uid_parent_task` column references the same task
+table; application validation additionally requires a live parent owned by the
+same user and a single hierarchy level. Parent/owner/time/id queries use
+`tb_agent_task_ix5`; roots use the same index with a null parent. Its parent-first
+ordering also indexes SQLite foreign-key checks during task deletion.
+
+A child retains the existing task status, assignment, source, version, timestamps,
+activity and receipt behavior. Accepted child writes (including explicit deletion)
+advance the parent's timestamp atomically; no-op edits and replayed operations
+have no retention effect. No automatic status rollup occurs. A parent's activity
+never refreshes children. Explicit parent deletion requires removing live children
+first; cleanup waits for expired children within the existing row budget.
+
+Expired children awaiting physical cleanup do not block parent deletion: their
+link is cleared atomically without changing timestamps, state, content or
+receipts. They remain expired and cleanup retains its existing row budget.
+Only live children cause `task_has_subtasks`; no live child is detached or deleted.
+
+The database foreign key uses `ON DELETE SET NULL` for old-version delete/cleanup
+compatibility. Current operations block live-child deletion before this action;
+old processes preserve surviving child records as roots with unchanged timestamps.
