@@ -34,10 +34,11 @@ Initial state is `queued`. Allowed transitions:
 
 | From | To |
 | --- | --- |
-| queued | working, blocked, cancelled |
+| queued | working, blocked, completed, cancelled |
 | working | blocked, completed, failed, cancelled |
-| blocked | queued, working, failed, cancelled |
-| completed, failed, cancelled | queued (explicit reopen) |
+| blocked | queued, working, completed, failed, cancelled |
+| completed | queued (explicit reopen) |
+| failed, cancelled | queued (explicit reopen), completed (work finished despite a lost session) |
 
 Task status determines its kanban column. Agent freshness never changes task
 status: fresh <= 2 minutes, stale > 2 minutes, disconnected > 10 minutes since
