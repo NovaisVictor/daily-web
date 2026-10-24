@@ -1,7 +1,7 @@
 import { Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
-import { formatTime, STATUS_LABELS, TASK_STATUSES, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
+import { formatTime, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
 import { TaskCard } from './TaskCard';
 
 export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress> }) {
@@ -20,12 +20,13 @@ export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTa
 const freshnessLabels = { fresh: 'Reportando recentemente', stale: 'Sem atualização há mais de 2 minutos', disconnected: 'Sem contato há mais de 10 minutos' };
 export function SessionGrid({ sessions, onSelect }: { sessions: AgentSession[]; onSelect: (id: string) => void }) {
   if (sessions.length === 0) return <EmptyState title="Nenhuma sessão reportada" description="As sessões aparecem quando seus agentes se conectarem." />;
-  return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{sessions.map(session => <article key={session.id} className="rounded-xl border border-line bg-surface-1 p-5">
+  return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{sessions.map(session => <article key={session.id} className={`rounded-xl border bg-surface-1 p-5 ${session.attention ? 'border-danger ring-2 ring-danger/40' : 'border-line'}`}>
     <Bot className="mb-3 size-5 text-primary" />
     <h2 className="font-semibold">{session.agent.displayName}</h2>
     <p className="mt-1 break-all text-xs text-ink-dim">{session.agent.provider} · {session.id}</p>
     <p className="mt-3 text-xs text-ink-mid">Última atividade: {formatTime(session.lastActivityAt)}</p>
     <p className="mt-2 text-xs text-ink-mid">{freshnessLabels[session.freshness]}</p>
+    {session.attention && <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-danger"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" />{NEEDS_YOU_LABELS[session.attention.kind]} · {waitedFor(session.attention.since)}</p>}
     <Button variant="link" className="mt-2 px-0" onClick={() => onSelect(session.id)}>Ver tarefas da sessão</Button>
   </article>)}</div>;
 }

@@ -38,7 +38,7 @@ without imposing that implicit selection on new API/MCP contracts.
 
 | Tool group | Required actions | Existing source |
 | --- | --- | --- |
-| agents | register; sessions create/list/get/heartbeat; tasks create/list/get/update/transition/activity/list_activity/delete | New reporting contract, `contracts/reporting-api.md` |
+| agents | register; sessions create/list/get/heartbeat/attention; tasks create/list/get/update/transition/activity/list_activity/delete | New reporting contract, `contracts/reporting-api.md` |
 | tasks | list/get/create (including scheduling, priority, recurrence, initial todo/doing and boardStyle)/update/complete/reopen/delete | `lib/tasks/index.ts`, `app/api/tasks/route.ts`, `app/api/tasks/[id]/route.ts`, state snapshot |
 | tasks.board | set todo/doing; completion via provider; read effective column | `app/api/tasks/[id]/board/route.ts`, `lib/taskBoard.ts` |
 | tasks.subtasks | create/update/complete/reopen/delete | `app/api/tasks/[id]/subtasks/` |
@@ -196,6 +196,7 @@ purely local agent persistence, whose local failure cases are covered by A/R.
 | `agents_sessions_list` | `agents:read` | read | Agents workspace sessions tab | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_sessions_get` | `agents:read` | read | Reporting session detail API | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_sessions_heartbeat` | `agents:write` | write | Reporting session heartbeat API | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
+| `agents_sessions_attention` | `agents:write` | write | Reporting session attention API | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_tasks_create` | `agents:write` | write | Reporting create API | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_tasks_list` | `agents:read` | read | Home kanban / agents workspace | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |
 | `agents_tasks_get` | `agents:read` | read | Task detail page | `lib/mcp/tools/agents.ts` / agent domain model | A; R | B; local failures A/R; typed output verified (A/R) |

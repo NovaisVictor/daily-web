@@ -540,6 +540,13 @@ function addAgentTaskHolds(instance: Database.Database): void {
   `);
 }
 
+function addAgentSessionAttention(instance: Database.Database): void {
+  instance.exec(`
+    ALTER TABLE main.tb_agent_session ADD COLUMN typ_attention TEXT CHECK(typ_attention IN ('permission','input'));
+    ALTER TABLE main.tb_agent_session ADD COLUMN tsz_attention TEXT CHECK((typ_attention IS NULL) = (tsz_attention IS NULL));
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -559,6 +566,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addAgentWorkspace,
   addAgentSubtasks,
   addAgentTaskHolds,
+  addAgentSessionAttention,
 ];
 
 function migrate(instance: Database.Database): void {

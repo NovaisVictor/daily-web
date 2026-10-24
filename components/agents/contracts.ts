@@ -1,4 +1,4 @@
-import { holdReasons, statuses as TASK_STATUSES, type HeldStatus, type Hold, type HoldReason } from '@/lib/agents/model';
+import { attentionKinds, holdReasons, statuses as TASK_STATUSES, type Attention, type HeldStatus, type Hold, type HoldReason } from '@/lib/agents/model';
 import type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus } from '@/lib/agents/model';
 export type { Hold, HeldStatus } from '@/lib/agents/model';
 export { TASK_STATUSES };
@@ -16,6 +16,21 @@ export const HOLD_LABELS: Record<HeldStatus, Record<string, string>> = {
   blocked: { decision: 'Decisão do usuário', access: 'Permissão/acesso', credential: 'Credencial', dependency: 'Dependência', environment: 'Erro de ambiente', other: 'Outro' },
 } satisfies { [S in HeldStatus]: Record<HoldReason<S>, string> };
 export function holdLabel(status: TaskStatus, hold: Hold): string { return HOLD_LABELS[status as HeldStatus]?.[hold.reason] ?? hold.reason; }
+export type NeedsYouKind = Attention['kind'] | 'decision' | 'access' | 'credential';
+export const NEEDS_YOU_LABELS: Record<NeedsYouKind, string> = {
+  permission: 'Pedindo sua permissão', input: 'Aguardando sua resposta', decision: 'Precisa da sua decisão', access: 'Precisa de acesso', credential: 'Precisa de credencial',
+};
+const OPEN_STATUSES: readonly TaskStatus[] = ['queued', 'working', 'waiting', 'blocked'];
+export function needsYou(task: AgentTask): { kind: NeedsYouKind; since: string } | null {
+  if (!OPEN_STATUSES.includes(task.status)) return null;
+  if (task.assignment?.attention) return task.assignment.attention;
+  if (task.status === 'blocked' && task.hold && (task.hold.reason === 'decision' || task.hold.reason === 'access' || task.hold.reason === 'credential')) return { kind: task.hold.reason, since: task.lastActivityAt };
+  return null;
+}
+export function waitedFor(since: string, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));
+  return minutes < 1 ? 'agora' : minutes < 60 ? `há ${minutes} min` : `há ${Math.floor(minutes / 60)} h`;
+}
 export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession>; subtaskProgress: Record<string, SubtaskProgress> }
 export interface TaskDetail { task: AgentTask; activity: Page<Activity>; subtasks: Page<AgentTask> }
 
@@ -26,6 +41,11 @@ function object(value: unknown): Record<string, unknown> {
 function string(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Resposta inválida do servidor.');
   return value;
+}
+function attention(value: unknown): Attention | null {
+  if (value == null) return null;
+  const a = object(value);
+  return { kind: member(a.kind, attentionKinds), since: timestamp(a.since) };
 }
 function timestamp(value: unknown): string {
   const result = string(value);
@@ -48,7 +68,7 @@ function task(value: unknown): AgentTask {
   let assignment: Assignment | null = null;
   if (data.assignment != null) {
     const a = object(data.assignment);
-    assignment = { sessionId: string(a.sessionId), agentId: string(a.agentId), provider: member(a.provider, ['claude', 'codex', 'gemini']), displayName: string(a.displayName), freshness: member(a.freshness, ['fresh', 'stale', 'disconnected']) };
+    assignment = { sessionId: string(a.sessionId), agentId: string(a.agentId), provider: member(a.provider, ['claude', 'codex', 'gemini']), displayName: string(a.displayName), freshness: member(a.freshness, ['fresh', 'stale', 'disconnected']), attention: attention(a.attention) };
   }
   if (!Number.isInteger(data.version)) throw new Error('Versão inválida na resposta.');
   let source: AgentTask['source'] = null;
@@ -80,7 +100,7 @@ export function parseSnapshot(value: unknown): Snapshot {
     const a = object(s.agent);
     const agent = { id: string(a.id), externalId: string(a.externalId), provider: member(a.provider, ['claude', 'codex', 'gemini'] as const), displayName: string(a.displayName), createdAt: timestamp(a.createdAt), lastActivityAt: timestamp(a.lastActivityAt) };
     if (!Number.isInteger(s.version)) throw new Error('Versão inválida na resposta.');
-    return { id: string(s.id), externalId: string(s.externalId), agentId: string(s.agentId), version: s.version as number, startedAt: timestamp(s.startedAt), lastActivityAt: timestamp(s.lastActivityAt), agent, freshness: member(s.freshness, ['fresh', 'stale', 'disconnected'] as const) };
+    return { id: string(s.id), externalId: string(s.externalId), agentId: string(s.agentId), version: s.version as number, startedAt: timestamp(s.startedAt), lastActivityAt: timestamp(s.lastActivityAt), agent, freshness: member(s.freshness, ['fresh', 'stale', 'disconnected'] as const), attention: attention(s.attention) };
   }) };
 }
 export function parseTaskDetail(value: unknown): TaskDetail {

@@ -70,6 +70,28 @@ describe('agent task hierarchy navigation',()=>{
     expect(()=>parseTaskDetail({...detail,task:{...root,status:'working',hold:{reason:'deploy',note:null}}})).toThrow();
     expect(parseTaskDetail({...detail,task:{...root,hold:undefined}}).task.hold).toBeNull();
   });
+  it('highlights open tasks waiting on the user, counts them and alternates the tab title, never for finished tasks',{timeout:15000},async()=>{
+    const since=new Date(Date.now()-5*60000).toISOString();
+    const assignment={sessionId:'session-1',agentId:'agent-1',provider:'claude',displayName:'Claude',freshness:'fresh',attention:{kind:'permission',since}};
+    const asking={...root,id:'asking',title:'Pede permissão',status:'working',assignment};
+    const deciding={...root,id:'deciding',title:'Precisa decidir',status:'blocked',hold:{reason:'decision',note:'A ou B'},assignment:null};
+    const finished={...root,id:'finished',title:'Já terminou',status:'completed',assignment};
+    vi.mocked(fetch).mockResolvedValue(response({...snapshot,tasks:{items:[asking,deciding,finished],nextCursor:null,complete:true}}));
+    document.title='Daily';
+    const view=render(<AgentBoard/>);
+    const card=await screen.findByRole('link',{name:/Pede permissão/});
+    expect(card).toHaveAttribute('data-needs-you','permission');
+    expect(card).toHaveTextContent('Pedindo sua permissão');
+    expect(card).toHaveTextContent('há 5 min');
+    expect(screen.getByRole('link',{name:/Precisa decidir/})).toHaveAttribute('data-needs-you','decision');
+    expect(screen.getByRole('link',{name:/Já terminou/})).not.toHaveAttribute('data-needs-you');
+    expect(screen.getByText('2 aguardando você')).toBeInTheDocument();
+    await waitFor(()=>expect(document.title).toBe('(2) Aguardando você'),{timeout:3000});
+    await waitFor(()=>expect(document.title).toBe('Daily'),{timeout:3000});
+    await waitFor(()=>expect(document.title).toBe('(2) Aguardando você'),{timeout:3000});
+    view.unmount();
+    expect(document.title).toBe('Daily');
+  });
   it('uses distinct URL cursors for child pages and activity, preserving the other cursor',async()=>{
     navigation.params=new URLSearchParams('cursor=activity-old&subtaskCursor=children-old');
     vi.mocked(fetch).mockResolvedValue(response({...detail,activity:{...empty,nextCursor:'activity-next'}}));

@@ -1,12 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Columns3, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
 import { ErrorState } from '@/components/data/ErrorState';
-import { parseSnapshot } from './contracts';
+import { needsYou, parseSnapshot } from './contracts';
 import { useAgentPolling } from './useAgentPolling';
 import { BoardFilters, KanbanColumns, SessionGrid } from './BoardViews';
 
@@ -28,13 +29,23 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
     router.replace(`${pathname}${next.size ? `?${next}` : ''}`, { scroll: false });
   };
   const tasks = (data?.tasks.items ?? []).filter(task => task.parentTaskId === null && Date.parse(task.lastActivityAt) > Date.now() - 30 * 86400000);
+  const waitingOnYou = tasks.filter(task => needsYou(task)).length;
+  useEffect(() => {
+    if (waitingOnYou === 0) return;
+    const original = document.title;
+    const alert = `(${waitingOnYou}) Aguardando você`;
+    let flip = true;
+    document.title = alert;
+    const timer = setInterval(() => { flip = !flip; document.title = flip ? alert : original; }, 1500);
+    return () => { clearInterval(timer); document.title = original; };
+  }, [waitingOnYou]);
   const tab = detailed && params.get('tab') === 'sessions' ? 'sessions' : 'tasks';
   const nextCursor = tab === 'sessions' ? data?.sessions.nextCursor : data?.tasks.nextCursor;
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="mb-1 text-xs font-medium uppercase tracking-widest text-ink-dim">{detailed ? 'Workspace de agentes' : 'Seu trabalho, em movimento'}</p><h1 className="text-2xl font-semibold tracking-tight">{detailed ? 'Agentes e atividades' : 'Kanban de tarefas'}</h1><p className="mt-2 text-sm text-ink-mid">{detailed ? 'Cada cartão é uma tarefa principal, com o progresso das subtarefas. O status do trabalho e a conexão do agente são independentes.' : 'Cada cartão representa uma tarefa principal. Abra a tarefa para acompanhar suas subtarefas.'}</p></div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
+        <div className="flex flex-wrap items-center gap-2">{waitingOnYou > 0 && <span role="status" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" />{waitingOnYou} aguardando você</span>}<Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
       </header>
       <BoardFilters params={params} onChange={changeFilter} />
       {detailed && <nav aria-label="Visão de agentes" className="flex gap-2"><Button variant={tab === 'tasks' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'tasks')}>Tarefas</Button><Button variant={tab === 'sessions' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'sessions')}>Sessões</Button></nav>}

@@ -130,6 +130,16 @@ describe('maintained MCP capability inventory', () => {
     await result(tools, 'agents_tasks_delete', deletion);
     expect(listTasks(owner.userId).items).toHaveLength(0);
   });
+  it('sets and clears session attention through MCP', async () => {
+    const tools=registered(owner);
+    const agent=await result<{id:string}>(tools,'agents_register',{input:{externalId:'attention-agent',provider:'claude',displayName:'Claude'},...mutation()});
+    const s=await result<{id:string}>(tools,'agents_sessions_create',{agentId:agent.id,externalId:'attention-session',...mutation()});
+    expect(await result(tools,'agents_sessions_attention',{id:s.id,attention:{kind:'input'},...mutation()})).toMatchObject({attention:{kind:'input'}});
+    expect(await result(tools,'agents_sessions_get',{id:s.id})).toMatchObject({attention:{kind:'input'}});
+    expect(await result(tools,'agents_sessions_attention',{id:s.id,attention:null,...mutation()})).toMatchObject({attention:null});
+    const denied=await registered(other).get('agents_sessions_attention')!.call({id:s.id,attention:{kind:'input'},...mutation()});
+    expect(JSON.parse(denied.content[0].text).code).toBe('not_found');
+  });
   it('moves a task to waiting with a hold through MCP and rejects a mismatched reason', async () => {
     const tools=registered(owner);
     const task=await result<AgentTask>(tools,'agents_tasks_create',{input:{externalId:'held',title:'Ship'},...mutation()});
