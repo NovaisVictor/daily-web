@@ -1,0 +1,5 @@
+[
+ {"id":"960b1dad-1792822461","title":"probe","path":"/tmp/probe","group":"scratchpad","tool":"claude","command":"claude","status":"waiting","status_source":"live","substate":"running","tmux_session":"agentdeck_probe_5d5a0730","profile":"default","created_at":"2026-10-21T14:31:42Z","archived":false,"last_activity_at":"2026-10-24T06:12:08Z","viewers":[]},
+ {"id":"06040374-1792593102","title":"idle","path":"/tmp/idle","group":"my-sessions","tool":"claude","command":"claude","status":"waiting","status_source":"live","substate":"idle-at-empty-prompt","tmux_session":"agentdeck_idle_5d5a0731","profile":"default","created_at":"2026-10-21T14:31:42Z","archived":false,"last_activity_at":"2026-10-23T21:45:36Z","viewers":[]},
+ {"id":"aaaaaaaa-1","title":"future","tool":"claude","status":"hibernating","substate":null}
+]
