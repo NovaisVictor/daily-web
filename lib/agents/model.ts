@@ -2,6 +2,10 @@ export const providers = ['claude', 'codex', 'gemini'] as const;
 export type Provider = typeof providers[number];
 export const statuses = ['queued', 'working', 'blocked', 'completed', 'failed', 'cancelled'] as const;
 export type TaskStatus = typeof statuses[number];
+export const transitions: Record<TaskStatus, readonly TaskStatus[]> = {
+  queued: ['working', 'blocked', 'completed', 'cancelled'], working: ['blocked', 'completed', 'failed', 'cancelled'],
+  blocked: ['queued', 'working', 'completed', 'failed', 'cancelled'], completed: ['queued'], failed: ['queued', 'completed'], cancelled: ['queued', 'completed'],
+};
 export type Freshness = 'fresh' | 'stale' | 'disconnected';
 export interface Agent { id: string; externalId: string; provider: Provider; displayName: string; createdAt: string; lastActivityAt: string }
 export interface AgentSession { id: string; agentId: string; externalId: string; version: number; startedAt: string; lastActivityAt: string; agent: Agent; freshness: Freshness }

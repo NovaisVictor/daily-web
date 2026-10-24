@@ -4,14 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { transitions } from '@/lib/agents/model';
 import { type AgentTask, type TaskStatus } from './contracts';
 import { accessRequest, mutationHeaders } from './request';
 
 const actionLabels: Record<TaskStatus, string> = { queued: 'Retornar à fila', working: 'Iniciar', blocked: 'Bloquear', completed: 'Concluir', failed: 'Marcar falha', cancelled: 'Cancelar' };
-const transitions: Record<TaskStatus, readonly TaskStatus[]> = {
-  queued: ['working', 'blocked', 'cancelled'], working: ['blocked', 'completed', 'failed', 'cancelled'],
-  blocked: ['queued', 'working', 'failed', 'cancelled'], completed: ['queued'], failed: ['queued'], cancelled: ['queued'],
-};
 export function TaskActions({ task, onChanged }: { task: AgentTask; onChanged: () => void }) {
   const router = useRouter();
   const [mode, setMode] = useState<'idle' | 'edit' | 'delete'>('idle');
