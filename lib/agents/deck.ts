@@ -105,7 +105,9 @@ async function listing(target: string | null, wait: boolean): Promise<Entry[]> {
       .finally(() => { state.pending = null; });
     state.pending.catch(() => console.warn(`[agent-deck] ${target ?? 'local'} listing unavailable`));
   }
-  if (target === null || wait) return state.pending ?? state.entries;
+  // A slow listing under load keeps the last good one for a minute instead of
+  // dropping every live state, which would bring back the false alerts.
+  if (target === null || wait) return state.pending ? state.pending.catch(error => { if (Date.now() - state.at <= REMOTE_STALE_MS) return state.entries; throw error; }) : state.entries;
   return now - state.at <= REMOTE_STALE_MS ? state.entries : [];
 }
 

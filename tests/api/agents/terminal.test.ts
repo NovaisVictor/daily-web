@@ -76,6 +76,18 @@ describe('agent deck bridge',()=>{
   expect(await(await live(new Request(`${ORIGIN}/x`),params(s.id))).json()).toEqual({available:false,reason:'not_local'});
   expect((await post(s.id,'oi')).status).toBe(404);
  });
+ it('keeps the last good listing for a minute when a later listing fails',async()=>{
+  const s=session('a',sessionKey('claude',DECK_ID));
+  ops.createTask('a',{externalId:`task-${++sequence}`,title:'Ship',assignment:{sessionId:s.id}},mutation());
+  const board=async()=>(await(await snapshot(new Request(`${ORIGIN}/api/agents`))).json()).tasks.items[0].assignment.live;
+  expect((await board()).state).toBe('background');
+  const local=(globalThis as {__agentDeckListings?:Map<string,{at:number}>}).__agentDeckListings!.get('')!;
+  writeFileSync(path.join(dir,'list-fail'),'');
+  local.at-=3000;
+  expect((await board()).state).toBe('background');
+  local.at-=61000;
+  expect(await board()).toBeNull();
+ });
  it('adds live state to the board and lets busy sessions keep their raw attention',async()=>{
   const s=session('a',sessionKey('claude',DECK_ID));
   ops.setSessionAttention('a',s.id,{attention:{kind:'input'}},mutation());
