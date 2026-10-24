@@ -48,6 +48,16 @@ describe('agent task hierarchy navigation',()=>{
     expect(screen.getByRole('heading',{name:'Entregar integração'})).toBeInTheDocument();
     expect(screen.queryByRole('link',{name:'Ver tarefa principal'})).not.toBeInTheDocument();
   });
+  it('groups children into status columns showing only statuses that have subtasks',async()=>{
+    const children=[{...child,id:'b1',title:'Bloqueio 1'},{...child,id:'b2',title:'Bloqueio 2'},{...child,id:'c1',title:'Feito 1',status:'completed'}];
+    vi.mocked(fetch).mockResolvedValue(response({...detail,subtasks:{...detail.subtasks,items:children}}));
+    render(<TaskDetail id="root"/>);
+    const section=await screen.findByRole('region',{name:'Subtarefas'});
+    const blocked=within(section).getByRole('region',{name:'Bloqueadas'});
+    expect(within(blocked).getAllByRole('link').map(link=>link.textContent)).toEqual([expect.stringContaining('Bloqueio 1'),expect.stringContaining('Bloqueio 2')]);
+    expect(within(within(section).getByRole('region',{name:'Concluídas'})).getByRole('link',{name:/Feito 1/})).toHaveAttribute('href','/agents/tasks/c1');
+    expect(within(section).queryByRole('region',{name:'Em andamento'})).not.toBeInTheDocument();
+  });
   it('uses distinct URL cursors for child pages and activity, preserving the other cursor',async()=>{
     navigation.params=new URLSearchParams('cursor=activity-old&subtaskCursor=children-old');
     vi.mocked(fetch).mockResolvedValue(response({...detail,activity:{...empty,nextCursor:'activity-next'}}));

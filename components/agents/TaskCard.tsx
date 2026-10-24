@@ -9,7 +9,6 @@ const FRESHNESS_DOTS = { fresh: 'bg-success', stale: 'bg-warning', disconnected:
 export function TaskCard({ task, progress }: { task: AgentTask; progress?: SubtaskProgress }) {
   return (
     <Link href={`/agents/tasks/${encodeURIComponent(task.id)}`} title={task.description || undefined} className={`group flex flex-col gap-2 rounded-lg border border-l-[3px] border-line ${task.assignment ? PROVIDER_ACCENTS[task.assignment.provider] : ''} bg-surface-2 px-3 py-2.5 shadow-e1 transition hover:border-brand-edge hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring`} data-provider={task.assignment?.provider}>
-      {task.parentTaskId && <span className="text-[11px] font-medium text-ink-dim">Subtarefa</span>}
       <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink group-hover:text-primary">{task.title}</span>
       {progress && progress.total > 0 && <SubtaskTicker progress={progress} />}
       <div className="flex items-center gap-1.5 text-[11px] text-ink-dim">
