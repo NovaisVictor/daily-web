@@ -332,8 +332,16 @@ background is shown as running in the background, not as waiting for you.
 
 Reading a terminal and typing into it reaches the host, so it is off unless
 `DAILY_WEB_AGENT_DECK_OWNER` holds the id of the single user allowed to use it.
-`AGENT_DECK_BIN` overrides the default `~/.local/bin/agent-deck`. Sessions from
-other machines keep working from their reports alone.
+`AGENT_DECK_BIN` overrides the default `~/.local/bin/agent-deck`.
+
+Sessions on other machines are reached over SSH when
+`DAILY_WEB_AGENT_DECK_REMOTES` lists their aliases from the service account's
+`~/.ssh/config` (for example `mac`, over Tailscale). The remote side needs only
+SSH login and `~/.local/bin/agent-deck`; its hostname is read once to match the
+helper's session key. The board never waits for a remote machine: it uses the
+last listing and refreshes it in the background, so a sleeping laptop shows its
+sessions as unavailable instead of slowing the page. Other sessions keep
+working from their reports alone.
 
 ### OAuth companion
 
