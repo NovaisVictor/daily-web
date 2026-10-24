@@ -89,12 +89,27 @@ describe('agent task hierarchy navigation',()=>{
     expect(screen.queryByRole('link',{name:/Validar permissões/})).not.toBeInTheDocument();
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('scope=roots');
   });
-  it('lists both roots and labelled children in the agent workspace',async()=>{
-    vi.mocked(fetch).mockResolvedValue(response(snapshot));
+  it('shows children as animated progress inside the root card in the workspace',async()=>{
+    vi.mocked(fetch).mockResolvedValue(response({...snapshot,subtaskProgress:{root:{total:3,completed:1,active:[{id:'child',title:'Validar permissões',status:'working'}]}}}));
     render(<AgentBoard mode="workspace"/>);
-    expect(await screen.findByRole('link',{name:/Validar permissões/})).toHaveTextContent('Subtarefa');
-    expect(screen.getByRole('link',{name:/Entregar integração/})).toBeInTheDocument();
-    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('scope=all');
+    const card=await screen.findByRole('link',{name:/Entregar integração/});
+    expect(within(card).getByRole('group',{name:'Subtarefas: 1 de 3 concluídas'})).toHaveTextContent('Validar permissões');
+    expect(screen.getAllByRole('link').filter(link=>link.getAttribute('href')==='/agents/tasks/child')).toHaveLength(0);
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('scope=roots');
+  });
+  it('rejects malformed or foreign subtask progress in the snapshot',()=>{
+    const roots={...snapshot,tasks:{...snapshot.tasks,items:[root]}};
+    expect(parseSnapshot(roots).subtaskProgress).toEqual({});
+    expect(()=>parseSnapshot({...roots,subtaskProgress:{root:{total:1,completed:2,active:[]}}})).toThrow();
+    expect(()=>parseSnapshot({...roots,subtaskProgress:{other:{total:1,completed:0,active:[]}}})).toThrow();
+    expect(()=>parseSnapshot({...roots,subtaskProgress:{root:{total:1,completed:0,active:[{id:'c',title:'x',status:'unknown'}]}}})).toThrow();
+  });
+  it('colors the detail status badge by task status instead of the button color',async()=>{
+    vi.mocked(fetch).mockResolvedValue(response({...detail,task:{...root,status:'working'}}));
+    render(<TaskDetail id="root"/>);
+    const header=(await screen.findByRole('heading',{name:'Entregar integração'})).closest('header')!;
+    expect(within(header).getByText('Em andamento')).toHaveClass('text-info');
+    expect(within(header).getByText('Em andamento')).not.toHaveClass('bg-secondary');
   });
   it('explains that parent deletion requires removing its children first',async()=>{
     vi.mocked(fetch).mockImplementation(async(_url,init)=>init?.method==='DELETE'?response({...hierarchy.deleteRefusal,error:{...hierarchy.deleteRefusal.error,message:'private server text'}},409):response(detail));

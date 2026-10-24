@@ -1,12 +1,16 @@
 import { statuses as TASK_STATUSES } from '@/lib/agents/model';
-import type { AgentTask, AgentSession, Assignment, Activity, Page, TaskStatus } from '@/lib/agents/model';
+import type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus } from '@/lib/agents/model';
 export { TASK_STATUSES };
-export type { AgentTask, AgentSession, Assignment, Activity, Page, TaskStatus };
+export type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus };
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   queued: 'Na fila', working: 'Em andamento', blocked: 'Bloqueadas',
   completed: 'Concluídas', failed: 'Falharam', cancelled: 'Canceladas',
 };
-export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession> }
+export const STATUS_TONES: Record<TaskStatus, string> = {
+  queued: 'bg-neutral-tint text-ink-mid', working: 'bg-info-tint text-info', blocked: 'bg-warning-tint text-warning',
+  completed: 'bg-success-tint text-success', failed: 'bg-danger-tint text-danger', cancelled: 'bg-neutral-tint text-ink-dim',
+};
+export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession>; subtaskProgress: Record<string, SubtaskProgress> }
 export interface TaskDetail { task: AgentTask; activity: Page<Activity>; subtasks: Page<AgentTask> }
 
 function object(value: unknown): Record<string, unknown> {
@@ -50,7 +54,15 @@ function task(value: unknown): AgentTask {
 }
 export function parseSnapshot(value: unknown): Snapshot {
   const data = object(value);
-  return { tasks: page(data.tasks, task), sessions: page(data.sessions, value => {
+  const tasks = page(data.tasks, task);
+  const subtaskProgress: Record<string, SubtaskProgress> = {};
+  for (const [parentId, value] of Object.entries(data.subtaskProgress === undefined ? {} : object(data.subtaskProgress))) {
+    const p = object(value);
+    if (!Number.isInteger(p.total) || !Number.isInteger(p.completed) || (p.completed as number) < 0 || (p.completed as number) > (p.total as number) || !Array.isArray(p.active)) throw new Error('Progresso inválido na resposta do servidor.');
+    if (!tasks.items.some(item => item.id === parentId && item.parentTaskId === null)) throw new Error('Hierarquia inválida na resposta do servidor.');
+    subtaskProgress[parentId] = { total: p.total as number, completed: p.completed as number, active: p.active.map(item => { const a = object(item); return { id: string(a.id), title: string(a.title), status: member(a.status, TASK_STATUSES) }; }) };
+  }
+  return { tasks, subtaskProgress, sessions: page(data.sessions, value => {
     const s = object(value);
     const a = object(s.agent);
     const agent = { id: string(a.id), externalId: string(a.externalId), provider: member(a.provider, ['claude', 'codex', 'gemini'] as const), displayName: string(a.displayName), createdAt: timestamp(a.createdAt), lastActivityAt: timestamp(a.lastActivityAt) };

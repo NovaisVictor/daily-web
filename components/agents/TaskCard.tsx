@@ -1,17 +1,23 @@
 import Link from 'next/link';
-import { Bot, Clock3 } from 'lucide-react';
-import { type AgentTask, formatTime } from './contracts';
+import { Bot } from 'lucide-react';
+import { type AgentTask, type SubtaskProgress, formatTime } from './contracts';
+import { SubtaskTicker } from './SubtaskTicker';
 
 const FRESHNESS_LABELS = { fresh: 'Reportando', stale: 'Sem atualização recente', disconnected: 'Sem contato há mais de 10 min' };
-export function TaskCard({ task }: { task: AgentTask }) {
+const PROVIDER_ACCENTS = { claude: 'border-l-chart-3 [--provider:var(--chart-3)]', codex: 'border-l-chart-5 [--provider:var(--chart-5)]', gemini: 'border-l-chart-2 [--provider:var(--chart-2)]' };
+const FRESHNESS_DOTS = { fresh: 'bg-success', stale: 'bg-warning', disconnected: 'bg-warning' };
+export function TaskCard({ task, progress }: { task: AgentTask; progress?: SubtaskProgress }) {
   return (
-    <Link href={`/agents/tasks/${encodeURIComponent(task.id)}`} className="group flex flex-col gap-3 rounded-xl border border-line bg-surface-2 p-4 shadow-e1 transition hover:border-brand-edge hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-      {task.parentTaskId && <span className="text-xs font-medium text-ink-dim">Subtarefa</span>}
-      <span className="text-sm font-semibold leading-relaxed text-ink group-hover:text-primary">{task.title}</span>
-      {task.description && <p className="line-clamp-2 text-xs leading-relaxed text-ink-mid">{task.description}</p>}
-      <div className="flex items-start gap-2 text-xs text-ink-mid"><Bot className="mt-0.5 size-3.5 shrink-0" /><span>{task.assignment ? <>{task.assignment.displayName}<span className="block text-ink-dim">{task.assignment.provider} · {task.assignment.sessionId.slice(0, 8)}</span></> : 'Sem agente atribuído'}</span></div>
-      {task.assignment && <span className={`text-xs ${task.assignment.freshness === 'fresh' ? 'text-signal-success' : 'text-signal-warning'}`}>{FRESHNESS_LABELS[task.assignment.freshness]}</span>}
-      <span className="flex items-center gap-1.5 text-[11px] text-ink-dim"><Clock3 className="size-3" /><time dateTime={task.lastActivityAt}>{formatTime(task.lastActivityAt)}</time></span>
+    <Link href={`/agents/tasks/${encodeURIComponent(task.id)}`} title={task.description || undefined} className={`group flex flex-col gap-2 rounded-lg border border-l-[3px] border-line ${task.assignment ? PROVIDER_ACCENTS[task.assignment.provider] : ''} bg-surface-2 px-3 py-2.5 shadow-e1 transition hover:border-brand-edge hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring`} data-provider={task.assignment?.provider}>
+      {task.parentTaskId && <span className="text-[11px] font-medium text-ink-dim">Subtarefa</span>}
+      <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink group-hover:text-primary">{task.title}</span>
+      {progress && progress.total > 0 && <SubtaskTicker progress={progress} />}
+      <div className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+        <Bot className="size-3 shrink-0 text-(--provider,currentColor)" />
+        <span className="min-w-0 flex-1 truncate">{task.assignment ? `${task.assignment.displayName} · ${task.assignment.provider}` : 'Sem agente atribuído'}</span>
+        {task.assignment && <span title={FRESHNESS_LABELS[task.assignment.freshness]} className={`size-1.5 shrink-0 rounded-full ${FRESHNESS_DOTS[task.assignment.freshness]}`}><span className="sr-only">{FRESHNESS_LABELS[task.assignment.freshness]}</span></span>}
+        <time dateTime={task.lastActivityAt} className="shrink-0 tabular-nums">{formatTime(task.lastActivityAt)}</time>
+      </div>
     </Link>
   );
 }
