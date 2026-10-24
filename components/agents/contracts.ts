@@ -1,15 +1,21 @@
-import { statuses as TASK_STATUSES } from '@/lib/agents/model';
+import { holdReasons, statuses as TASK_STATUSES, type HeldStatus, type Hold, type HoldReason } from '@/lib/agents/model';
 import type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus } from '@/lib/agents/model';
+export type { Hold, HeldStatus } from '@/lib/agents/model';
 export { TASK_STATUSES };
 export type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus };
 export const STATUS_LABELS: Record<TaskStatus, string> = {
-  queued: 'Na fila', working: 'Em andamento', blocked: 'Bloqueadas',
+  queued: 'Na fila', working: 'Em andamento', waiting: 'Aguardando processo', blocked: 'Bloqueadas',
   completed: 'Concluídas', failed: 'Falharam', cancelled: 'Canceladas',
 };
 export const STATUS_TONES: Record<TaskStatus, string> = {
-  queued: 'bg-neutral-tint text-ink-mid', working: 'bg-info-tint text-info', blocked: 'bg-warning-tint text-warning',
+  queued: 'bg-neutral-tint text-ink-mid', working: 'bg-info-tint text-info', waiting: 'bg-chart-4/12 text-chart-4', blocked: 'bg-warning-tint text-warning',
   completed: 'bg-success-tint text-success', failed: 'bg-danger-tint text-danger', cancelled: 'bg-neutral-tint text-ink-dim',
 };
+export const HOLD_LABELS: Record<HeldStatus, Record<string, string>> = {
+  waiting: { pull_request: 'Revisão de PR', build: 'CI/Build', deploy: 'Deploy', external: 'Processo externo', other: 'Outro' },
+  blocked: { decision: 'Decisão do usuário', access: 'Permissão/acesso', credential: 'Credencial', dependency: 'Dependência', environment: 'Erro de ambiente', other: 'Outro' },
+} satisfies { [S in HeldStatus]: Record<HoldReason<S>, string> };
+export function holdLabel(status: TaskStatus, hold: Hold): string { return HOLD_LABELS[status as HeldStatus]?.[hold.reason] ?? hold.reason; }
 export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession>; subtaskProgress: Record<string, SubtaskProgress> }
 export interface TaskDetail { task: AgentTask; activity: Page<Activity>; subtasks: Page<AgentTask> }
 
@@ -50,7 +56,14 @@ function task(value: unknown): AgentTask {
     const s = object(data.source);
     source = { provider: member(s.provider, ['personal', 'jira', 'github']), resource: string(s.resource), ...(s.connectionId == null ? {} : { connectionId: string(s.connectionId) }) };
   }
-  return { id: string(data.id), parentTaskId, externalId: string(data.externalId), title: string(data.title), description: string(data.description), status: member(data.status, TASK_STATUSES), assignment, source, version: data.version as number, createdAt: timestamp(data.createdAt), lastActivityAt: timestamp(data.lastActivityAt) };
+  const status = member(data.status, TASK_STATUSES);
+  let hold: Hold | null = null;
+  if (data.hold != null) {
+    const h = object(data.hold);
+    if (!(status in holdReasons)) throw new Error('Motivo inválido na resposta do servidor.');
+    hold = { reason: member(h.reason, holdReasons[status as HeldStatus]), note: h.note == null ? null : string(h.note) };
+  }
+  return { id: string(data.id), parentTaskId, externalId: string(data.externalId), title: string(data.title), description: string(data.description), status, hold, assignment, source, version: data.version as number, createdAt: timestamp(data.createdAt), lastActivityAt: timestamp(data.lastActivityAt) };
 }
 export function parseSnapshot(value: unknown): Snapshot {
   const data = object(value);

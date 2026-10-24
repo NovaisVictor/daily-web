@@ -130,6 +130,17 @@ describe('maintained MCP capability inventory', () => {
     await result(tools, 'agents_tasks_delete', deletion);
     expect(listTasks(owner.userId).items).toHaveLength(0);
   });
+  it('moves a task to waiting with a hold through MCP and rejects a mismatched reason', async () => {
+    const tools=registered(owner);
+    const task=await result<AgentTask>(tools,'agents_tasks_create',{input:{externalId:'held',title:'Ship'},...mutation()});
+    const working=await result<AgentTask>(tools,'agents_tasks_transition',{id:task.id,status:'working',expectedVersion:task.version,...mutation()});
+    const mismatch=await tools.get('agents_tasks_transition')!.call({id:task.id,status:'waiting',hold:{reason:'decision'},expectedVersion:working.version,...mutation()});
+    expect(JSON.parse(mismatch.content[0].text).code).toBe('invalid_hold');
+    const waiting=await result<AgentTask>(tools,'agents_tasks_transition',{id:task.id,status:'waiting',hold:{reason:'build',note:'CI run'},expectedVersion:working.version,...mutation()});
+    expect(waiting).toMatchObject({status:'waiting',hold:{reason:'build',note:'CI run'}});
+    expect(await result(tools,'agents_tasks_get',{id:task.id})).toMatchObject({status:'waiting',hold:{reason:'build',note:'CI run'}});
+    expect(await result(tools,'agents_tasks_transition',{id:task.id,status:'completed',expectedVersion:waiting.version,...mutation()})).toMatchObject({status:'completed',hold:null});
+  });
   it('creates and manages subtasks through the same scoped MCP lifecycle', async () => {
     const tools=registered(owner);
     const parent=await result<AgentTask>(tools,'agents_tasks_create',{input:{externalId:'parent',title:'Release'},...mutation()});
