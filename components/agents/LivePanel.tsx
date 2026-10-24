@@ -11,17 +11,17 @@ import { useAgentPolling } from './useAgentPolling';
 
 const UNAVAILABLE = {
   not_enabled: 'O terminal ao vivo não está habilitado para a sua conta neste servidor.',
-  not_local: 'Esta sessão não roda no agent-deck deste servidor (por exemplo, uma sessão no Mac). Aqui aparecem só os relatos do agente.',
-  unavailable: 'Não foi possível ler o terminal agora. Tentando de novo…',
+  not_local: 'Esta sessão não está no agent-deck deste servidor nem no das máquinas conectadas. Aqui aparecem só os relatos do agente.',
+  unavailable: 'A máquina desta sessão não respondeu (o Mac pode estar dormindo ou offline). Tentando de novo…',
 } as const;
 const SEND_ERRORS: Record<string, string> = {
-  terminal_not_local: 'Esta sessão não roda neste servidor.',
+  terminal_not_local: 'Esta sessão não está em nenhum agent-deck alcançável.',
   terminal_not_enabled: 'O envio não está habilitado para a sua conta.',
   session_stopped: 'A sessão do agente está encerrada.',
   uncertain_outcome: 'Não deu para confirmar a entrega. Confira o terminal antes de reenviar.',
   idempotency_conflict: 'Não deu para confirmar a entrega. Confira o terminal antes de reenviar.',
   send_refused: 'O agent-deck recusou a mensagem. Tente de novo.',
-  deck_unavailable: 'O agent-deck não respondeu. Tente de novo.',
+  deck_unavailable: 'A máquina desta sessão não respondeu. Tente de novo.',
   operation_pending: 'O envio anterior ainda está em andamento.',
   unauthenticated: 'Sua sessão expirou. Entre novamente.',
 };

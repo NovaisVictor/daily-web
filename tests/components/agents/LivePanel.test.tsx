@@ -22,7 +22,7 @@ describe('live session panel', () => {
   it('explains when the session runs elsewhere and offers no reply box', async () => {
     vi.mocked(fetch).mockResolvedValue(json({ available: false, reason: 'not_local' }));
     render(<LivePanel sessionId="s1" />);
-    expect(await screen.findByText(/não roda no agent-deck deste servidor/)).toBeTruthy();
+    expect(await screen.findByText(/nem no das máquinas conectadas/)).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
   });
   it('sends a reply with a stable idempotency key and clears it after delivery', async () => {
