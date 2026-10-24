@@ -30,7 +30,7 @@ describe('agent subtask ownership and structure',()=>{
   const parent=task(),subtask=child(parent.id),foreign=task('b');
   expect(()=>child(subtask.id)).toThrowError(expect.objectContaining({status:400,code:'invalid_parent'}));
   for(const id of ['missing-parent',foreign.id])expect(()=>child(id)).toThrowError(expect.objectContaining({status:404,code:'not_found'}));
-  vi.setSystemTime(Date.parse(parent.lastActivityAt)+RETENTION_MS+1);
+  vi.useFakeTimers();vi.setSystemTime(Date.parse(ops.getTask('a',parent.id).lastActivityAt)+RETENTION_MS+1);
   expect(()=>child(parent.id)).toThrowError(expect.objectContaining({status:404,code:'not_found'}));
  });
  it('does not create receipts or orphan children for a rejected parent',()=>{

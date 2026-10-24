@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { type SubtaskProgress } from './contracts';
 
-const DOT_TONES = { queued: 'bg-ink-dim', working: 'bg-info', blocked: 'bg-warning' } as const;
+const DOT_TONES = { queued: 'bg-ink-dim', working: 'bg-info', waiting: 'bg-chart-4', blocked: 'bg-warning' } as const;
 export function SubtaskTicker({ progress }: { progress: SubtaskProgress }) {
   const [index, setIndex] = useState(0);
   const count = progress.active.length;

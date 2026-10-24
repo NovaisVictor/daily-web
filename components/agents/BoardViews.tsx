@@ -6,7 +6,7 @@ import { TaskCard } from './TaskCard';
 
 export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress> }) {
   const columns = TASK_STATUSES.filter(value => !status || status === value);
-  return <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+  return <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
     {columns.map(value => {
       const cards = tasks.filter(task => task.status === value);
       return <section key={value} aria-label={STATUS_LABELS[value]} className="min-w-0 rounded-xl border border-line bg-surface-1/80 p-2">

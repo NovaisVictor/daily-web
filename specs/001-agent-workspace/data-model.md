@@ -35,10 +35,24 @@ Initial state is `queued`. Allowed transitions:
 | From | To |
 | --- | --- |
 | queued | working, blocked, completed, cancelled |
-| working | blocked, completed, failed, cancelled |
-| blocked | queued, working, completed, failed, cancelled |
+| working | waiting, blocked, completed, failed, cancelled |
+| waiting | working, waiting, blocked, completed, failed, cancelled |
+| blocked | queued, working, waiting, blocked, completed, failed, cancelled |
 | completed | queued (explicit reopen) |
 | failed, cancelled | queued (explicit reopen), completed (work finished despite a lost session) |
+
+`waiting` ("Aguardando processo") means the agent's own work is done and only an external process
+remains (PR review, CI build, deploy). `waiting` and `blocked` carry an optional **hold**
+`{ reason, note }`, stored as `typ_hold_reason` / `txt_hold_note` and constrained by
+`tb_agent_task_ck1`:
+
+| Status | Reasons |
+| --- | --- |
+| waiting | pull_request, build, deploy, external, other |
+| blocked | decision, access, credential, dependency, environment, other |
+
+The note is at most 140 characters and required for `other`. A transition to the same status
+replaces the hold; any other status clears it. An unknown reason is an error, never a default.
 
 Task status determines its kanban column. Agent freshness never changes task
 status: fresh <= 2 minutes, stale > 2 minutes, disconnected > 10 minutes since

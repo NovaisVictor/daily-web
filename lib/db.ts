@@ -501,6 +501,45 @@ function addAgentSubtasks(instance: Database.Database): void {
   `);
 }
 
+// SQLite cannot alter a CHECK constraint, so the task table is rebuilt. The old table is renamed first:
+// its self-reference follows the rename, and dropping it cannot null the parent links of the copy.
+function addAgentTaskHolds(instance: Database.Database): void {
+  instance.exec(`
+    DROP INDEX IF EXISTS main.tb_agent_task_ix1;
+    DROP INDEX IF EXISTS main.tb_agent_task_ix2;
+    DROP INDEX IF EXISTS main.tb_agent_task_ix3;
+    DROP INDEX IF EXISTS main.tb_agent_task_ix4;
+    DROP INDEX IF EXISTS main.tb_agent_task_ix5;
+    ALTER TABLE main.tb_agent_task RENAME TO tb_agent_task_old;
+    CREATE TABLE main.tb_agent_task (
+      uid_task TEXT PRIMARY KEY, uid_user TEXT NOT NULL, ref_external TEXT NOT NULL,
+      nam_title TEXT NOT NULL, txt_description TEXT NOT NULL, typ_status TEXT NOT NULL
+        CHECK(typ_status IN ('queued','working','waiting','blocked','completed','failed','cancelled')),
+      uid_session TEXT, jsn_source TEXT, num_version INTEGER NOT NULL DEFAULT 1,
+      tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+      uid_parent_task TEXT REFERENCES tb_agent_task(uid_task) ON DELETE SET NULL,
+      typ_hold_reason TEXT, txt_hold_note TEXT,
+      CONSTRAINT tb_agent_task_uk1 UNIQUE(uid_user, ref_external),
+      CONSTRAINT tb_agent_task_ck1 CHECK(
+        (typ_hold_reason IS NULL AND txt_hold_note IS NULL)
+        OR (typ_status = 'waiting' AND typ_hold_reason IN ('pull_request','build','deploy','external','other'))
+        OR (typ_status = 'blocked' AND typ_hold_reason IN ('decision','access','credential','dependency','environment','other'))
+      )
+    );
+  `);
+  instance.pragma('defer_foreign_keys = ON');
+  instance.exec(`
+    INSERT INTO main.tb_agent_task (uid_task, uid_user, ref_external, nam_title, txt_description, typ_status, uid_session, jsn_source, num_version, tsz_insert, tsz_update, uid_parent_task)
+      SELECT uid_task, uid_user, ref_external, nam_title, txt_description, typ_status, uid_session, jsn_source, num_version, tsz_insert, tsz_update, uid_parent_task FROM main.tb_agent_task_old;
+    DROP TABLE main.tb_agent_task_old;
+    CREATE INDEX main.tb_agent_task_ix1 ON tb_agent_task(uid_user, tsz_update DESC, uid_task DESC);
+    CREATE INDEX main.tb_agent_task_ix2 ON tb_agent_task(uid_user, typ_status, tsz_update DESC, uid_task DESC);
+    CREATE INDEX main.tb_agent_task_ix3 ON tb_agent_task(uid_session, tsz_update);
+    CREATE INDEX main.tb_agent_task_ix4 ON tb_agent_task(tsz_update, uid_task);
+    CREATE INDEX main.tb_agent_task_ix5 ON tb_agent_task(uid_parent_task, uid_user, tsz_update DESC, uid_task DESC);
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -519,6 +558,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addTaskBoardStyle,
   addAgentWorkspace,
   addAgentSubtasks,
+  addAgentTaskHolds,
 ];
 
 function migrate(instance: Database.Database): void {

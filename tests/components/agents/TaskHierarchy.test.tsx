@@ -58,6 +58,18 @@ describe('agent task hierarchy navigation',()=>{
     expect(within(within(section).getByRole('region',{name:'Concluídas'})).getByRole('link',{name:/Feito 1/})).toHaveAttribute('href','/agents/tasks/c1');
     expect(within(section).queryByRole('region',{name:'Em andamento'})).not.toBeInTheDocument();
   });
+  it('shows the hold reason and note on the card and the detail header, and rejects unknown reasons',async()=>{
+    const held={...root,status:'waiting',hold:{reason:'deploy',note:'produção'}};
+    vi.mocked(fetch).mockResolvedValue(response({...detail,task:held}));
+    render(<TaskDetail id="root"/>);
+    const header=(await screen.findByRole('heading',{name:'Entregar integração'})).closest('header')!;
+    expect(within(header).getByText('Aguardando processo')).toBeInTheDocument();
+    expect(within(header).getByText('Deploy')).toBeInTheDocument();
+    expect(within(header).getByText('produção')).toBeInTheDocument();
+    expect(()=>parseTaskDetail({...detail,task:{...held,hold:{reason:'decision',note:null}}})).toThrow();
+    expect(()=>parseTaskDetail({...detail,task:{...root,status:'working',hold:{reason:'deploy',note:null}}})).toThrow();
+    expect(parseTaskDetail({...detail,task:{...root,hold:undefined}}).task.hold).toBeNull();
+  });
   it('uses distinct URL cursors for child pages and activity, preserving the other cursor',async()=>{
     navigation.params=new URLSearchParams('cursor=activity-old&subtaskCursor=children-old');
     vi.mocked(fetch).mockResolvedValue(response({...detail,activity:{...empty,nextCursor:'activity-next'}}));

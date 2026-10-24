@@ -266,7 +266,7 @@ describe('coluna Fazendo do quadro de tarefas', () => {
     const { markDoing } = await import('@/lib/tasks/boardStatus');
     markDoing('u-1', 't-1');
     const version = getDb().pragma('user_version', { simple: true });
-    expect(version).toBe(17);
+    expect(version).toBe(18);
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
@@ -318,7 +318,7 @@ describe('cor das notas do quadro de tarefas', () => {
   it('as tarefas e a marcação de Fazendo continuam, todas com cor automática', async () => {
     seedBoardDatabase();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(17);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(18);
     const { listTasks } = await import('@/lib/tasks/local');
     const { withBoardOverlay } = await import('@/lib/tasks/boardStatus');
 
@@ -336,7 +336,7 @@ describe('cor das notas do quadro de tarefas', () => {
 
     vi.resetModules();
     const { getDb: reopen } = await import('@/lib/db');
-    expect(reopen().pragma('user_version', { simple: true })).toBe(17);
+    expect(reopen().pragma('user_version', { simple: true })).toBe(18);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-1')).toEqual({ paper: 'grey', pin: 'red' });
   });
@@ -355,7 +355,7 @@ describe('cor das notas do quadro de tarefas', () => {
     `);
     half.close();
     const { getDb } = await import('@/lib/db');
-    expect(getDb().pragma('user_version', { simple: true })).toBe(17);
+    expect(getDb().pragma('user_version', { simple: true })).toBe(18);
     const { boardStyleOf } = await import('@/lib/tasks/boardStyle');
     expect(boardStyleOf('u-1', 't-2')).toEqual({ paper: 'white', pin: null });
   });
@@ -371,7 +371,7 @@ describe('cor das notas do quadro de tarefas', () => {
     previous.close();
     const {getDb} = await import('@/lib/db');
     const current = getDb();
-    expect(current.pragma('user_version', {simple:true})).toBe(17);
+    expect(current.pragma('user_version', {simple:true})).toBe(18);
     expect(current.prepare('SELECT COUNT(1) AS count FROM main.tb_agent').get()).toEqual({count:0});
     expect(current.prepare('SELECT paper, pin FROM main.task_board_style WHERE user_id=? AND task_id=?').get('u-1','t-2')).toEqual({paper:'white',pin:'blue'});
     expect(current.prepare('SELECT COUNT(1) AS count FROM main.tasks').get()).toEqual({count:2});
@@ -392,7 +392,7 @@ it('adds subtasks to a version 16 database while preserving old task reads and w
  const oldInsert="INSERT INTO tb_agent_task(uid_task,uid_user,ref_external,nam_title,txt_description,typ_status,tsz_insert,tsz_update) VALUES(?,?,?,?,?,'queued',?,?)";
  const at=new Date().toISOString();legacy.prepare(oldInsert).run('root','owner','root-external','Preserved root','Description',at,at);legacy.pragma('user_version = 16');legacy.close();
  const {getDb}=await import('@/lib/db');const current=getDb();
- expect(current.pragma('user_version',{simple:true})).toBe(17);
+ expect(current.pragma('user_version',{simple:true})).toBe(18);
  expect(current.prepare('SELECT nam_title,txt_description,num_version,uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('root')).toEqual({nam_title:'Preserved root',txt_description:'Description',num_version:1,uid_parent_task:null});
  current.prepare(oldInsert).run('child','owner','child-external','Child','',at,at);
  current.prepare('UPDATE tb_agent_task SET uid_parent_task=? WHERE uid_task=?').run('root','child');
@@ -402,4 +402,43 @@ it('adds subtasks to a version 16 database while preserving old task reads and w
  expect(oldProcess.prepare('SELECT nam_title FROM tb_agent_task WHERE uid_user=? AND uid_task=?').get('owner','child')).toEqual({nam_title:'Old process edit'});oldProcess.close();
  expect(current.prepare('SELECT uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('child')).toEqual({uid_parent_task:'root'});
  expect(current.prepare('SELECT uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('old-root')).toEqual({uid_parent_task:null});
+});
+
+it('rebuilds the version 17 task table for holds without losing parent links or indexes',async()=>{
+ const legacy=new Database(dbFile);
+ legacy.exec(`CREATE TABLE tb_agent_task (
+  uid_task TEXT PRIMARY KEY, uid_user TEXT NOT NULL, ref_external TEXT NOT NULL,
+  nam_title TEXT NOT NULL, txt_description TEXT NOT NULL, typ_status TEXT NOT NULL
+   CHECK(typ_status IN ('queued','working','blocked','completed','failed','cancelled')),
+  uid_session TEXT, jsn_source TEXT, num_version INTEGER NOT NULL DEFAULT 1,
+  tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+  uid_parent_task TEXT REFERENCES tb_agent_task(uid_task) ON DELETE SET NULL,
+  CONSTRAINT tb_agent_task_uk1 UNIQUE(uid_user,ref_external)
+ );
+ CREATE INDEX tb_agent_task_ix1 ON tb_agent_task(uid_user, tsz_update DESC, uid_task DESC);
+ CREATE INDEX tb_agent_task_ix2 ON tb_agent_task(uid_user, typ_status, tsz_update DESC, uid_task DESC);
+ CREATE INDEX tb_agent_task_ix3 ON tb_agent_task(uid_session, tsz_update);
+ CREATE INDEX tb_agent_task_ix4 ON tb_agent_task(tsz_update, uid_task);
+ CREATE INDEX tb_agent_task_ix5 ON tb_agent_task(uid_parent_task, uid_user, tsz_update DESC, uid_task DESC);`);
+ const insert=legacy.prepare("INSERT INTO tb_agent_task(uid_task,uid_user,ref_external,nam_title,txt_description,typ_status,num_version,tsz_insert,tsz_update,uid_parent_task) VALUES(?,?,?,?,?,?,?,?,?,?)");
+ const at=new Date().toISOString();
+ insert.run('root','owner','root-external','Root','Kept','working',2,at,at,null);
+ insert.run('child','owner','child-external','Child','','blocked',3,at,at,'root');
+ legacy.pragma('user_version = 17');legacy.close();
+ const {getDb}=await import('@/lib/db');const current=getDb();
+ expect(current.pragma('user_version',{simple:true})).toBe(18);
+ expect(current.prepare('SELECT uid_task,typ_status,num_version,uid_parent_task,typ_hold_reason,txt_hold_note FROM tb_agent_task ORDER BY uid_task').all()).toEqual([
+  {uid_task:'child',typ_status:'blocked',num_version:3,uid_parent_task:'root',typ_hold_reason:null,txt_hold_note:null},
+  {uid_task:'root',typ_status:'working',num_version:2,uid_parent_task:null,typ_hold_reason:null,txt_hold_note:null},
+ ]);
+ expect((current.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tb_agent_task' AND name LIKE 'tb_agent_task_ix%' ORDER BY name").all() as {name:string}[]).map(row=>row.name)).toEqual(['tb_agent_task_ix1','tb_agent_task_ix2','tb_agent_task_ix3','tb_agent_task_ix4','tb_agent_task_ix5']);
+ expect(current.prepare("SELECT COUNT(1) AS count FROM sqlite_master WHERE name='tb_agent_task_old'").get()).toEqual({count:0});
+ expect(current.pragma('foreign_key_check')).toEqual([]);
+ const hold=current.prepare('UPDATE tb_agent_task SET typ_status=?,typ_hold_reason=?,txt_hold_note=? WHERE uid_task=?');
+ hold.run('waiting','pull_request','PR #81','root');
+ expect(()=>hold.run('waiting','decision',null,'root')).toThrow();
+ expect(()=>hold.run('working','build',null,'root')).toThrow();
+ expect(()=>hold.run('working',null,'orphan note','root')).toThrow();
+ current.prepare('DELETE FROM tb_agent_task WHERE uid_task=?').run('root');
+ expect(current.prepare('SELECT uid_parent_task FROM tb_agent_task WHERE uid_task=?').get('child')).toEqual({uid_parent_task:null});
 });

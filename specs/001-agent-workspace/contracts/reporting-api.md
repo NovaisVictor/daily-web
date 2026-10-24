@@ -16,7 +16,7 @@ OAuth tokens use the MCP audience and cannot be substituted for reporting tokens
 | GET /tasks | Filter by status/agent/session/parentTaskId/scope, bounded cursor paging | Items + nextCursor |
 | GET /tasks/{id} | Read live task details | Task + version |
 | PATCH /tasks/{id} | Edit title/description/assignment/source link with expected version | Updated task |
-| POST /tasks/{id}/transitions | Apply valid lifecycle transition with expected version | Updated task |
+| POST /tasks/{id}/transitions | Apply valid lifecycle transition with expected version; `waiting`/`blocked` accept an optional `hold: { reason, note }` (see data-model) | Updated task, including `hold` (null when not held) |
 | POST /tasks/{id}/activity | Report progress or explicit task heartbeat | Updated activity time/version |
 | GET /tasks/{id}/activity | Read retained activity with cursor | Items + nextCursor |
 | DELETE /tasks/{id} | Explicitly remove an owner-scoped task | No content |
