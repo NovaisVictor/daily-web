@@ -5,7 +5,7 @@ import { ArrowLeft, Bot, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/data/ErrorState';
 import { EmptyState } from '@/components/data/EmptyState';
-import { formatTime, parseTaskDetail, STATUS_LABELS, STATUS_TONES } from './contracts';
+import { formatTime, parseTaskDetail, STATUS_LABELS, STATUS_TONES, TASK_STATUSES } from './contracts';
 import { TaskCard } from './TaskCard';
 import { TaskActions } from './TaskActions';
 import { useAgentPolling } from './useAgentPolling';
@@ -35,8 +35,14 @@ export function TaskDetail({ id }: { id: string }) {
       <header className="rounded-2xl border border-line bg-surface-1 p-6">{task.parentTaskId && <Link href={`/agents/tasks/${encodeURIComponent(task.parentTaskId)}`} className="mb-4 flex items-center gap-2 text-sm text-primary underline underline-offset-4"><ArrowLeft className="size-4" />Ver tarefa principal</Link>}<span className={`mb-3 inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_TONES[task.status]}`}>{STATUS_LABELS[task.status]}</span><h1 className="break-words text-2xl font-semibold">{task.title}</h1>{task.description && <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-mid">{task.description}</p>}<p className="mt-4 text-xs text-ink-dim">Referência: {task.externalId} · Versão {task.version}</p><TaskActions task={task} onChanged={refresh} /></header>
       {task.parentTaskId === null && <section aria-labelledby="subtasks-title" className="rounded-2xl border border-line bg-surface-1 p-5">
         <h2 id="subtasks-title" className="font-semibold">Subtarefas</h2>
-        <p className="mt-2 text-xs leading-relaxed text-ink-mid">Cada subtarefa tem seu próprio status e histórico. O status da tarefa principal é definido separadamente.</p>
-        {data.subtasks.items.length === 0 ? <EmptyState title={subtaskCursor ? 'Nenhuma subtarefa nesta página' : 'Nenhuma subtarefa criada'} description="Os agentes podem dividir esta tarefa em subtarefas pela API ou pelo MCP." /> : <ul className="mt-4 grid gap-3 sm:grid-cols-2">{data.subtasks.items.map(child => <li key={child.id} className="min-w-0"><p className="mb-2 text-xs font-medium text-ink-mid">{STATUS_LABELS[child.status]}</p><TaskCard task={child} /></li>)}</ul>}
+        <p className="mt-2 text-xs leading-relaxed text-ink-mid">Subtarefas agrupadas por status. O status da tarefa principal é definido separadamente.</p>
+        {data.subtasks.items.length === 0 ? <EmptyState title={subtaskCursor ? 'Nenhuma subtarefa nesta página' : 'Nenhuma subtarefa criada'} description="Os agentes podem dividir esta tarefa em subtarefas pela API ou pelo MCP." /> : <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] items-start gap-2">{TASK_STATUSES.filter(status => data.subtasks.items.some(child => child.status === status)).map(status => {
+          const children = data.subtasks.items.filter(child => child.status === status);
+          return <section key={status} aria-label={STATUS_LABELS[status]} className="min-w-0 rounded-xl border border-line bg-surface-2/40 p-2">
+            <h3 className="mb-2 flex items-center justify-between gap-2 px-1 pt-1 text-xs font-semibold"><span className={`rounded-full px-2 py-0.5 ${STATUS_TONES[status]}`}>{STATUS_LABELS[status]}</span><span className="font-normal text-ink-dim">{children.length}</span></h3>
+            <ul className="flex flex-col gap-2">{children.map(child => <li key={child.id} className="min-w-0"><TaskCard task={child} /></li>)}</ul>
+          </section>;
+        })}</div>}
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ink-dim"><span>{data.subtasks.items.length} nesta página{data.subtasks.nextCursor ? ' · Há mais subtarefas' : ''}</span>{subtaskCursor && <Button variant="outline" size="sm" onClick={() => page('subtaskCursor', null)}>Primeiras subtarefas</Button>}{data.subtasks.nextCursor && <Button variant="outline" size="sm" onClick={() => page('subtaskCursor', data.subtasks.nextCursor)}>Ver mais subtarefas</Button>}</div>
       </section>}
       <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_18rem]">
