@@ -7,7 +7,8 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const state = process.env.FAKE_DECK_DIR;
 const args = process.argv.slice(2);
 const fixture = name => readFileSync(path.join(here, name), 'utf8');
-if (args[0] === 'list') process.stdout.write(existsSync(path.join(state, 'list.json')) ? readFileSync(path.join(state, 'list.json'), 'utf8') : fixture('list.json'));
+if (args[0] === 'list' && existsSync(path.join(state, 'list-fail'))) { process.stderr.write('timed out\n'); process.exit(1); }
+else if (args[0] === 'list') process.stdout.write(existsSync(path.join(state, 'list.json')) ? readFileSync(path.join(state, 'list.json'), 'utf8') : fixture('list.json'));
 else if (args[0] === 'session' && args[1] === 'output') process.stdout.write(fixture(args.includes('--pane') ? 'output-pane.json' : 'output-response.json'));
 else if (args[0] === 'session' && args[1] === 'send') {
   if (existsSync(path.join(state, 'refuse'))) { process.stderr.write('refused\n'); process.exit(1); }
