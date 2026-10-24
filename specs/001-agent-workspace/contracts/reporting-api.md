@@ -10,6 +10,7 @@ OAuth tokens use the MCP audience and cannot be substituted for reporting tokens
 | POST /register | Register owner-scoped agent externalId/provider/displayName | Agent identity |
 | POST /sessions | Start a session for that agent | Session + version |
 | POST /sessions/{id}/heartbeat | Refresh that session's observed freshness | Current version |
+| POST /sessions/{id}/attention | `{"attention":{"kind":"permission"|"input"}}` when the session stops waiting for the user, `{"attention":null}` when the user answers; no expectedVersion | Session with `attention` (`{kind, since}` or null) |
 | GET /sessions | List live sessions with cursor | Items + nextCursor |
 | GET /sessions/{id} | Inspect session and live work references | Session snapshot |
 | POST /tasks | Create task with externalId, title, optional assignment/source link and parentTaskId | Task + version |

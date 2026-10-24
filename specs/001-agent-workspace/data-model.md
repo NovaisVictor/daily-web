@@ -176,3 +176,18 @@ Only live children cause `task_has_subtasks`; no live child is detached or delet
 The database foreign key uses `ON DELETE SET NULL` for old-version delete/cleanup
 compatibility. Current operations block live-child deletion before this action;
 old processes preserve surviving child records as roots with unchanged timestamps.
+
+## Session attention
+
+A session can be stopped waiting for the user. `tb_agent_session.typ_attention`
+(`permission` | `input`) and `tsz_attention` are set together or both null. It is a property
+of the session, not a task status: client hooks set it when the CLI asks for permission or
+idles waiting for an answer, and clear it when the user submits a prompt. Setting the same
+kind again keeps the original `since`. Writes refresh session activity and are idempotent.
+Sessions and task assignments expose `attention: { kind, since } | null`.
+
+The panel highlights an open task (queued, working, waiting, blocked) whose session needs
+attention, or that is blocked on `decision`, `access` or `credential`; completed, failed and
+cancelled tasks are never highlighted. The board shows a counter and the tab title alternates
+with it. There is no modal.
+

@@ -16,10 +16,12 @@ export type HoldReason<S extends HeldStatus = HeldStatus> = typeof holdReasons[S
 export interface Hold { reason: HoldReason; note: string | null }
 export const HOLD_NOTE_MAX = 140;
 export type Freshness = 'fresh' | 'stale' | 'disconnected';
+export const attentionKinds = ['permission', 'input'] as const;
+export interface Attention { kind: typeof attentionKinds[number]; since: string }
 export interface Agent { id: string; externalId: string; provider: Provider; displayName: string; createdAt: string; lastActivityAt: string }
-export interface AgentSession { id: string; agentId: string; externalId: string; version: number; startedAt: string; lastActivityAt: string; agent: Agent; freshness: Freshness }
+export interface AgentSession { id: string; agentId: string; externalId: string; version: number; startedAt: string; lastActivityAt: string; agent: Agent; freshness: Freshness; attention: Attention | null }
 export interface SourceLink { provider: 'personal' | 'jira' | 'github'; connectionId?: string; resource: string }
-export interface Assignment { sessionId: string; agentId: string; provider: Provider; displayName: string; freshness: Freshness }
+export interface Assignment { sessionId: string; agentId: string; provider: Provider; displayName: string; freshness: Freshness; attention: Attention | null }
 export interface AgentTask { id: string; parentTaskId: string | null; externalId: string; title: string; description: string; status: TaskStatus; hold: Hold | null; assignment: Assignment | null; source: SourceLink | null; version: number; createdAt: string; lastActivityAt: string }
 export interface SubtaskProgress { total: number; completed: number; active: { id: string; title: string; status: TaskStatus }[] }
 export interface Activity { id: string; taskId: string; kind: 'progress' | 'transition' | 'created' | 'updated'; summary: string; receivedAt: string; occurredAt: string | null }

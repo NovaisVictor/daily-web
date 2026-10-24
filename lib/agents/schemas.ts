@@ -1,5 +1,5 @@
 import { AccessError } from '@/lib/access/principal';
-import { HOLD_NOTE_MAX, holdReasons, providers, statuses, type HeldStatus, type Hold, type SourceLink, type Provider, type TaskStatus } from './model';
+import { attentionKinds, HOLD_NOTE_MAX, holdReasons, providers, statuses, type HeldStatus, type Hold, type SourceLink, type Provider, type TaskStatus } from './model';
 export function object(value: unknown, allowed: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AccessError(400,'invalid_input','Expected an object');
   const result = value as Record<string, unknown>;
@@ -21,6 +21,12 @@ export function hold(value: unknown, target: TaskStatus): Hold | null {
   const note=h.note===undefined||h.note===null ? null : text(h.note,'note',HOLD_NOTE_MAX);
   if (h.reason==='other' && !note) throw new AccessError(400,'invalid_hold','Describe the reason when it is other');
   return {reason:h.reason as Hold['reason'],note};
+}
+export function attention(value: unknown): typeof attentionKinds[number] | null {
+  if (value === null) return null;
+  const a=object(value,['kind']);
+  if (!attentionKinds.includes(a.kind as typeof attentionKinds[number])) throw new AccessError(400,'invalid_attention','Unknown attention kind');
+  return a.kind as typeof attentionKinds[number];
 }
 export function version(value: unknown): number { if (!Number.isSafeInteger(value) || (value as number)<1) throw new AccessError(400,'invalid_version','Expected a positive version'); return value as number; }
 export function source(value: unknown): SourceLink | null {

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Principal } from '@/lib/access/principal';
 import * as operations from '@/lib/agents/operations';
-import { HOLD_NOTE_MAX, holdReasons, statuses } from '@/lib/agents/model';
+import { attentionKinds, HOLD_NOTE_MAX, holdReasons, statuses } from '@/lib/agents/model';
 import { registerTool } from '../registry';
 const id=z.string().min(1).max(200);
 const mutation=z.object({operationId:id,requestedAt:z.iso.datetime()});
@@ -14,11 +14,12 @@ const source=z.object({provider:z.enum(['personal','jira','github']),connectionI
 const task=z.object({parentTaskId:id.describe('Create a subtask of an owned top-level task. Omit for a kanban card. Immutable; one level only.').optional(),externalId:id,title:z.string().min(1).max(200),description:z.string().max(4000).optional(),assignment:z.object({sessionId:id}).strict().nullable().optional(),source}).strict();
 const agentOutput=z.object({id,externalId:id,provider:z.enum(['claude','codex','gemini']),displayName:z.string(),createdAt:z.iso.datetime(),lastActivityAt:z.iso.datetime()}).strict();
 const freshness=z.enum(['fresh','stale','disconnected']);
-const sessionOutput=z.object({id,agentId:id,externalId:id,version:z.number().int().positive(),startedAt:z.iso.datetime(),lastActivityAt:z.iso.datetime(),agent:agentOutput,freshness}).strict();
-const taskOutput=z.object({id,parentTaskId:id.nullable(),externalId:id,title:z.string(),description:z.string(),status,hold:z.object({reason,note:z.string().nullable()}).strict().nullable(),assignment:z.object({sessionId:id,agentId:id,provider:z.enum(['claude','codex','gemini']),displayName:z.string(),freshness}).strict().nullable(),source:z.object({provider:z.enum(['personal','jira','github']),connectionId:id.optional(),resource:id}).strict().nullable(),version:z.number().int().positive(),createdAt:z.iso.datetime(),lastActivityAt:z.iso.datetime()}).strict();
+const attentionOutput=z.object({kind:z.enum(attentionKinds),since:z.iso.datetime()}).strict().nullable();
+const sessionOutput=z.object({id,agentId:id,externalId:id,version:z.number().int().positive(),startedAt:z.iso.datetime(),lastActivityAt:z.iso.datetime(),agent:agentOutput,freshness,attention:attentionOutput}).strict();
+const taskOutput=z.object({id,parentTaskId:id.nullable(),externalId:id,title:z.string(),description:z.string(),status,hold:z.object({reason,note:z.string().nullable()}).strict().nullable(),assignment:z.object({sessionId:id,agentId:id,provider:z.enum(['claude','codex','gemini']),displayName:z.string(),freshness,attention:attentionOutput}).strict().nullable(),source:z.object({provider:z.enum(['personal','jira','github']),connectionId:id.optional(),resource:id}).strict().nullable(),version:z.number().int().positive(),createdAt:z.iso.datetime(),lastActivityAt:z.iso.datetime()}).strict();
 const activityOutput=z.object({id,taskId:id,kind:z.enum(['progress','transition','created','updated']),summary:z.string(),receivedAt:z.iso.datetime(),occurredAt:z.iso.datetime().nullable()}).strict();
 const pageOutput=(item:z.ZodType)=>z.object({items:z.array(item),complete:z.literal(true),nextCursor:z.string().nullable()}).strict();
-const outputs:Record<string,z.ZodType>={agents_register:agentOutput,agents_sessions_create:sessionOutput,agents_sessions_list:pageOutput(sessionOutput),agents_sessions_get:sessionOutput,agents_sessions_heartbeat:sessionOutput,agents_tasks_create:taskOutput,agents_tasks_list:pageOutput(taskOutput),agents_tasks_get:taskOutput,agents_tasks_update:taskOutput,agents_tasks_transition:taskOutput,agents_tasks_activity:taskOutput,agents_tasks_list_activity:pageOutput(activityOutput),agents_tasks_delete:z.null()};
+const outputs:Record<string,z.ZodType>={agents_register:agentOutput,agents_sessions_create:sessionOutput,agents_sessions_list:pageOutput(sessionOutput),agents_sessions_get:sessionOutput,agents_sessions_heartbeat:sessionOutput,agents_sessions_attention:sessionOutput,agents_tasks_create:taskOutput,agents_tasks_list:pageOutput(taskOutput),agents_tasks_get:taskOutput,agents_tasks_update:taskOutput,agents_tasks_transition:taskOutput,agents_tasks_activity:taskOutput,agents_tasks_list_activity:pageOutput(activityOutput),agents_tasks_delete:z.null()};
 export function registerAgentTools(server:McpServer,principal:Principal){
  const register=<S extends z.ZodObject>(name:string,scope:string,schema:S,mode:'read'|'write',run:(args:z.infer<S>)=>unknown)=>registerTool(server,principal,name,scope,schema,mode,run,outputs[name]);
  const owner=principal.userId;
@@ -27,6 +28,7 @@ export function registerAgentTools(server:McpServer,principal:Principal){
  register('agents_sessions_list','agents:read',query,'read',a=>operations.listSessions(owner,a));
  register('agents_sessions_get','agents:read',z.object({id}).strict(),'read',a=>operations.getSession(owner,a.id));
  register('agents_sessions_heartbeat','agents:write',z.object({id,...mutation.shape}).strict(),'write',a=>operations.heartbeatSession(owner,a.id,{},{key:a.operationId,requestedAt:a.requestedAt}));
+ register('agents_sessions_attention','agents:write',z.object({id,attention:z.object({kind:z.enum(attentionKinds).describe('permission: waiting for the user to approve an action; input: stopped waiting for a user answer')}).strict().nullable().describe('Set when the session stops waiting for the user; null when the user answered'),...mutation.shape}).strict(),'write',a=>operations.setSessionAttention(owner,a.id,{attention:a.attention},{key:a.operationId,requestedAt:a.requestedAt}));
  register('agents_tasks_create','agents:write',z.object({input:task,...mutation.shape}).strict(),'write',a=>operations.createTask(owner,a.input,{key:a.operationId,requestedAt:a.requestedAt}));
  register('agents_tasks_list','agents:read',query,'read',a=>operations.listTasks(owner,a));
  register('agents_tasks_get','agents:read',z.object({id}).strict(),'read',a=>operations.getTask(owner,a.id));
