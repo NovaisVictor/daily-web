@@ -320,6 +320,21 @@ only in the browser: an MCP client receives a setup URL, never an integration to
 Revocation takes effect on the next request or tool call. An uncertain provider
 write is recorded and must be reconciled before it can be retried.
 
+### Live terminal for Agent Deck sessions
+
+When agents run under [Agent Deck](https://github.com/asheshgoplani/agent-deck)
+on the same host as the server, a task's page also shows the agent's terminal,
+its last response and a box to reply to it. The server finds the session by
+recomputing the reporting helper's session key, runs `agent-deck` as the
+service account and keeps nothing it reads. The live state also corrects the
+"waiting for you" alert: an agent whose turn ended while a build runs in the
+background is shown as running in the background, not as waiting for you.
+
+Reading a terminal and typing into it reaches the host, so it is off unless
+`DAILY_WEB_AGENT_DECK_OWNER` holds the id of the single user allowed to use it.
+`AGENT_DECK_BIN` overrides the default `~/.local/bin/agent-deck`. Sessions from
+other machines keep working from their reports alone.
+
 ### OAuth companion
 
 `npm run build` also builds the companion into `dist/oauth-server.js`. Use the same

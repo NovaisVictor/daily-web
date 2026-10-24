@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/data/EmptyState';
 import { formatTime, holdLabel, NEEDS_YOU_LABELS, needsYou, parseTaskDetail, waitedFor, STATUS_LABELS, STATUS_TONES, TASK_STATUSES } from './contracts';
 import { TaskCard } from './TaskCard';
 import { TaskActions } from './TaskActions';
+import { LivePanel } from './LivePanel';
 import { useAgentPolling } from './useAgentPolling';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -35,6 +36,7 @@ export function TaskDetail({ id }: { id: string }) {
     {task && <>
       {waiting && <p role="status" className="flex items-center gap-2 rounded-xl border border-danger bg-danger-tint px-4 py-2.5 text-sm font-semibold text-danger"><span aria-hidden className="size-2 rounded-full bg-danger motion-safe:animate-ping" />{NEEDS_YOU_LABELS[waiting.kind]} <span className="font-normal">· {waitedFor(waiting.since)}</span></p>}
       <header className="rounded-2xl border border-line bg-surface-1 p-6">{task.parentTaskId && <Link href={`/agents/tasks/${encodeURIComponent(task.parentTaskId)}`} className="mb-4 flex items-center gap-2 text-sm text-primary underline underline-offset-4"><ArrowLeft className="size-4" />Ver tarefa principal</Link>}<div className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className={`rounded-full px-3 py-1 font-medium ${STATUS_TONES[task.status]}`}>{STATUS_LABELS[task.status]}</span>{task.hold && <><span className={`rounded-full border border-current/30 px-2.5 py-0.5 font-medium ${STATUS_TONES[task.status]}`}>{holdLabel(task.status, task.hold)}</span>{task.hold.note && <span className="text-ink-mid">{task.hold.note}</span>}</>}</div><h1 className="break-words text-2xl font-semibold">{task.title}</h1>{task.description && <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-mid">{task.description}</p>}<p className="mt-4 text-xs text-ink-dim">Referência: {task.externalId} · Versão {task.version}</p><TaskActions task={task} onChanged={refresh} /></header>
+      {task.assignment && <LivePanel sessionId={task.assignment.sessionId} />}
       {task.parentTaskId === null && <section aria-labelledby="subtasks-title" className="rounded-2xl border border-line bg-surface-1 p-5">
         <h2 id="subtasks-title" className="font-semibold">Subtarefas</h2>
         <p className="mt-2 text-xs leading-relaxed text-ink-mid">Subtarefas agrupadas por status. O status da tarefa principal é definido separadamente.</p>
