@@ -203,6 +203,10 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- On a narrow tasks panel, a list row keeps its title. The tags, date and
+  subtask counter kept their width on one line, so the title was the only
+  thing left to shrink and disappeared; on a narrow panel they now drop to a
+  second line under the title.
 - The Slack panel shows unread direct messages again instead of "o Slack não
   informou as mensagens não lidas". Slack's conversation list does not carry
   unread counts, so the app now finds the latest direct messages through

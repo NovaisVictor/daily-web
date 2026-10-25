@@ -59,6 +59,12 @@ const PRIORITY_TONE: Record<TaskPriority, { glyph: string; tone: string }> = {
 
 const checkbox = 'size-4 shrink-0 cursor-pointer accent-brand';
 
+/** Whether a row has anything for its metadata line; an empty one would leave
+ *  a blank second line on a narrow panel. */
+function hasMeta(task: TodoTask): boolean {
+  return task.doing || task.priority !== 'normal' || task.recur !== '' || task.due !== '' || task.subtasks.length > 0;
+}
+
 interface Props {
   tasks: PanelResult<TodoTask[]>;
   onChanged: () => void;
@@ -504,7 +510,7 @@ export function TasksPanel({
             {group.tasks.map((task) => (
               <li
                 key={task.id}
-                className="border-b border-line-soft even:bg-muted/25"
+                className="@container border-b border-line-soft even:bg-muted/25"
                 draggable={focus.enabled && !task.completed}
                 onDragStart={(event) => {
                   if (!focus.enabled || task.completed) return;
@@ -513,7 +519,10 @@ export function TasksPanel({
                   event.dataTransfer.effectAllowed = 'copy';
                 }}
               >
-                <div className="flex items-center gap-3 rounded-md px-2 py-3 transition-colors duration-100 ease-brand hover:bg-brand-tint motion-reduce:transition-none">
+                {/* Wraps on a narrow panel: the tags, date and counter keep their
+                    width, so on one line the title was the only thing left to
+                    shrink and went to zero. They drop to a second line instead. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-2 py-3 transition-colors duration-100 ease-brand hover:bg-brand-tint motion-reduce:transition-none">
                   {/* A seta só existe onde há o que revelar. Numa tarefa sem
                       subtarefa ela seria um controle que não faz nada. */}
                   {task.subtasks.length > 0 ? (
@@ -550,7 +559,7 @@ export function TasksPanel({
                   <button
                     type="button"
                     className={cn(
-                      'flex min-w-0 flex-1 flex-col items-start gap-0.5 rounded-sm text-left',
+                      'flex min-w-0 flex-1 basis-0 flex-col items-start gap-0.5 rounded-sm text-left',
                       focusRing,
                     )}
                     onClick={() => setEditing(task)}
@@ -564,31 +573,37 @@ export function TasksPanel({
                       {task.title}
                     </span>
                   </button>
-                  {task.doing && (
-                    <span className={cn(flagPill, doingFlag)}>
-                      <span aria-hidden>{GLYPH.moving}</span>
-                      <span>Fazendo</span>
-                    </span>
-                  )}
-                  {task.priority !== 'normal' && (
-                    <span className={cn(flagPill, PRIORITY_TONE[task.priority].tone)}>
-                      <span aria-hidden>{PRIORITY_TONE[task.priority].glyph}</span>
-                      <span>{PRIORITY_LABEL[task.priority]}</span>
-                    </span>
-                  )}
-                  {task.recur !== '' && (
-                    <span className={cn(flagPill, neutralFlag)} title="tarefa recorrente">
-                      repete
-                    </span>
-                  )}
-                  {task.due && <DueDate task={task} />}
-                  {task.subtasks.length > 0 && (
-                    <span
-                      className={cn('shrink-0 type-caption text-ink-dim', tabular)}
-                      title="subtarefas concluídas"
-                    >
-                      {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
-                    </span>
+                  {hasMeta(task) && (
+                    // On a narrow row this becomes the second line, indented to
+                    // start under the title: caret, gap, checkbox, gap.
+                    <div className="flex shrink-0 items-center gap-3 @max-[34rem]:order-last @max-[34rem]:basis-full @max-[34rem]:flex-wrap @max-[34rem]:pl-16">
+                    {task.doing && (
+                      <span className={cn(flagPill, doingFlag)}>
+                        <span aria-hidden>{GLYPH.moving}</span>
+                        <span>Fazendo</span>
+                      </span>
+                    )}
+                    {task.priority !== 'normal' && (
+                      <span className={cn(flagPill, PRIORITY_TONE[task.priority].tone)}>
+                        <span aria-hidden>{PRIORITY_TONE[task.priority].glyph}</span>
+                        <span>{PRIORITY_LABEL[task.priority]}</span>
+                      </span>
+                    )}
+                    {task.recur !== '' && (
+                      <span className={cn(flagPill, neutralFlag)} title="tarefa recorrente">
+                        repete
+                      </span>
+                    )}
+                    {task.due && <DueDate task={task} />}
+                    {task.subtasks.length > 0 && (
+                      <span
+                        className={cn('shrink-0 type-caption text-ink-dim', tabular)}
+                        title="subtarefas concluídas"
+                      >
+                        {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+                      </span>
+                    )}
+                    </div>
                   )}
                   {/* O contador acima é o que faz a subtarefa escondida ainda
                       ser visível como informação: dá para ver que existe e
