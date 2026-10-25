@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-const excluded=new Set(['tb_agent','tb_agent_session','tb_agent_task','tb_agent_activity','tb_oauth_record']);
+const excluded=new Set(['tb_agent','tb_agent_session','tb_agent_task','tb_agent_activity','tb_oauth_record','tb_push_subscription','tb_push_outbox']);
 function quote(name:string):string{return '"'+name.replaceAll('"','""')+'"';}
 export function logicalBackup(source:string,destination:string):void {
  if(path.resolve(source)===path.resolve(destination)||fs.existsSync(destination))throw new Error('Destination must be a new file');

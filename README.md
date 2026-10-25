@@ -343,6 +343,25 @@ last listing and refreshes it in the background, so a sleeping laptop shows its
 sessions as unavailable instead of slowing the page. Other sessions keep
 working from their reports alone.
 
+### Browser notifications for agents
+
+The agents board has an **Ativar avisos** button that subscribes the browser
+(desktop, or the installed app on a phone) to Web Push. The server then notifies
+every subscribed device when an agent finishes or fails a main task, blocks a
+task on a decision, access or credential, or asks for permission. An idle
+"waiting for your answer" signal is held for 30 seconds and sent only if it still
+stands, some open task is not just waiting on a process, and, for Agent Deck
+sessions, the terminal is not running anything in the background. Changes you
+make yourself on the board never notify you.
+
+Events are written to an outbox in the same transaction as the change and sent
+by a dispatcher every few seconds, with retries; devices the push service reports
+as gone are removed. Only the push services of the major browsers are accepted as
+endpoints. Configure `DAILY_WEB_VAPID_PUBLIC_KEY` and `DAILY_WEB_VAPID_PRIVATE_KEY`
+(`npx web-push generate-vapid-keys`) and optionally `DAILY_WEB_VAPID_SUBJECT`,
+which defaults to `PUBLIC_ORIGIN`. Without keys the button explains that
+notifications are not configured. Subscriptions are left out of logical backups.
+
 ### OAuth companion
 
 `npm run build` also builds the companion into `dist/oauth-server.js`. Use the same

@@ -133,11 +133,11 @@ async function locate(ref: SessionRef): Promise<Entry | 'unreachable' | null> {
   return list.find(entry => sessionKey(ref.provider, entry.id, entry.machine.hostname) === ref.externalId) ?? (complete ? null : 'unreachable');
 }
 
-export async function liveFor(userId: string, refs: SessionRef[]): Promise<Map<string, Live>> {
+export async function liveFor(userId: string, refs: SessionRef[], wait = false): Promise<Map<string, Live>> {
   const result = new Map<string, Live>();
   if (!deckEnabled(userId) || refs.length === 0) return result;
   let all: Entry[];
-  try { all = (await entries(false)).list; } catch { console.warn('[agent-deck] session list unavailable'); return result; }
+  try { all = (await entries(wait)).list; } catch { console.warn('[agent-deck] session list unavailable'); return result; }
   const byKey = new Map<string, Entry>();
   for (const entry of all) for (const provider of ['claude', 'codex', 'gemini'] as const) byKey.set(sessionKey(provider, entry.id, entry.machine.hostname), entry);
   for (const ref of refs) {

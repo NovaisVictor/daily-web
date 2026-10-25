@@ -21,3 +21,35 @@ self.addEventListener('fetch', (event) => {
   // repassa a requisição sem tocar nela.
   event.respondWith(fetch(event.request));
 });
+
+// Avisos dos agentes (Web Push). O servidor manda título, texto, a tarefa a
+// abrir e uma tag: avisos com a mesma tag se substituem em vez de empilhar.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  const title = typeof data.title === 'string' && data.title ? data.title : 'Daily';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: typeof data.body === 'string' ? data.body : '',
+    tag: typeof data.tag === 'string' ? data.tag : undefined,
+    renotify: typeof data.tag === 'string',
+    icon: '/icons/icon-192.png',
+    data: { url: typeof data.url === 'string' ? data.url : '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  // Só caminhos desta origem: o clique nunca leva para fora do painel.
+  const target = new URL(event.notification.data?.url || '/', self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+      await client.focus();
+      if ('navigate' in client) await client.navigate(target.href).catch(() => {});
+      return;
+    }
+    await self.clients.openWindow(target.href);
+  })());
+});

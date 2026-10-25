@@ -547,6 +547,33 @@ function addAgentSessionAttention(instance: Database.Database): void {
   `);
 }
 
+// Browser push for agent events. A subscription is one browser on one device;
+// events are written to the outbox in the same transaction as the change that
+// caused them and sent afterwards by the dispatcher.
+function addPushNotifications(instance: Database.Database): void {
+  instance.exec(`
+    CREATE TABLE main.tb_push_subscription (
+      uid_subscription TEXT PRIMARY KEY, uid_user TEXT NOT NULL, txt_endpoint TEXT NOT NULL,
+      txt_p256dh TEXT NOT NULL, txt_auth TEXT NOT NULL, tsz_insert TEXT NOT NULL, tsz_update TEXT NOT NULL,
+      CONSTRAINT tb_push_subscription_uk1 UNIQUE(txt_endpoint)
+    );
+    -- Sending fans out to every device of one user.
+    CREATE INDEX main.tb_push_subscription_ix1 ON tb_push_subscription(uid_user);
+    CREATE TABLE main.tb_push_outbox (
+      uid_event TEXT PRIMARY KEY, uid_user TEXT NOT NULL,
+      typ_kind TEXT NOT NULL CHECK(typ_kind IN ('finished','blocked','attention','test')),
+      ref_task TEXT, ref_session TEXT, jsn_payload TEXT NOT NULL,
+      typ_state TEXT NOT NULL DEFAULT 'pending' CHECK(typ_state IN ('pending','sent','dropped','failed')),
+      num_attempts INTEGER NOT NULL DEFAULT 0,
+      tsz_due TEXT NOT NULL, tsz_insert TEXT NOT NULL, tsz_resolved TEXT
+    );
+    -- The dispatcher reads due pending events in order.
+    CREATE INDEX main.tb_push_outbox_ix1 ON tb_push_outbox(tsz_due) WHERE typ_state = 'pending';
+    -- Retention removes resolved events by age.
+    CREATE INDEX main.tb_push_outbox_ix2 ON tb_push_outbox(tsz_resolved) WHERE typ_state <> 'pending';
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -567,6 +594,7 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addAgentSubtasks,
   addAgentTaskHolds,
   addAgentSessionAttention,
+  addPushNotifications,
 ];
 
 function migrate(instance: Database.Database): void {

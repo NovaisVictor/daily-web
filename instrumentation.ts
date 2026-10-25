@@ -8,6 +8,8 @@ export async function register() {
   bootstrapFirstUser();
   const { startAgentCleanup } = await import('@/lib/agents/retention');
   startAgentCleanup();
+  const { startPushDispatcher } = await import('@/lib/push/dispatch');
+  startPushDispatcher();
 
   const { startRefreshLoop, refreshIntervalSeconds } = await import('@/lib/refresher');
   const { getPomodoroState, onPhaseChange, activePomodoroUsers } = await import('@/lib/pomodoro');
