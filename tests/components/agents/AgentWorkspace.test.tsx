@@ -36,6 +36,22 @@ describe('agent workspace', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'security' } });
     expect(navigation.replace).toHaveBeenCalledWith('/?q=security&status=working', { scroll: false });
   });
+  it('loads the last 3 days by default and keeps the chosen window in the URL', async () => {
+    vi.mocked(fetch).mockResolvedValue(response(snapshot));
+    render(<AgentBoard />);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('days=3'))).toBe(true));
+    const period = screen.getByRole('combobox', { name: /Período/ });
+    expect(period).toHaveValue('3');
+    fireEvent.change(period, { target: { value: '15' } });
+    expect(navigation.replace).toHaveBeenCalledWith('/?days=15', { scroll: false });
+  });
+  it('falls back to the default window for an unknown days value', async () => {
+    navigation.params = new URLSearchParams('days=90');
+    vi.mocked(fetch).mockResolvedValue(response(snapshot));
+    render(<AgentBoard />);
+    expect(screen.getByRole('combobox', { name: /Período/ })).toHaveValue('3');
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.every(([url]) => !String(url).includes('days=90'))).toBe(true));
+  });
   it('has actionable empty and unavailable states', async () => {
     vi.mocked(fetch).mockResolvedValue(response({ ...snapshot, tasks: { ...snapshot.tasks, items: [] } }));
     const view = render(<AgentBoard />);

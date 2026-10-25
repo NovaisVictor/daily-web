@@ -1,4 +1,4 @@
-import { attentionKinds, holdReasons, liveStates, statuses as TASK_STATUSES, type Attention, type HeldStatus, type Hold, type HoldReason, type Live, type LiveState } from '@/lib/agents/model';
+import { activityWindows, attentionKinds, holdReasons, liveStates, statuses as TASK_STATUSES, type Attention, type HeldStatus, type Hold, type HoldReason, type Live, type LiveState } from '@/lib/agents/model';
 import type { AgentTask, AgentSession, Assignment, Activity, Page, SubtaskProgress, TaskStatus } from '@/lib/agents/model';
 export type { Hold, HeldStatus, Live, LiveState } from '@/lib/agents/model';
 export { TASK_STATUSES };
@@ -42,6 +42,12 @@ export function needsYou(task: AgentTask): { kind: NeedsYouKind; since: string }
   if (live && BUSY.includes(live.state)) return null;
   if (attention.kind === 'input' && task.status === 'waiting') return null;
   return attention;
+}
+export const ACTIVITY_WINDOWS = activityWindows;
+export const DEFAULT_ACTIVITY_WINDOW = 3;
+export function activityWindow(value: string | null): number {
+  const days = Number(value);
+  return (activityWindows as readonly number[]).includes(days) ? days : DEFAULT_ACTIVITY_WINDOW;
 }
 export function waitedFor(since: string, now = Date.now()): string {
   const minutes = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));

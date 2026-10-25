@@ -4,7 +4,7 @@ import { findUserById } from '@/lib/auth/users';
 import { findConnection } from '@/lib/vault/connections';
 import { AccessError } from '@/lib/access/principal';
 import { findReceipt, insertReceipt } from '@/lib/access/receipts';
-import { freshness, RETENTION_MS, transitions, type Activity, type Agent, type Attention, type AgentSession, type AgentTask, type CreateTask, type Hold, type ListQuery, type Mutation, type Page, type SourceLink, type SubtaskProgress, type TaskStatus, type UpdateTask } from './model';
+import { activityWindows, freshness, RETENTION_MS, transitions, type Activity, type Agent, type Attention, type AgentSession, type AgentTask, type CreateTask, type Hold, type ListQuery, type Mutation, type Page, type SourceLink, type SubtaskProgress, type TaskStatus, type UpdateTask } from './model';
 import * as schema from './schemas';
 export type { Activity, Agent, AgentSession, AgentTask, CreateTask, ListQuery, Mutation, Page, SubtaskProgress, UpdateTask } from './model';
 
@@ -28,6 +28,7 @@ export function listTasks(userId:string,query:ListQuery={}):Page<AgentTask> {
  if(query.scope!==undefined&&!['all','roots'].includes(query.scope))throw new AccessError(400,'invalid_scope','Invalid task scope');
  if(query.parentTaskId!==undefined){const parent=getTask(userId,query.parentTaskId);if(query.scope==='roots')throw new AccessError(400,'invalid_scope','Parent and root filters cannot be combined');clauses.push('t.uid_parent_task=?');args.push(parent.id);}
  if(query.scope==='roots')clauses.push('t.uid_parent_task IS NULL');
+ if(query.days!==undefined){if(!(activityWindows as readonly number[]).includes(query.days))throw new AccessError(400,'invalid_window','Activity window must be 3, 7, 15 or 30 days');clauses.push('t.tsz_update>?');args.push(new Date(Date.now()-query.days*86_400_000).toISOString());}
  if(query.status){clauses.push('t.typ_status=?');args.push(schema.status(query.status));}
  if(query.sessionId){clauses.push('t.uid_session=?');args.push(schema.id(query.sessionId));}
  if(query.agentId){clauses.push('s.uid_agent=?');args.push(schema.id(query.agentId));}
@@ -42,7 +43,7 @@ export function summarizeSubtasks(userId:string,parentIds:string[]):Record<strin
  owner(userId); if(parentIds.length===0)return {};
  const marks=parentIds.map(()=>'?').join(','); const args=[userId,cutoff(),...parentIds];
  const result:Record<string,SubtaskProgress>={};
- for(const row of getDb().prepare(`SELECT uid_parent_task AS parentId,COUNT(*) AS total,SUM(typ_status='completed') AS completed FROM main.tb_agent_task WHERE uid_user=? AND tsz_update>? AND uid_parent_task IN (${marks}) GROUP BY uid_parent_task`).all(...args) as Row[])result[String(row.parentId)]={total:Number(row.total),completed:Number(row.completed),active:[]};
+ for(const row of getDb().prepare(`SELECT uid_parent_task AS parentId,COUNT(*) AS total,SUM(typ_status IN ('completed','cancelled')) AS completed FROM main.tb_agent_task WHERE uid_user=? AND tsz_update>? AND uid_parent_task IN (${marks}) GROUP BY uid_parent_task`).all(...args) as Row[])result[String(row.parentId)]={total:Number(row.total),completed:Number(row.completed),active:[]};
  for(const row of getDb().prepare(`SELECT parentId,id,title,status FROM (SELECT uid_parent_task AS parentId,uid_task AS id,nam_title AS title,typ_status AS status,ROW_NUMBER() OVER (PARTITION BY uid_parent_task ORDER BY tsz_update DESC,uid_task DESC) AS position FROM main.tb_agent_task WHERE uid_user=? AND tsz_update>? AND uid_parent_task IN (${marks}) AND typ_status IN ('working','waiting','blocked','queued')) WHERE position<=3 ORDER BY parentId,position`).all(...args) as Row[])result[String(row.parentId)]?.active.push({id:String(row.id),title:String(row.title),status:row.status as TaskStatus});
  return result;
 }

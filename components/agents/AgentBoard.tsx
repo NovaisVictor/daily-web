@@ -7,7 +7,7 @@ import { Columns3, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
 import { ErrorState } from '@/components/data/ErrorState';
-import { needsYou, parseSnapshot } from './contracts';
+import { activityWindow, needsYou, parseSnapshot } from './contracts';
 import { useAgentPolling } from './useAgentPolling';
 import { BoardFilters, KanbanColumns, SessionGrid } from './BoardViews';
 
@@ -18,6 +18,8 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
   const pathname = usePathname();
   const query = new URLSearchParams(params.toString());
   if (!detailed) { query.delete('tab'); query.delete('parentTaskId'); }
+  const days = activityWindow(params.get('days'));
+  query.set('days', String(days));
   query.set('scope', 'roots');
   query.set('sort', params.get('sort') === 'oldest' ? 'oldest' : 'newest');
   query.set('limit', '100');
@@ -28,7 +30,7 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
     if (name !== 'cursor') next.delete('cursor');
     router.replace(`${pathname}${next.size ? `?${next}` : ''}`, { scroll: false });
   };
-  const tasks = (data?.tasks.items ?? []).filter(task => task.parentTaskId === null && Date.parse(task.lastActivityAt) > Date.now() - 30 * 86400000);
+  const tasks = (data?.tasks.items ?? []).filter(task => task.parentTaskId === null && Date.parse(task.lastActivityAt) > Date.now() - days * 86400000);
   const waitingOnYou = tasks.filter(task => needsYou(task)).length;
   useEffect(() => {
     if (waitingOnYou === 0) return;
@@ -52,8 +54,8 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
       {error && <ErrorState title={data ? 'Exibindo a última atualização recebida' : 'Não foi possível carregar os agentes'} description={error} onRetry={refresh} />}
       {phase === 'loading' && !data && <div role="status" className="rounded-xl border border-line bg-surface-1 p-12 text-center text-sm text-ink-mid">Carregando seu workspace…</div>}
       {data && tab === 'tasks' && <>
-        <div className="flex items-center justify-between text-xs text-ink-dim"><span>{tasks.length} tarefa{tasks.length === 1 ? '' : 's'} nesta página</span><span>Histórico: 30 dias após a última atividade</span></div>
-        {tasks.length === 0 && <EmptyState icon={<Columns3 />} title={params.get('q') || params.get('status') || params.get('sessionId') ? 'Nenhuma tarefa neste filtro' : 'Seu próximo trabalho começa aqui'} description="Conecte Claude, Codex ou Gemini para acompanhar as tarefas conforme os agentes trabalham." action={<Button asChild><Link href="/access">Configurar acesso</Link></Button>} />}
+        <div className="flex items-center justify-between text-xs text-ink-dim"><span>{tasks.length} tarefa{tasks.length === 1 ? '' : 's'} nesta página</span><span>Atividade nos últimos {days} dias · histórico guardado por 30 dias</span></div>
+        {tasks.length === 0 && <EmptyState icon={<Columns3 />} title={params.get('q') || params.get('status') || params.get('sessionId') ? 'Nenhuma tarefa neste filtro' : days < 30 ? `Nenhuma tarefa nos últimos ${days} dias` : 'Seu próximo trabalho começa aqui'} description={days < 30 ? 'Amplie o período para ver tarefas mais antigas, ou conecte um agente para começar.' : 'Conecte Claude, Codex ou Gemini para acompanhar as tarefas conforme os agentes trabalham.'} action={<Button asChild><Link href="/access">Configurar acesso</Link></Button>} />}
         <KanbanColumns tasks={tasks} status={params.get('status')} progress={data.subtaskProgress} />
       </>}
       {data && tab === 'sessions' && <SessionGrid sessions={data.sessions.items} onSelect={id => {

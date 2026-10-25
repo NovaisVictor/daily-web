@@ -229,4 +229,25 @@ describe('agent subtask progress summary',()=>{
   expect(summary[parent.id].active[0].status).toBe('working');
   expect(ops.summarizeSubtasks('a',[])).toEqual({});
  });
+ it('counts cancelled children as finished, so a closed parent shows no open work',()=>{
+  const parent=task();
+  const kept=child(parent.id,{title:'Kept'}),dropped=child(parent.id,{title:'Dropped'});
+  ops.transitionTask('a',kept.id,{status:'completed',expectedVersion:1},mutation());
+  ops.transitionTask('a',dropped.id,{status:'cancelled',expectedVersion:1},mutation());
+  expect(ops.summarizeSubtasks('a',[parent.id])[parent.id]).toEqual({total:2,completed:2,active:[]});
+ });
+});
+
+describe('agent task activity window',()=>{
+ it('lists only tasks active within the requested days and rejects other windows',()=>{
+  vi.useFakeTimers();vi.setSystemTime(Date.parse('2026-10-01T12:00:00.000Z'));
+  const old=task('a',{title:'Old'});
+  vi.setSystemTime(Date.parse('2026-10-20T12:00:00.000Z'));
+  const recent=task('a',{title:'Recent'});
+  vi.setSystemTime(Date.parse('2026-10-25T12:00:00.000Z'));
+  expect(ops.listTasks('a',{days:7}).items.map(item=>item.id)).toEqual([recent.id]);
+  expect(ops.listTasks('a',{days:3}).items).toEqual([]);
+  expect(ops.listTasks('a',{days:30}).items.map(item=>item.id)).toEqual([recent.id,old.id]);
+  for(const days of [0,1,31,7.5,Number.NaN])expect(()=>ops.listTasks('a',{days})).toThrowError(expect.objectContaining({status:400}));
+ });
 });

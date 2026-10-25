@@ -1,7 +1,7 @@
 import { Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
-import { formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
+import { ACTIVITY_WINDOWS, activityWindow, formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
 import { TaskCard } from './TaskCard';
 
 export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress> }) {
@@ -42,6 +42,7 @@ export function BoardFilters({ params, onChange }: { params: Pick<URLSearchParam
   return <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1 p-3">
     <label className="flex flex-1 items-center gap-2 text-sm"><span className="sr-only">Buscar tarefas</span><input type="search" value={params.get('q') ?? ''} onChange={event => onChange('q', event.target.value)} placeholder="Buscar tarefa…" maxLength={200} className={`${fieldClass} w-full min-w-40`} /></label>
     <label className="flex items-center gap-2 text-xs text-ink-mid">Status<select value={params.get('status') ?? ''} onChange={event => onChange('status', event.target.value)} className={fieldClass}><option value="">Todos</option>{TASK_STATUSES.map(status => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}</select></label>
+    <label className="flex items-center gap-2 text-xs text-ink-mid">Período<select value={activityWindow(params.get('days'))} onChange={event => onChange('days', event.target.value)} className={fieldClass}>{ACTIVITY_WINDOWS.map(days => <option key={days} value={days}>Últimos {days} dias</option>)}</select></label>
     <label className="flex items-center gap-2 text-xs text-ink-mid">Ordem<select value={params.get('sort') ?? 'newest'} onChange={event => onChange('sort', event.target.value)} className={fieldClass}><option value="newest">Atividade recente</option><option value="oldest">Atividade mais antiga</option></select></label>
     {params.get('sessionId') && <Button size="sm" variant="ghost" onClick={() => onChange('sessionId', '')}>Limpar sessão</Button>}
   </div>;
