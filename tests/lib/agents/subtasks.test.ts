@@ -238,6 +238,20 @@ describe('agent subtask progress summary',()=>{
  });
 });
 
+describe('agent task status totals',()=>{
+ it('counts every status for the same filters as the list, regardless of paging and status filter',()=>{
+  const roots=Array.from({length:3},()=>task());
+  ops.transitionTask('a',roots[0].id,{status:'completed',expectedVersion:1},mutation());
+  ops.transitionTask('a',roots[1].id,{status:'cancelled',expectedVersion:1},mutation());
+  child(roots[2].id,{title:'Child'});
+  task('b');
+  const totals=ops.countTasks('a',{scope:'roots',status:'completed',limit:1});
+  expect(totals).toEqual({queued:1,working:0,waiting:0,blocked:0,completed:1,failed:0,cancelled:1});
+  expect(ops.countTasks('a',{scope:'roots',q:'nothing like this'}).completed).toBe(0);
+  expect(()=>ops.countTasks('a',{days:5})).toThrowError(expect.objectContaining({status:400}));
+ });
+});
+
 describe('agent task activity window',()=>{
  it('lists only tasks active within the requested days and rejects other windows',()=>{
   vi.useFakeTimers();vi.setSystemTime(Date.parse('2026-10-01T12:00:00.000Z'));

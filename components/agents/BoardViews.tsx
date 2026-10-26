@@ -1,19 +1,41 @@
-import { Bot } from 'lucide-react';
+import { Bot, ChevronDown, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/data/EmptyState';
-import { ACTIVITY_WINDOWS, activityWindow, formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress } from './contracts';
+import { ACTIVITY_WINDOWS, activityWindow, formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress, type TaskStatus } from './contracts';
 import { TaskCard } from './TaskCard';
 
-export function KanbanColumns({ tasks, status, progress = {} }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress> }) {
-  const columns = TASK_STATUSES.filter(value => !status || status === value);
-  return <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
-    {columns.map(value => {
-      const cards = tasks.filter(task => task.status === value);
-      return <section key={value} aria-label={STATUS_LABELS[value]} className="min-w-0 rounded-xl border border-line bg-surface-1/80 p-2">
-        <h2 className="mb-2 flex px-1 pt-1 items-center justify-between gap-2 text-sm font-semibold"><span>{STATUS_LABELS[value]}</span><span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-ink-mid">{cards.length}</span></h2>
-        <div className="flex flex-col gap-2">{cards.map(task => <TaskCard key={task.id} task={task} progress={progress[task.id]} />)}{cards.length === 0 && <p className="py-4 text-center text-xs text-ink-dim">Nenhuma tarefa</p>}</div>
-      </section>;
-    })}
+const ACTIVE: readonly TaskStatus[] = ['queued', 'working', 'waiting', 'blocked'];
+const FINISHED: readonly TaskStatus[] = ['completed', 'failed', 'cancelled'];
+const FINISHED_COUNTS: Record<string, [string, string]> = { completed: ['concluída', 'concluídas'], failed: ['falhou', 'falharam'], cancelled: ['cancelada', 'canceladas'] };
+
+function Column({ value, tasks, progress }: { value: TaskStatus; tasks: AgentTask[]; progress: Record<string, SubtaskProgress> }) {
+  const cards = tasks.filter(task => task.status === value);
+  // On a phone an empty column is just its heading: a full empty box per status pushes the work off screen.
+  return <section aria-label={STATUS_LABELS[value]} className={`min-w-0 rounded-xl border border-line bg-surface-1/80 p-2 ${cards.length === 0 ? 'max-sm:py-1' : ''}`}>
+    <h2 className={`flex items-center justify-between gap-2 px-1 pt-1 text-sm font-semibold ${cards.length === 0 ? 'max-sm:pt-0 sm:mb-2' : 'mb-2'}`}><span>{STATUS_LABELS[value]}</span><span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-normal text-ink-mid">{cards.length}</span></h2>
+    <div className="flex flex-col gap-2">{cards.map(task => <TaskCard key={task.id} task={task} progress={progress[task.id]} />)}{cards.length === 0 && <p className="py-4 text-center text-xs text-ink-dim max-sm:hidden">Nenhuma tarefa</p>}</div>
+  </section>;
+}
+
+export function KanbanColumns({ tasks, status, progress = {}, showFinished = false, onToggleFinished, totals = null }: { tasks: AgentTask[]; status: string | null; progress?: Record<string, SubtaskProgress>; showFinished?: boolean; onToggleFinished?: () => void; totals?: Record<TaskStatus, number> | null }) {
+  const chosen = TASK_STATUSES.find(value => value === status);
+  if (chosen) return <div className="grid grid-cols-1 items-start gap-3"><Column value={chosen} tasks={tasks} progress={progress} /></div>;
+  // Server totals cover the whole period; the loaded page alone would undercount finished work.
+  const counts = FINISHED.map(value => [value, totals?.[value] ?? tasks.filter(task => task.status === value).length] as const);
+  const total = counts.reduce((sum, [, count]) => sum + count, 0);
+  const failed = counts.find(([value]) => value === 'failed')?.[1] ?? 0;
+  return <div className="flex flex-col gap-3">
+    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">{ACTIVE.map(value => <Column key={value} value={value} tasks={tasks} progress={progress} />)}</div>
+    <button type="button" onClick={onToggleFinished} disabled={total === 0} aria-expanded={showFinished} aria-controls="finished-columns" className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed ${failed > 0 ? 'border-danger/60' : 'border-line'} bg-surface-1/60 px-4 py-2.5 text-left text-sm transition-colors hover:border-brand-edge hover:bg-surface-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:hover:border-line disabled:hover:bg-surface-1/60`}>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-semibold">Finalizadas</span>
+        {total === 0 ? <span className="text-xs text-ink-dim">nenhuma neste período</span> : counts.filter(([, count]) => count > 0).map(([value, count]) => value === 'failed'
+          ? <span key={value} className="flex items-center gap-1 rounded-full bg-danger-tint px-2 py-0.5 text-xs font-semibold text-danger"><TriangleAlert aria-hidden className="size-3.5" />{count} {FINISHED_COUNTS[value][count === 1 ? 0 : 1]}</span>
+          : <span key={value} className="text-xs text-ink-mid">{count} {FINISHED_COUNTS[value][count === 1 ? 0 : 1]}</span>)}
+      </span>
+      {total > 0 && <span className="flex items-center gap-1 text-xs font-medium text-primary">{showFinished ? 'Ocultar' : 'Mostrar'}<ChevronDown aria-hidden className={`size-4 transition-transform motion-reduce:transition-none ${showFinished ? 'rotate-180' : ''}`} /></span>}
+    </button>
+    {showFinished && total > 0 && <div id="finished-columns" className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{FINISHED.map(value => <Column key={value} value={value} tasks={tasks} progress={progress} />)}</div>}
   </div>;
 }
 

@@ -52,6 +52,55 @@ describe('agent workspace', () => {
     expect(screen.getByRole('combobox', { name: /Período/ })).toHaveValue('3');
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.every(([url]) => !String(url).includes('days=90'))).toBe(true));
   });
+  it('keeps finished work in a collapsed summary that opens through the URL and still flags failures', async () => {
+    const finished = (id: string, status: string) => ({ ...task, id, externalId: id, title: `Tarefa ${id}`, status });
+    vi.mocked(fetch).mockImplementation(async () => response({ ...snapshot, tasks: { items: [task, finished('c1', 'completed'), finished('c2', 'completed'), finished('f1', 'failed'), finished('x1', 'cancelled')], nextCursor: null, complete: true } }));
+    const view = render(<AgentBoard />);
+    const strip = await screen.findByRole('button', { name: /Finalizadas/ });
+    expect(strip).toHaveAttribute('aria-expanded', 'false');
+    expect(strip).toHaveTextContent('2 concluídas');
+    expect(strip).toHaveTextContent('1 falhou');
+    expect(strip).toHaveTextContent('1 cancelada');
+    expect(within(strip).getByText(/1 falhou/)).toHaveClass('text-danger');
+    expect(strip).toHaveClass('border-danger/60');
+    expect(screen.queryByRole('region', { name: 'Concluídas' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Em andamento' })).toBeInTheDocument();
+    fireEvent.click(strip);
+    expect(navigation.replace).toHaveBeenCalledWith('/?finished=show', { scroll: false });
+    view.unmount();
+    navigation.params = new URLSearchParams('finished=show');
+    render(<AgentBoard />);
+    expect(await screen.findByRole('button', { name: /Finalizadas/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Concluídas' })).toHaveTextContent('Tarefa c1');
+    expect(screen.getByRole('region', { name: 'Falharam' })).toHaveTextContent('Tarefa f1');
+  });
+  it('summarises finished work with the server totals for the whole period, not just the loaded page', async () => {
+    const statusCounts = { queued: 0, working: 1, waiting: 0, blocked: 0, completed: 140, failed: 2, cancelled: 0 };
+    vi.mocked(fetch).mockImplementation(async () => response({ ...snapshot, statusCounts }));
+    render(<AgentBoard />);
+    const strip = await screen.findByRole('button', { name: /Finalizadas/ });
+    expect(strip).toHaveTextContent('140 concluídas');
+    expect(strip).toHaveTextContent('2 falharam');
+    expect(strip).not.toHaveTextContent('cancelada');
+  });
+  it('rejects malformed status totals instead of showing misleading counts', () => {
+    expect(() => parseSnapshot({ ...snapshot, statusCounts: { completed: -1 } })).toThrow();
+    expect(() => parseSnapshot({ ...snapshot, statusCounts: { archived: 1 } })).toThrow();
+  });
+  it('shows a finished column directly when it is chosen in the status filter, and a quiet strip when nothing finished', async () => {
+    navigation.params = new URLSearchParams('status=completed');
+    vi.mocked(fetch).mockImplementation(async () => response({ ...snapshot, tasks: { items: [{ ...task, status: 'completed' }], nextCursor: null, complete: true } }));
+    const view = render(<AgentBoard />);
+    expect(await screen.findByRole('region', { name: 'Concluídas' })).toHaveTextContent('Revisar autenticação');
+    expect(screen.queryByRole('button', { name: /Finalizadas/ })).toBeNull();
+    view.unmount();
+    navigation.params = new URLSearchParams();
+    vi.mocked(fetch).mockImplementation(async () => response(snapshot));
+    render(<AgentBoard />);
+    const strip = await screen.findByRole('button', { name: /Finalizadas/ });
+    expect(strip).toBeDisabled();
+    expect(strip).toHaveTextContent('nenhuma neste período');
+  });
   it('has actionable empty and unavailable states', async () => {
     vi.mocked(fetch).mockResolvedValue(response({ ...snapshot, tasks: { ...snapshot.tasks, items: [] } }));
     const view = render(<AgentBoard />);

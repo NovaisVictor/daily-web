@@ -42,13 +42,21 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
     const timer = setInterval(() => { flip = !flip; document.title = flip ? alert : original; }, 1500);
     return () => { clearInterval(timer); document.title = original; };
   }, [waitingOnYou]);
+  // On a tablet the blocked column can sit below the fold; the count takes the owner straight to the first card.
+  const jumpToNeedsYou = () => {
+    const card = document.querySelector<HTMLElement>('[data-needs-you]');
+    if (!card) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    card.focus({ preventScroll: true });
+  };
   const tab = detailed && params.get('tab') === 'sessions' ? 'sessions' : 'tasks';
   const nextCursor = tab === 'sessions' ? data?.sessions.nextCursor : data?.tasks.nextCursor;
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="mb-1 text-xs font-medium uppercase tracking-widest text-ink-dim">{detailed ? 'Workspace de agentes' : 'Seu trabalho, em movimento'}</p><h1 className="text-2xl font-semibold tracking-tight">{detailed ? 'Agentes e atividades' : 'Kanban de tarefas'}</h1><p className="mt-2 text-sm text-ink-mid">{detailed ? 'Cada cartão é uma tarefa principal, com o progresso das subtarefas. O status do trabalho e a conexão do agente são independentes.' : 'Cada cartão representa uma tarefa principal. Abra a tarefa para acompanhar suas subtarefas.'}</p></div>
-        <div className="flex flex-wrap items-center gap-2">{waitingOnYou > 0 && <span role="status" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" />{waitingOnYou} aguardando você</span>}<PushToggle /><Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
+        <div className="flex flex-wrap items-center gap-2">{waitingOnYou > 0 && <button type="button" onClick={jumpToNeedsYou} title="Ir para a primeira tarefa que precisa de você" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" /><span role="status">{waitingOnYou} aguardando você</span></button>}<PushToggle /><Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
       </header>
       <BoardFilters params={params} onChange={changeFilter} />
       {detailed && <nav aria-label="Visão de agentes" className="flex gap-2"><Button variant={tab === 'tasks' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'tasks')}>Tarefas</Button><Button variant={tab === 'sessions' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'sessions')}>Sessões</Button></nav>}
@@ -57,7 +65,7 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
       {data && tab === 'tasks' && <>
         <div className="flex items-center justify-between text-xs text-ink-dim"><span>{tasks.length} tarefa{tasks.length === 1 ? '' : 's'} nesta página</span><span>Atividade nos últimos {days} dias · histórico guardado por 30 dias</span></div>
         {tasks.length === 0 && <EmptyState icon={<Columns3 />} title={params.get('q') || params.get('status') || params.get('sessionId') ? 'Nenhuma tarefa neste filtro' : days < 30 ? `Nenhuma tarefa nos últimos ${days} dias` : 'Seu próximo trabalho começa aqui'} description={days < 30 ? 'Amplie o período para ver tarefas mais antigas, ou conecte um agente para começar.' : 'Conecte Claude, Codex ou Gemini para acompanhar as tarefas conforme os agentes trabalham.'} action={<Button asChild><Link href="/access">Configurar acesso</Link></Button>} />}
-        <KanbanColumns tasks={tasks} status={params.get('status')} progress={data.subtaskProgress} />
+        <KanbanColumns tasks={tasks} status={params.get('status')} progress={data.subtaskProgress} totals={data.statusCounts} showFinished={params.get('finished') === 'show'} onToggleFinished={() => changeFilter('finished', params.get('finished') === 'show' ? '' : 'show')} />
       </>}
       {data && tab === 'sessions' && <SessionGrid sessions={data.sessions.items} onSelect={id => {
         const next = new URLSearchParams(params.toString());

@@ -4,7 +4,7 @@ import { findUserById } from '@/lib/auth/users';
 import { findConnection } from '@/lib/vault/connections';
 import { AccessError } from '@/lib/access/principal';
 import { findReceipt, insertReceipt } from '@/lib/access/receipts';
-import { activityWindows, freshness, RETENTION_MS, transitions, type Activity, type Agent, type Attention, type AgentSession, type AgentTask, type CreateTask, type Hold, type ListQuery, type Mutation, type Page, type SourceLink, type SubtaskProgress, type TaskStatus, type UpdateTask } from './model';
+import { activityWindows, freshness, RETENTION_MS, statuses, transitions, type Activity, type Agent, type Attention, type AgentSession, type AgentTask, type CreateTask, type Hold, type ListQuery, type Mutation, type Page, type SourceLink, type SubtaskProgress, type TaskStatus, type UpdateTask } from './model';
 import * as schema from './schemas';
 import { attentionEvent, taskEvent } from '@/lib/push/events';
 export type { Activity, Agent, AgentSession, AgentTask, CreateTask, ListQuery, Mutation, Page, SubtaskProgress, UpdateTask } from './model';
@@ -24,21 +24,32 @@ function paging(query:ListQuery): {limit:number;cursor:{at:string;id:string}|nul
  try { const c=JSON.parse(Buffer.from(query.cursor,'base64url').toString()); if(typeof c.at!=='string'||!Number.isFinite(Date.parse(c.at))||typeof c.id!=='string') throw new Error(); return {limit,cursor:{at:c.at,id:schema.id(c.id)}}; } catch {throw new AccessError(400,'invalid_cursor','Invalid cursor');}
 }
 function page<T>(rows:T[],limit:number,key:(row:T)=>{at:string;id:string}):Page<T> {const items=rows.slice(0,limit);return {items,complete:true,nextCursor:rows.length>limit ? Buffer.from(JSON.stringify(key(items[items.length-1]))).toString('base64url') : null};}
-export function listTasks(userId:string,query:ListQuery={}):Page<AgentTask> {
- owner(userId); const {limit,cursor}=paging(query); const clauses=['t.uid_user=?','t.tsz_update>?']; const args: (string|number)[]=[userId,cutoff()];
+function taskFilters(userId:string,query:ListQuery):{clauses:string[];args:(string|number)[]} {
+ const clauses=['t.uid_user=?','t.tsz_update>?']; const args: (string|number)[]=[userId,cutoff()];
  if(query.scope!==undefined&&!['all','roots'].includes(query.scope))throw new AccessError(400,'invalid_scope','Invalid task scope');
  if(query.parentTaskId!==undefined){const parent=getTask(userId,query.parentTaskId);if(query.scope==='roots')throw new AccessError(400,'invalid_scope','Parent and root filters cannot be combined');clauses.push('t.uid_parent_task=?');args.push(parent.id);}
  if(query.scope==='roots')clauses.push('t.uid_parent_task IS NULL');
  if(query.days!==undefined){if(!(activityWindows as readonly number[]).includes(query.days))throw new AccessError(400,'invalid_window','Activity window must be 3, 7, 15 or 30 days');clauses.push('t.tsz_update>?');args.push(new Date(Date.now()-query.days*86_400_000).toISOString());}
- if(query.status){clauses.push('t.typ_status=?');args.push(schema.status(query.status));}
  if(query.sessionId){clauses.push('t.uid_session=?');args.push(schema.id(query.sessionId));}
  if(query.agentId){clauses.push('s.uid_agent=?');args.push(schema.id(query.agentId));}
  if(query.q){clauses.push('(t.nam_title LIKE ? ESCAPE \'\\\' OR t.txt_description LIKE ? ESCAPE \'\\\')');const q='%'+schema.text(query.q,'query').replace(/[\\%_]/g,'\\$&')+'%';args.push(q,q);}
+ return {clauses,args};
+}
+export function listTasks(userId:string,query:ListQuery={}):Page<AgentTask> {
+ owner(userId); const {limit,cursor}=paging(query); const {clauses,args}=taskFilters(userId,query);
+ if(query.status){clauses.push('t.typ_status=?');args.push(schema.status(query.status));}
  const asc=query.sort==='oldest'; if(query.sort && !['newest','oldest'].includes(query.sort)) throw new AccessError(400,'invalid_sort','Invalid sort');
  if(cursor){clauses.push(asc ? '(t.tsz_update,t.uid_task)>(?,?)' : '(t.tsz_update,t.uid_task)<(?,?)');args.push(cursor.at,cursor.id);}
  const order=asc?'ASC':'DESC';args.push(limit+1);
  const rows=(getDb().prepare(`${TASK_SELECT} WHERE ${clauses.join(' AND ')} ORDER BY t.tsz_update ${order},t.uid_task ${order} LIMIT ?`).all(...args) as Row[]).map(taskOf);
  return page(rows,limit,row=>({at:row.lastActivityAt,id:row.id}));
+}
+// Per-status totals for the same filters as listTasks, ignoring status and paging, so a summary is not limited to one page.
+export function countTasks(userId:string,query:ListQuery={}):Record<TaskStatus,number> {
+ owner(userId); const {clauses,args}=taskFilters(userId,query);
+ const counts=Object.fromEntries(statuses.map(status=>[status,0])) as Record<TaskStatus,number>;
+ for(const row of getDb().prepare(`SELECT t.typ_status AS status,COUNT(*) AS total FROM main.tb_agent_task t LEFT JOIN main.tb_agent_session s ON s.uid_session=t.uid_session AND s.uid_user=t.uid_user WHERE ${clauses.join(' AND ')} GROUP BY t.typ_status`).all(...args) as {status:TaskStatus;total:number}[])counts[row.status]=Number(row.total);
+ return counts;
 }
 export function summarizeSubtasks(userId:string,parentIds:string[]):Record<string,SubtaskProgress> {
  owner(userId); if(parentIds.length===0)return {};

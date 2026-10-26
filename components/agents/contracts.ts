@@ -53,7 +53,7 @@ export function waitedFor(since: string, now = Date.now()): string {
   const minutes = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));
   return minutes < 1 ? 'agora' : minutes < 60 ? `há ${minutes} min` : `há ${Math.floor(minutes / 60)} h`;
 }
-export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession>; subtaskProgress: Record<string, SubtaskProgress> }
+export interface Snapshot { tasks: Page<AgentTask>; sessions: Page<AgentSession>; subtaskProgress: Record<string, SubtaskProgress>; statusCounts: Record<TaskStatus, number> | null }
 export interface TaskDetail { task: AgentTask; activity: Page<Activity>; subtasks: Page<AgentTask> }
 
 function object(value: unknown): Record<string, unknown> {
@@ -122,7 +122,17 @@ export function parseSnapshot(value: unknown): Snapshot {
     if (!tasks.items.some(item => item.id === parentId && item.parentTaskId === null)) throw new Error('Hierarquia inválida na resposta do servidor.');
     subtaskProgress[parentId] = { total: p.total as number, completed: p.completed as number, active: p.active.map(item => { const a = object(item); return { id: string(a.id), title: string(a.title), status: member(a.status, TASK_STATUSES) }; }) };
   }
-  return { tasks, subtaskProgress, sessions: page(data.sessions, value => {
+  let statusCounts: Record<TaskStatus, number> | null = null;
+  if (data.statusCounts !== undefined) {
+    const counts = object(data.statusCounts);
+    if (Object.keys(counts).some(key => !(TASK_STATUSES as readonly string[]).includes(key))) throw new Error('Valor não reconhecido na resposta do servidor.');
+    statusCounts = Object.fromEntries(TASK_STATUSES.map(status => {
+      const count = counts[status];
+      if (!Number.isInteger(count) || (count as number) < 0) throw new Error('Contagem inválida na resposta do servidor.');
+      return [status, count as number];
+    })) as Record<TaskStatus, number>;
+  }
+  return { tasks, subtaskProgress, statusCounts, sessions: page(data.sessions, value => {
     const s = object(value);
     const a = object(s.agent);
     const agent = { id: string(a.id), externalId: string(a.externalId), provider: member(a.provider, ['claude', 'codex', 'gemini'] as const), displayName: string(a.displayName), createdAt: timestamp(a.createdAt), lastActivityAt: timestamp(a.lastActivityAt) };

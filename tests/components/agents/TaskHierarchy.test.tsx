@@ -78,6 +78,7 @@ describe('agent task hierarchy navigation',()=>{
     const finished={...root,id:'finished',title:'Já terminou',status:'completed',assignment};
     vi.mocked(fetch).mockResolvedValue(response({...snapshot,tasks:{items:[asking,deciding,finished],nextCursor:null,complete:true}}));
     document.title='Daily';
+    navigation.params=new URLSearchParams('finished=show');
     const view=render(<AgentBoard/>);
     const card=await screen.findByRole('link',{name:/Pede permissão/});
     expect(card).toHaveAttribute('data-needs-you','permission');
@@ -86,6 +87,11 @@ describe('agent task hierarchy navigation',()=>{
     expect(screen.getByRole('link',{name:/Precisa decidir/})).toHaveAttribute('data-needs-you','decision');
     expect(screen.getByRole('link',{name:/Já terminou/})).not.toHaveAttribute('data-needs-you');
     expect(screen.getByText('2 aguardando você')).toBeInTheDocument();
+    const scroll=vi.fn();Element.prototype.scrollIntoView=scroll;
+    fireEvent.click(screen.getByRole('button',{name:/2 aguardando você/}));
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(card);
+    expect(document.activeElement).toBe(card);
     await waitFor(()=>expect(document.title).toBe('(2) Aguardando você'),{timeout:3000});
     await waitFor(()=>expect(document.title).toBe('Daily'),{timeout:3000});
     await waitFor(()=>expect(document.title).toBe('(2) Aguardando você'),{timeout:3000});
