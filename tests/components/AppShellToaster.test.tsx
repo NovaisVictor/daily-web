@@ -9,6 +9,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+// The header's notification bell polls /api/state; jsdom has no origin to resolve it against.
+vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false })));
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
@@ -20,7 +23,7 @@ describe('AppShell toasts', () => {
   it('shows a toast raised from any screen inside the shell', async () => {
     localStorage.setItem('daily-web:changelog-seen', RELEASES[0].id);
     render(
-      <AppShell theme="system" density="comfortable" backdrop="mesh" sidebar="expanded" username="ana">
+      <AppShell theme="system" density="comfortable" backdrop="mesh" username="ana" avatarUrl={null} greetingName="ana" welcome="first">
         <p>conteúdo</p>
       </AppShell>,
     );

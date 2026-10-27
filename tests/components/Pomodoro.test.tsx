@@ -26,6 +26,24 @@ describe('Pomodoro', () => {
     expect(text).toContain('2 focos');
   });
 
+  it('empilha a fase e o contador, e põe o tempo ao lado dos botões', () => {
+    render(<Pomodoro pomodoro={base} onChanged={() => {}} />);
+
+    const fase = screen.getByText('foco');
+    const contador = screen.getByText('2 focos');
+    expect(fase.parentElement).toBe(contador.parentElement);
+
+    const tempo = screen.getByText('01:30');
+    const iniciar = screen.getByRole('button', { name: 'iniciar foco' });
+    expect(tempo.parentElement).toBe(iniciar.parentElement?.parentElement);
+    expect(tempo.parentElement).not.toBe(fase.parentElement);
+  });
+
+  it('não desenha a barra de progresso', () => {
+    render(<Pomodoro pomodoro={base} onChanged={() => {}} />);
+    expect(screen.getByTestId('pomodoro').querySelector('[style*="scaleX"]')).toBeNull();
+  });
+
   it('não renderiza nada quando o pomodoro está desligado', () => {
     render(<Pomodoro pomodoro={{ ...base, enabled: false }} onChanged={() => {}} />);
     expect(screen.queryByTestId('pomodoro')).toBeNull();

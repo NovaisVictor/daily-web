@@ -55,7 +55,7 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="mb-1 text-xs font-medium uppercase tracking-widest text-ink-dim">{detailed ? 'Workspace de agentes' : 'Seu trabalho, em movimento'}</p><h1 className="text-2xl font-semibold tracking-tight">{detailed ? 'Agentes e atividades' : 'Kanban de tarefas'}</h1><p className="mt-2 text-sm text-ink-mid">{detailed ? 'Cada cartão é uma tarefa principal, com o progresso das subtarefas. O status do trabalho e a conexão do agente são independentes.' : 'Cada cartão representa uma tarefa principal. Abra a tarefa para acompanhar suas subtarefas.'}</p></div>
+        <h1 className="type-heading">{detailed ? 'Agentes e atividades' : 'Kanban de tarefas'}</h1>
         <div className="flex flex-wrap items-center gap-2">{waitingOnYou > 0 && <button type="button" onClick={jumpToNeedsYou} title="Ir para a primeira tarefa que precisa de você" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" /><span role="status">{waitingOnYou} aguardando você</span></button>}<PushToggle /><Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
       </header>
       <BoardFilters params={params} onChange={changeFilter} />

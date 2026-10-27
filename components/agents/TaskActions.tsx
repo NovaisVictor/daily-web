@@ -24,7 +24,7 @@ export function TaskActions({ task, onChanged }: { task: AgentTask; onChanged: (
     try {
       await accessRequest(`/api/agents/tasks/${encodeURIComponent(task.id)}${suffix}`, { method, headers: mutationHeaders(), ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       setMode('idle');
-      if (method === 'DELETE') router.push('/'); else onChanged();
+      if (method === 'DELETE') router.push('/kanban'); else onChanged();
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao alterar tarefa.'); }
     finally { setPhase('ready'); }
   };

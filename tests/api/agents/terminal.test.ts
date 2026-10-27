@@ -17,7 +17,7 @@ const DECK_ID='960b1dad-1792822461';
 let dir:string,sequence=0;
 const mutation=()=>({key:`terminal-operation-${++sequence}`,requestedAt:new Date().toISOString()});
 const params=(id:string)=>({params:Promise.resolve({id})});
-const user=(id:string)=>vi.mocked(getCurrentUser).mockResolvedValue({id,username:id,passwordHash:'unused',isAdmin:true,createdAt:'2026-01-01'});
+const user=(id:string)=>vi.mocked(getCurrentUser).mockResolvedValue({id,username:id,passwordHash:'unused',isAdmin:true,createdAt:'2026-01-01',avatarUrl:null,fullName:null,email:null});
 function session(owner:string,externalId:string){const agent=ops.registerAgent(owner,{externalId:`agent-${++sequence}`,provider:'claude',displayName:'Claude'},mutation());return ops.createSession(owner,{agentId:agent.id,externalId},mutation());}
 function post(id:string,text:unknown,key=`message-${++sequence}`,origin=ORIGIN){return message(new Request(`${ORIGIN}/api/agents/sessions/${id}/messages`,{method:'POST',headers:{'content-type':'application/json',origin,'idempotency-key':key,'x-request-timestamp':new Date().toISOString()},body:JSON.stringify({text})}),params(id));}
 const sends=(at=dir)=>existsSync(path.join(at,'sends.jsonl'))?readFileSync(path.join(at,'sends.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line)):[];

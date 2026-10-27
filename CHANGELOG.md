@@ -18,12 +18,50 @@ Only `main` is maintained; there are no release branches.
 - "Feito" shows its first 10 notes, with "Mostrar todas (n)" for the rest.
 - In the list, the always-visible red "Apagar" and the small "+" for subtasks
   moved into the row's "⋯" menu, and the subtask arrow grew to 24px.
+- Navigation moved from the sidebar to a header: Início, Kanban, Agentes and
+  Ferramentas, centred, with Configuração, Perfil, "Novidades" and sign-out in
+  the avatar menu. Page content is capped at 1216px and sits 40px below the
+  header, which stays full width. The refresh button now lives in the header,
+  beside the bell, and refreshes the dashboard panels too: the header and the
+  home page share one dashboard state instead of polling separately.
+- The dashboard of panels is now the home page, "Início" (`/`); the agents
+  kanban moved to `/kanban`. `/workspace` redirects to `/`.
+- Integrations moved from Configuração to a new "Ferramentas" page (`/tools`),
+  drawn as cards on a 12-column grid, four to a row, with each tool's own logo.
+  A card shows "Conectar" and "Como conectar"; once connected it shows a
+  "Conectado" tag and "Gerenciar". The form, the connections and the help open
+  in a dialog, and the on/off toggle is gone from the UI, since connecting a
+  tool already turns its module on. The Google and Slack OAuth returns and the
+  `connections_setup` MCP operation now point to `/tools` instead of `/config`.
+  Configuração has no tabs: appearance, panel layout and users.
+- Panels are rearranged by pressing and holding one for 1 s, then dragging in the
+  same press; every panel shakes while the mode is on, and a floating bar saves or
+  discards (Esc discards). A ring and a countdown follow the pointer during the
+  hold. The "Organizar" button is gone. Buttons, links and text fields count as
+  a place to hold, and the click that ends the hold is swallowed.
+- The home header greets the person, "Olá, {name}", with "Bem-vindo" on the first
+  sign-in and "Bem-vindo de volta" from the second on, kept per user. The clock
+  and the pomodoro moved to the right; the pomodoro lost its progress bar and
+  shows "foco" over the focus count, with the time beside its buttons. The
+  settings link, the "atualizado" time and the next-refresh countdown are gone
+  from that band.
+- Every page title shares one size (the `type-heading` role); the kanban and
+  agents pages dropped their eyebrow and description.
+- The "Novidades" popup has a hero with fanned cards that lift on hover, a pill,
+  a large title and a dark "Continuar" button.
 
 ### Added
+- A profile page (`/perfil`): photo, full name, e-mail and password change.
+  The photo is stored as a data URL on the user (`avatar_url`) and the name and
+  e-mail in `full_name` and `email` (migrations 21 and 22), all optional. A
+  password change asks for the current one.
+- A per-user sign-in counter in the existing `preferences` table (`loginCount`,
+  incremented in SQL on each successful sign-in; no schema change), which drives
+  the home greeting.
 - A task-based home kanban for agent work, with a detailed agents workspace,
   reporting API, personal API credentials and generated onboarding instructions.
   Agent history expires 30 days after its last accepted activity; the original
-  integrations dashboard remains available under `/workspace`.
+  integrations dashboard is the home page, "Início" (`/`); `/workspace` redirects there.
 - An OAuth-authorized remote MCP endpoint with 58 tools for agent work, personal
   tasks, Jira, GitHub, connections and shared focus actions. Browser and MCP use
   shared Jira/GitHub operations; integration secrets are entered only in the browser.

@@ -11,6 +11,7 @@ import type { PanelPlacement, SizedLayout } from './dashboardLayout';
 import { isJiraAccountId } from './jiraAccount';
 import type { JiraPerson, TasksView } from './types';
 import { isJiraKey } from './jiraKey';
+import type { WelcomeKind } from './greeting';
 
 // Preferências de visualização por usuário. São escolhas de como olhar, não
 // de credencial: por isso não passam pelo cofre e não são cifradas.
@@ -19,6 +20,7 @@ export const AGENDA_DAYS = 'agendaDays';
 export const DASHBOARD_LAYOUT = 'dashboardLayout';
 export const DASHBOARD_LAYOUTS = 'dashboardLayouts';
 export const TASKS_VIEW = 'tasksView';
+export const LOGIN_COUNT = 'loginCount';
 
 function read(userId: string, key: string): string | null {
   const row = getDb()
@@ -170,4 +172,24 @@ export function setJiraFollowedPeople(userId: string, people: JiraPerson[]): voi
     if (map.size >= MAX_JIRA_PEOPLE) break;
   }
   setPreference(userId, JIRA_PEOPLE, JSON.stringify([...map.values()]));
+}
+
+/** Counted in SQL, not read-then-written: two sign-ins at once must not lose one. */
+export function recordLogin(userId: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO preferences (user_id, key, value, updated_at)
+       VALUES (?, ?, '1', ?)
+       ON CONFLICT (user_id, key)
+       DO UPDATE SET value = CAST(preferences.value AS INTEGER) + 1,
+                     updated_at = excluded.updated_at`,
+    )
+    .run(userId, LOGIN_COUNT, new Date().toISOString());
+}
+
+/** From the second recorded sign-in on the person is welcomed back; nobody with none recorded
+ *  yet (accounts that predate the counter) is treated as returning. */
+export function welcomeKind(userId: string): WelcomeKind {
+  const count = Number(read(userId, LOGIN_COUNT));
+  return Number.isInteger(count) && count >= 2 ? 'returning' : 'first';
 }

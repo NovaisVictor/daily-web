@@ -102,7 +102,7 @@ describe('rotas OAuth do Slack', () => {
     const { GET } = await import('@/app/api/integrations/slack/callback/route');
     const state = signOAuthState('u-1', 'slack', 'segredo');
     const first = await GET(new NextRequest(`https://painel.exemplo/api?code=x&state=${state}`));
-    expect(first.headers.get('location')).toBe('https://painel.exemplo/config?conectado=slack');
+    expect(first.headers.get('location')).toBe('https://painel.exemplo/tools?conectado=slack');
     const second = await GET(new NextRequest(`https://painel.exemplo/api?code=y&state=${state}`));
     expect(mocks.saves).toHaveLength(2);
     expect(mocks.saves[0].id).toBeUndefined();

@@ -11,6 +11,9 @@ export interface User {
   passwordHash: string;
   isAdmin: boolean;
   createdAt: string;
+  avatarUrl: string | null;
+  fullName: string | null;
+  email: string | null;
 }
 
 interface UserRow {
@@ -19,6 +22,9 @@ interface UserRow {
   password_hash: string;
   is_admin: number;
   created_at: string;
+  avatar_url: string | null;
+  full_name: string | null;
+  email: string | null;
 }
 
 function toUser(row: UserRow): User {
@@ -28,6 +34,9 @@ function toUser(row: UserRow): User {
     passwordHash: row.password_hash,
     isAdmin: row.is_admin === 1,
     createdAt: row.created_at,
+    avatarUrl: row.avatar_url,
+    fullName: row.full_name,
+    email: row.email,
   };
 }
 
@@ -77,6 +86,9 @@ export async function createUser(
     passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
     isAdmin,
     createdAt: new Date().toISOString(),
+    avatarUrl: null,
+    fullName: null,
+    email: null,
   });
 }
 
@@ -129,6 +141,23 @@ export async function setUserPassword(username: string, password: string): Promi
     .changes > 0;
 }
 
+// `null` remove a foto — a tela volta a cair para as iniciais do nome.
+export function setUserAvatar(userId: string, avatarUrl: string | null): boolean {
+  return getDb().prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, userId)
+    .changes > 0;
+}
+
+// Nome completo e e-mail são só informativos — não passam pelas mesmas
+// validações do username, que é o que autentica.
+export function setUserProfile(
+  userId: string,
+  profile: { fullName: string | null; email: string | null },
+): boolean {
+  return getDb()
+    .prepare('UPDATE users SET full_name = ?, email = ? WHERE id = ?')
+    .run(profile.fullName, profile.email, userId).changes > 0;
+}
+
 // Antes do multiusuário o login vinha de DASHBOARD_USER/DASHBOARD_PASSWORD_HASH.
 // Reaproveitar o hash que já está no env — em vez de pedir uma senha nova —
 // mantém o login do operador funcionando na primeira subida depois da mudança.
@@ -144,5 +173,8 @@ export function bootstrapFirstUser(): User | null {
     passwordHash,
     isAdmin: true,
     createdAt: new Date().toISOString(),
+    avatarUrl: null,
+    fullName: null,
+    email: null,
   });
 }

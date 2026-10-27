@@ -103,3 +103,39 @@ describe('visualização das tarefas', () => {
     expect(tasksView(USER)).toBe('board');
   });
 });
+
+describe('boas-vindas', () => {
+  it('trata como primeiro acesso quem ainda não tem login registrado', async () => {
+    const { welcomeKind } = await import('@/lib/preferences');
+    expect(welcomeKind(USER)).toBe('first');
+  });
+
+  it('continua primeiro acesso depois do primeiro login e passa a "de volta" no segundo', async () => {
+    const { recordLogin, welcomeKind } = await import('@/lib/preferences');
+
+    recordLogin(USER);
+    expect(welcomeKind(USER)).toBe('first');
+
+    recordLogin(USER);
+    expect(welcomeKind(USER)).toBe('returning');
+
+    recordLogin(USER);
+    expect(welcomeKind(USER)).toBe('returning');
+  });
+
+  it('conta por pessoa: o login de uma não muda a outra', async () => {
+    const { recordLogin, welcomeKind } = await import('@/lib/preferences');
+
+    recordLogin(USER);
+    recordLogin(USER);
+
+    expect(welcomeKind(USER)).toBe('returning');
+    expect(welcomeKind(OTHER)).toBe('first');
+  });
+
+  it('não quebra com um valor ilegível gravado à mão', async () => {
+    const { welcomeKind, setPreference, LOGIN_COUNT } = await import('@/lib/preferences');
+    setPreference(USER, LOGIN_COUNT, 'abc');
+    expect(welcomeKind(USER)).toBe('first');
+  });
+});

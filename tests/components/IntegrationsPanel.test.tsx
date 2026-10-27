@@ -54,6 +54,16 @@ function mockFetch(handler: (url: string, init?: RequestInit) => unknown) {
   );
 }
 
+/** The form, the connections and the help live in the module's dialog, opened from its card. */
+function openModule(
+  label: string,
+  button: 'Conectar' | 'Gerenciar' | 'Como conectar' = 'Conectar',
+) {
+  const card = screen.getByText(label, { selector: 'h3' }).closest('article') as HTMLElement;
+  fireEvent.click(within(card).getByRole('button', { name: button }));
+  return screen.getByRole('dialog');
+}
+
 beforeEach(() => {
   mockFetch(() => payload());
 });
@@ -72,6 +82,53 @@ describe('IntegrationsPanel', () => {
     }
   });
 
+  // O cartão é só a manchete: logo, nome e as duas ações do print de referência.
+  it('mostra um cartão por módulo com Conectar e Como conectar', async () => {
+    render(<IntegrationsPanel />);
+    await waitFor(() => expect(screen.getByText('E-mail')).toBeInTheDocument());
+
+    // Ligado/Desligado é do diálogo; no cartão só aparece a tag de quem está conectado.
+    expect(screen.queryByText(/^(Ligado|Desligado|Conectado)$/)).toBeNull();
+
+    const cards = screen.getAllByRole('article');
+    expect(cards).toHaveLength(EMPTY_MODULES.length);
+    for (const card of cards) {
+      expect(within(card).getByRole('button', { name: 'Conectar' })).toBeInTheDocument();
+      expect(within(card).getByRole('button', { name: 'Como conectar' })).toBeInTheDocument();
+    }
+  });
+
+  it('mostra a tag Conectado e troca Conectar por Gerenciar quando já existe uma conexão', async () => {
+    const configured = EMPTY_MODULES.map((m) =>
+      m.module === 'jira'
+        ? {
+            ...m,
+            enabled: true,
+            connections: [
+              {
+                id: 'jira-1',
+                module: 'jira',
+                label: 'Jira',
+                visible: { cloud: 'acme' },
+                secretsSet: ['token'],
+                updatedAt: '2026-08-26',
+                unreadable: false,
+              },
+            ],
+          }
+        : m,
+    );
+    mockFetch(() => payload({ modules: configured }));
+    render(<IntegrationsPanel />);
+    await waitFor(() => expect(screen.getByText('Jira', { selector: 'h3' })).toBeInTheDocument());
+
+    const card = screen.getByText('Jira', { selector: 'h3' }).closest('article') as HTMLElement;
+    expect(within(card).getByText('Conectado')).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Gerenciar' })).toBeEnabled();
+    expect(within(card).queryByRole('button', { name: 'Conectar' })).toBeNull();
+    expect(within(card).getByRole('button', { name: 'Como conectar' })).toBeDisabled();
+  });
+
   it('avisa quando o servidor não tem chave para guardar credencial', async () => {
     mockFetch(() => payload({ vaultReady: false }));
     render(<IntegrationsPanel />);
@@ -84,9 +141,8 @@ describe('IntegrationsPanel', () => {
     render(<IntegrationsPanel />);
     await waitFor(() => expect(screen.getByText('Agenda')).toBeInTheDocument());
 
-    const helpButtons = screen.getAllByRole('button', { name: 'Como conseguir isso' });
-    fireEvent.click(helpButtons[1]);
-    expect(screen.getByText(/Endereço secreto no formato iCal/)).toBeInTheDocument();
+    const dialog = openModule('Agenda', 'Como conectar');
+    expect(within(dialog).getByText(/Endereço secreto no formato iCal/)).toBeInTheDocument();
   });
 
   // O preset é o que torna a configuração de e-mail viável para quem não sabe
@@ -132,25 +188,6 @@ describe('IntegrationsPanel', () => {
     });
   });
 
-  it('liga e desliga o módulo', async () => {
-    const calls: { url: string; body: unknown }[] = [];
-    mockFetch((url, init) => {
-      if (init?.method === 'PATCH') {
-        calls.push({ url, body: JSON.parse(String(init.body)) });
-        return { modules: EMPTY_MODULES };
-      }
-      return payload();
-    });
-
-    render(<IntegrationsPanel />);
-    await waitFor(() => expect(screen.getByText('Jira')).toBeInTheDocument());
-    fireEvent.click(screen.getByLabelText('ligar Jira'));
-
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0].url).toBe('/api/integrations/jira');
-    expect(calls[0].body).toEqual({ enabled: true });
-  });
-
   it('mostra o resultado do teste de conexão sem tratar falha como erro da app', async () => {
     const configured = EMPTY_MODULES.map((m) =>
       m.module === 'jira'
@@ -180,8 +217,9 @@ describe('IntegrationsPanel', () => {
     });
 
     render(<IntegrationsPanel />);
-    await waitFor(() => expect(screen.getByText('acme')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Testar' }));
+    await waitFor(() => expect(screen.getByText('Jira', { selector: 'h3' })).toBeInTheDocument());
+    openModule('Jira', 'Gerenciar');
+    fireEvent.click(await screen.findByRole('button', { name: 'Testar' }));
 
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toContain('recusou o e-mail'),
@@ -213,8 +251,9 @@ describe('IntegrationsPanel', () => {
     mockFetch(() => payload({ modules: configured }));
 
     render(<IntegrationsPanel />);
-    await waitFor(() => expect(screen.getByText('acme')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    await waitFor(() => expect(screen.getByText('Jira', { selector: 'h3' })).toBeInTheDocument());
+    openModule('Jira', 'Gerenciar');
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
 
     expect(screen.getByLabelText(/API token/)).toHaveAttribute(
       'placeholder',
@@ -227,7 +266,8 @@ describe('IntegrationsPanel', () => {
     render(<IntegrationsPanel />);
     await waitFor(() => expect(screen.getByText('Agenda')).toBeInTheDocument());
 
-    const link = screen.getByRole('link', { name: 'Conectar com Google' });
+    const dialog = openModule('Agenda');
+    const link = within(dialog).getByRole('link', { name: 'Conectar' });
     expect(link).toHaveAttribute('href', '/api/integrations/agenda/google/start');
   });
 
@@ -235,7 +275,8 @@ describe('IntegrationsPanel', () => {
     mockFetch(() => payload({ slackConfigured: true }));
     render(<IntegrationsPanel />);
     await waitFor(() => expect(screen.getByText('Slack')).toBeInTheDocument());
-    expect(screen.getByRole('link', { name: 'Conectar com Slack' })).toHaveAttribute(
+    const dialog = openModule('Slack');
+    expect(within(dialog).getByRole('link', { name: 'Conectar' })).toHaveAttribute(
       'href',
       '/api/integrations/slack/start',
     );
@@ -247,15 +288,35 @@ describe('IntegrationsPanel', () => {
     render(<IntegrationsPanel />);
     await waitFor(() => expect(screen.getByText('Agenda')).toBeInTheDocument());
 
-    expect(screen.queryByRole('link', { name: 'Conectar com Google' })).toBeNull();
+    const dialog = openModule('Agenda');
+    expect(within(dialog).queryByRole('link', { name: 'Conectar' })).toBeNull();
     expect(screen.getByText('GOOGLE_CLIENT_ID')).toBeInTheDocument();
     expect(
       screen.getByText('https://exemplo.com/api/integrations/agenda/google/callback'),
     ).toBeInTheDocument();
   });
 
+  it('não mostra o liga/desliga no popup: conectar já liga o módulo', async () => {
+    render(<IntegrationsPanel />);
+    await waitFor(() => expect(screen.getByText('Jira', { selector: 'h3' })).toBeInTheDocument());
+
+    const dialog = openModule('Jira');
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    expect(within(dialog).queryByText(/^(Ligado|Desligado)$/)).toBeNull();
+  });
+
+  it('mantém o link iCal como alternativa quando o Google está disponível', async () => {
+    mockFetch(() => payload({ googleConfigured: true }));
+    render(<IntegrationsPanel />);
+    await waitFor(() => expect(screen.getByText('Agenda')).toBeInTheDocument());
+
+    const dialog = openModule('Agenda');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Usar link iCal' }));
+    expect(within(dialog).getByLabelText(/URL do iCal/)).toBeInTheDocument();
+  });
+
   it('mostra o resultado que volta do retorno do Google', async () => {
-    window.history.replaceState({}, '', '/config?conectado=Google+Agenda+conectado');
+    window.history.replaceState({}, '', '/tools?conectado=Google+Agenda+conectado');
     render(<IntegrationsPanel />);
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toContain('Google Agenda conectado'),
@@ -269,10 +330,9 @@ describe('IntegrationsPanel', () => {
     await waitFor(() => expect(screen.getByText('Tarefas')).toBeInTheDocument());
 
     // Pelo cartão, não pelo índice: a posição muda quando um módulo entra.
-    const card = screen.getByText('Tarefas').closest('article') as HTMLElement;
-    fireEvent.click(within(card).getByRole('button', { name: 'Conectar' }));
+    const dialog = openModule('Tarefas');
 
-    const select = within(card).getByLabelText(/Onde guardar/) as HTMLSelectElement;
+    const select = within(dialog).getByLabelText(/Onde guardar/) as HTMLSelectElement;
     const values = Array.from(select.options).map((o) => o.value);
     expect(values).toEqual(['local']);
   });

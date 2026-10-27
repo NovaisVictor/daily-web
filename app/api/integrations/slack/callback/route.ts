@@ -7,7 +7,7 @@ import { listConnections, saveConnection, setModuleEnabled } from '@/lib/vault/c
 
 function back(value: string, ok: boolean): NextResponse {
   const origin = process.env.PUBLIC_ORIGIN ?? 'http://localhost:8010';
-  const url = new URL('/config', origin);
+  const url = new URL('/tools', origin);
   url.searchParams.set(ok ? 'conectado' : 'erro', value);
   return NextResponse.redirect(url);
 }

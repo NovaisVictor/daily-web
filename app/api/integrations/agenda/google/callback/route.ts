@@ -38,7 +38,7 @@ async function connectNotes(userId: string, refreshToken: string, email: string,
 
 function back(message: string, ok: boolean): NextResponse {
   const origin = process.env.PUBLIC_ORIGIN ?? 'http://localhost:8010';
-  const url = new URL('/config', origin);
+  const url = new URL('/tools', origin);
   url.searchParams.set(ok ? 'conectado' : 'erro', message);
   return NextResponse.redirect(url);
 }

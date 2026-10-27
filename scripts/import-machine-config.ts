@@ -87,6 +87,6 @@ for (const state of states) {
   const mark = state.enabled ? 'ligado ' : 'desligado';
   console.log(`  ${mark}  ${state.label}${state.configured ? '' : ' (sem conexão)'}`);
 }
-console.log('\nE-mail e agenda precisam ser conectados na tela /config:');
+console.log('\nE-mail e agenda precisam ser conectados na tela /tools:');
 console.log('  e-mail — senha de app do provedor');
 console.log('  agenda — endereço secreto em formato iCal');

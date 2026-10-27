@@ -1,12 +1,10 @@
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
-export type SidebarState = 'expanded' | 'collapsed';
 /** The page background: the iridescent mesh, or a flat Catppuccin or Dracula base. */
 export type Backdrop = 'mesh' | 'catppuccin' | 'dracula';
 
 export const THEME_COOKIE = 'theme';
 export const DENSITY_COOKIE = 'density';
-export const SIDEBAR_COOKIE = 'sidebar';
 export const BACKDROP_COOKIE = 'backdrop';
 
 /** "system" is the absence of everything, so anything unrecognised is system. */
@@ -61,26 +59,6 @@ export function applyBackdrop(b: Backdrop, root: HTMLElement = document.document
     b === 'mesh'
       ? `${BACKDROP_COOKIE}=; path=/; max-age=0; samesite=lax`
       : `${BACKDROP_COOKIE}=${b}; path=/; max-age=31536000; samesite=lax`;
-}
-
-/**
- * Same three-state shape as the others: "expanded" is the absence of the cookie,
- * so a cleared cookie and a fresh browser mean the same thing.
- */
-export function parseSidebar(raw: string | undefined): SidebarState {
-  return raw === 'collapsed' ? 'collapsed' : 'expanded';
-}
-
-/**
- * Only the cookie is written here. The sidebar itself is React state inside the
- * shell, and the server reads this cookie during render, so a collapsed rail
- * never expands for one frame on reload.
- */
-export function persistSidebar(state: SidebarState): void {
-  document.cookie =
-    state === 'collapsed'
-      ? `${SIDEBAR_COOKIE}=collapsed; path=/; max-age=31536000; samesite=lax`
-      : `${SIDEBAR_COOKIE}=; path=/; max-age=0; samesite=lax`;
 }
 
 /** Matches on a segment boundary, so /config/x keeps /config lit and /configuracao does not. */

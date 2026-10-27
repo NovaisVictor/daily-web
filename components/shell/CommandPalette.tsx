@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { KeyRound, LogOut, Settings2, User as UserIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   Command,
@@ -12,7 +13,14 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { NAV_ITEMS } from './nav-items';
-import { applyDensity, applyTheme, type Density, type ThemePreference } from '@/lib/theme';
+import {
+  applyBackdrop,
+  applyDensity,
+  applyTheme,
+  type Backdrop,
+  type Density,
+  type ThemePreference,
+} from '@/lib/theme';
 
 const THEMES: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'Tema do sistema' },
@@ -23,6 +31,38 @@ const THEMES: { value: ThemePreference; label: string }[] = [
 const DENSITIES: { value: Density; label: string }[] = [
   { value: 'comfortable', label: 'Densidade confortável' },
   { value: 'compact', label: 'Densidade compacta' },
+];
+
+const BACKDROPS: { value: Backdrop; label: string }[] = [
+  { value: 'mesh', label: 'Fundo gradiente' },
+  { value: 'catppuccin', label: 'Fundo Catppuccin' },
+];
+
+/** Coisas que não são uma tela própria, mas ainda devem ser achadas pela
+ *  busca — cada uma leva a onde a ação de fato mora. */
+const ACTIONS: { key: string; value: string; label: string; icon: typeof UserIcon; href: string }[] = [
+  { key: 'perfil', value: 'Perfil', label: 'Perfil', icon: UserIcon, href: '/perfil' },
+  {
+    key: 'senha',
+    value: 'Trocar senha',
+    label: 'Trocar senha',
+    icon: KeyRound,
+    href: '/perfil',
+  },
+  {
+    key: 'foto',
+    value: 'Alterar foto de perfil',
+    label: 'Alterar foto de perfil',
+    icon: UserIcon,
+    href: '/perfil',
+  },
+  {
+    key: 'aparencia',
+    value: 'Aparência tema densidade fundo',
+    label: 'Aparência',
+    icon: Settings2,
+    href: '/config',
+  },
 ];
 
 export function CommandPalette({
@@ -51,6 +91,11 @@ export function CommandPalette({
   const run = (action: () => void) => {
     onOpenChange(false);
     action();
+  };
+
+  const signOut = async () => {
+    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    router.push('/login');
   };
 
   return (
@@ -99,6 +144,33 @@ export function CommandPalette({
                   {d.label}
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandGroup heading="Fundo">
+              {BACKDROPS.map((b) => (
+                <CommandItem
+                  key={b.value}
+                  value={b.label}
+                  onSelect={() => run(() => applyBackdrop(b.value))}
+                >
+                  {b.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandGroup heading="Conta">
+              {ACTIONS.map((action) => (
+                <CommandItem
+                  key={action.key}
+                  value={action.value}
+                  onSelect={() => run(() => router.push(action.href))}
+                >
+                  <action.icon className="size-4" />
+                  {action.label}
+                </CommandItem>
+              ))}
+              <CommandItem value="Sair" onSelect={() => run(() => void signOut())}>
+                <LogOut className="size-4" />
+                Sair
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>

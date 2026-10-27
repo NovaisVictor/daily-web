@@ -95,7 +95,7 @@ describe('personal task operation parity',()=>{
 describe('connection and focus operation parity',()=>{
  it('provides secure setup, validates edits, tests and removes owned connections',async()=>{
   const test=vi.spyOn(jira,'testConnection').mockResolvedValue('Connected' as never);
-  expect(await run('connections_setup',{module:'jira'})).toMatchObject({url:'https://daily.example/config?module=jira'});
+  expect(await run('connections_setup',{module:'jira'})).toMatchObject({url:'https://daily.example/tools?module=jira'});
   await run('connections_update',{connectionId:jiraId,label:'Renamed',values:{email:'new@example.invalid'}});
   expect(findConnection('owner',jiraId)?.label).toBe('Renamed');
   expect(await run('connections_test',{connectionId:jiraId})).toEqual({ok:true});expect(test).toHaveBeenCalledTimes(1);

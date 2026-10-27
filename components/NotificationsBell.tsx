@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useState, useLayoutEffect, useRef } from 'react';
-import { Check, CheckCheck } from 'lucide-react';
+import { useEffect, useState, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Bell, BellOff, Check, CheckCheck, ListFilter } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui';
 import type { NotificationItem, NotificationSource, PanelResult } from '@/lib/types';
-import { Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { IconAction } from '@/components/data/IconAction';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { tabular } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { Chip } from '@/components/ui/Chip';
@@ -34,6 +39,34 @@ function mentionKey(item: NotificationItem): string | null {
 
 type Reply = { id: string; stage: 'writing' | 'published' } | null;
 
+/** Uma fonte por integração que alimenta o sino — a lista de filtros segue
+ *  esta mesma ordem. */
+const SOURCES: NotificationSource[] = ['jira_mention', 'pull_request', 'email'];
+
+/** O item de checkbox padrão marca "ligado" com uma barra na borda esquerda;
+ *  aqui o filtro marca com um check visível do lado direito. */
+function FilterCheckboxItem({
+  checked,
+  onCheckedChange,
+  children,
+}: {
+  checked: boolean;
+  onCheckedChange: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      checked={checked}
+      onSelect={(e) => e.preventDefault()}
+      onCheckedChange={onCheckedChange}
+      className="relative flex cursor-pointer items-center justify-between gap-2.5 -mx-1.5 px-4 py-2.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-[linear-gradient(to_right,var(--brand-tint),transparent_70%)] data-[state=checked]:text-ink"
+    >
+      {children}
+      <Check className={cn('size-4 shrink-0', checked ? 'opacity-100' : 'opacity-0')} />
+    </DropdownMenuPrimitive.CheckboxItem>
+  );
+}
+
 interface Props {
   notifications: PanelResult<NotificationItem[]>;
   onChanged: () => void;
@@ -48,6 +81,9 @@ interface Props {
     onEnable: () => void;
     onDisable: () => void;
   };
+  /** Deixa quem monta o sino casar seu tamanho com os botões vizinhos — o da
+   *  NowBand e o do Header não têm a mesma escala de ícone. */
+  triggerClassName?: string;
 }
 
 export function NotificationsBell({
@@ -55,15 +91,27 @@ export function NotificationsBell({
   onChanged,
   onMarkedRead,
   onMarkedAllRead,
+  triggerClassName,
   desktop,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [marcandoTodas, setMarcandoTodas] = useState(false);
   const [reply, setReply] = useState<Reply>(null);
+  // Vazio quer dizer "todas as fontes" — um filtro nenhum ligado não é uma
+  // lista vazia, é a lista inteira.
+  const [activeSources, setActiveSources] = useState<NotificationSource[]>([]);
   const items = notifications.data ?? [];
   const naoLidas = items.filter((n) => !n.read);
   const unreadCount = naoLidas.length;
+  const visibleItems =
+    activeSources.length === 0 ? items : items.filter((n) => activeSources.includes(n.source));
+
+  const toggleSource = (source: NotificationSource) => {
+    setActiveSources((prev) =>
+      prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source],
+    );
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -162,22 +210,22 @@ export function NotificationsBell({
         label={`notificações (${unreadCount} não lidas)`}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        icon={<Bell className="size-4" />}
-        // O número é informação, não enfeite: fica dentro do botão, como texto,
-        // num disco redondo — nunca só a cor do sino dizendo que há algo.
-        badge={
-          unreadCount > 0 ? (
-            <Badge
-              className={cn(
-                'min-w-5 justify-center rounded-full px-1 type-caption leading-none',
-                tabular,
-              )}
-            >
-              {unreadCount}
-            </Badge>
-          ) : undefined
-        }
+        icon={<Bell className="size-5" />}
+        className={triggerClassName}
       />
+      {/* O número é informação, não enfeite: fica visível como texto, não só
+        a cor do sino dizendo que há algo — mas flutua fora do botão, e não
+        empurra mais o ícone de lugar quando aparece. */}
+      {unreadCount > 0 && (
+        <Badge
+          className={cn(
+            'pointer-events-none absolute -top-1 -right-1 min-w-5 justify-center rounded-full px-1 type-caption leading-none',
+            tabular,
+          )}
+        >
+          {unreadCount}
+        </Badge>
+      )}
 
       {open &&
         createPortal(
@@ -203,6 +251,43 @@ export function NotificationsBell({
               role="dialog"
               aria-label="central de notificações"
             >
+              <div className="mb-2 flex items-center justify-between gap-3 border-b border-line pb-3">
+                <h2 className="type-subhead">Notificações</h2>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="relative">
+                      <IconAction
+                        variant="outline"
+                        size="icon-sm"
+                        label="Filtrar notificações"
+                        icon={<ListFilter className="size-4" />}
+                      />
+                      {activeSources.length > 0 && (
+                        <Badge
+                          className={cn(
+                            'pointer-events-none absolute -top-1 -right-1 min-w-4 justify-center rounded-full px-1 type-caption leading-none',
+                            tabular,
+                          )}
+                        >
+                          {activeSources.length}
+                        </Badge>
+                      )}
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {SOURCES.map((source) => (
+                      <FilterCheckboxItem
+                        key={source}
+                        checked={activeSources.includes(source)}
+                        onCheckedChange={() => toggleSource(source)}
+                      >
+                        {SOURCE_LABEL[source]}
+                      </FilterCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
               {desktop?.supported && (
                 <div className="mb-2 flex items-center justify-between gap-3 border-b border-line pb-3">
                   {desktop.permission === 'denied' ? (
@@ -255,11 +340,23 @@ export function NotificationsBell({
               )}
 
               {items.length === 0 && (
-                <p className="type-caption py-8 text-ink-dim">Nada por aqui.</p>
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                  <BellOff className="size-6 text-ink-dim" />
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-[16px] font-medium text-ink">Nenhuma notificação</h3>
+                    <p className="max-w-sm text-[14px] text-ink-mid">
+                      Quando chegar uma menção no Jira, um pull request ou um e-mail novo, aparece
+                      aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {items.length > 0 && visibleItems.length === 0 && (
+                <p className="type-caption py-8 text-ink-dim">Nada com esse filtro.</p>
               )}
 
               <ul>
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                   const mention = mentionKey(item);
                   return (
                     <li

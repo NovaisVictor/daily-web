@@ -13,12 +13,14 @@ import {
   type ModuleId,
 } from '@/lib/modules';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useConfirm } from '@/components/data/ConfirmDialog';
 import { PanelError } from '@/components/data/PanelError';
 import { Input, inputClass } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Section } from './ui/Section';
+import { ToolLogo } from './ToolLogo';
 
 interface ConnectionSummary {
   id: string;
@@ -159,6 +161,9 @@ export function IntegrationsPanel() {
     {},
   );
   const [openHelp, setOpenHelp] = useState<ModuleId | null>(null);
+  // The module whose dialog is open. The card only shows the headline; the form,
+  // the connections and the help do not fit in a quarter of the row.
+  const [activeModule, setActiveModule] = useState<ModuleId | null>(null);
   const [flash, setFlash] = useState<{ ok: boolean; message: string } | null>(null);
   const [calendars, setCalendars] = useState<Record<string, CalendarRef[]>>({});
   const [chosenCalendars, setChosenCalendars] = useState<Record<string, string[]>>({});
@@ -175,7 +180,7 @@ export function IntegrationsPanel() {
 
   useEffect(() => {
     void load();
-    // O retorno do Google volta para /config com o resultado na query; ler e
+    // O retorno do Google volta para /tools com o resultado na query; ler e
     // limpar evita que a mensagem reapareça a cada recarga.
     const params = new URLSearchParams(window.location.search);
     const conectado = params.get('conectado');
@@ -284,15 +289,6 @@ export function IntegrationsPanel() {
     }
   };
 
-  const toggleModule = async (moduleId: ModuleId, enabled: boolean) => {
-    try {
-      const data = await send(`/api/integrations/${moduleId}`, 'PATCH', { enabled });
-      setPayload((prev) => (prev ? { ...prev, modules: data.modules } : prev));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
   const test = async (conn: ConnectionSummary) => {
     setTesting(conn.id);
     try {
@@ -328,8 +324,319 @@ export function IntegrationsPanel() {
     );
   }
 
+  const closeDetails = () => {
+    setActiveModule(null);
+    setOpenHelp(null);
+    cancel();
+  };
+
+  const openDetails = (mod: ModuleState, intent: 'connect' | 'help') => {
+    setActiveModule(mod.module);
+    setOpenHelp(intent === 'help' ? mod.module : null);
+    // A module with nothing connected yet and a form to fill opens straight on it — unless Google
+    // can do the job: the iCal form hides the "Conectar com Google" button, the safer path.
+    const hasForm = MODULES[mod.module].fields.some((field) => !field.hidden);
+    const googleCanConnect = mod.module === 'agenda' && payload.googleConfigured;
+    if (intent === 'connect' && mod.connections.length === 0 && hasForm && !googleCanConnect) {
+      startNew(mod.module);
+    }
+  };
+
+  const renderDetails = (mod: ModuleState) => {
+    const spec = MODULES[mod.module];
+    const isEditing = editing?.module === mod.module;
+    const connected = mod.connections.length > 0;
+
+    // Uma só ação de conectar, no topo do popup, e a certa para cada módulo. O Google é o
+    // caminho confiável para contas Google: o link iCal quebra quando o administrador
+    // bloqueia compartilhamento externo, e é fácil colar o link errado.
+    const connectAction = () => {
+      if (isEditing) return null;
+      if (mod.module === 'slack' && payload.slackConfigured) {
+        return (
+          <Button asChild size="sm">
+            <a href="/api/integrations/slack/start">{connected ? 'Reconectar' : 'Conectar'}</a>
+          </Button>
+        );
+      }
+      if (mod.module === 'agenda' && payload.googleConfigured) {
+        return (
+          <Button asChild size="sm">
+            <a href="/api/integrations/agenda/google/start">
+              {connected ? 'Adicionar outra' : 'Conectar'}
+            </a>
+          </Button>
+        );
+      }
+      // A cópia das notas no Drive só nasce pelo Google: não há o que preencher. Uma conexão
+      // por pessoa; trocar de conta é remover e conectar de novo.
+      if (mod.module === 'notes' && payload.googleConfigured && !connected) {
+        return (
+          <Button asChild size="sm">
+            <a href="/api/integrations/agenda/google/start?purpose=notes">Conectar</a>
+          </Button>
+        );
+      }
+      // Um módulo sem campo visível não tem o que conectar pelo formulário: o botão abriria
+      // um formulário vazio.
+      if (spec.fields.some((field) => !field.hidden) && (spec.multi || !connected)) {
+        return (
+          <Button type="button" size="sm" onClick={() => startNew(mod.module)}>
+            {connected ? 'Adicionar outra' : 'Conectar'}
+          </Button>
+        );
+      }
+      return null;
+    };
+
+    return (
+      <div className="flex flex-col gap-3">
+        <header className="flex flex-wrap items-start justify-between gap-4 pr-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <ToolLogo moduleId={mod.module} />
+            <div className="min-w-0">
+              <DialogTitle className="type-subhead">{mod.label}</DialogTitle>
+              <DialogDescription className="text-sm text-ink-mid">{mod.summary}</DialogDescription>
+            </div>
+          </div>
+          {connectAction()}
+        </header>
+
+        {openHelp === mod.module && (
+          <ul className="type-caption flex max-w-[70ch] flex-col gap-2 border-l border-line-soft pl-4 text-ink-mid">
+            {spec.instructions.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        )}
+
+        {/* Sem client no servidor, quem administra a instância precisa
+                saber o que falta — e principalmente qual URI registrar, que é
+                onde o setup costuma falhar. */}
+        {mod.module === 'agenda' && !payload.googleConfigured && (
+          <p className="type-caption max-w-[70ch] rounded-md border border-dashed border-line-strong p-3 text-ink-mid">
+            Para conectar contas Google, quem administra este servidor precisa definir{' '}
+            <code className="font-mono text-ink">GOOGLE_CLIENT_ID</code> e{' '}
+            <code className="font-mono text-ink">GOOGLE_CLIENT_SECRET</code>. Criar o client é
+            gratuito; registre esta URI de redirecionamento:{' '}
+            <code className="mt-1 inline-block font-mono text-ink [overflow-wrap:anywhere]">
+              {payload.googleRedirectUri}
+            </code>
+          </p>
+        )}
+
+        {mod.module === 'slack' && !payload.slackConfigured && (
+          <p className="type-caption max-w-[70ch] rounded-md border border-dashed border-line-strong p-3 text-ink-mid">
+            Para conectar o Slack, quem administra este servidor precisa definir{' '}
+            <code className="font-mono text-ink">SLACK_CLIENT_ID</code> e{' '}
+            <code className="font-mono text-ink">SLACK_CLIENT_SECRET</code>. Registre esta URI de
+            redirecionamento:{' '}
+            <code className="mt-1 inline-block font-mono text-ink [overflow-wrap:anywhere]">
+              {payload.slackRedirectUri}
+            </code>
+          </p>
+        )}
+
+        {mod.connections.length > 0 && (
+          <ul className="flex flex-col gap-3">
+            {mod.connections.map((conn) => {
+              const result = testResult[conn.id];
+              return (
+                <li
+                  key={conn.id}
+                  className={cn(
+                    'flex flex-wrap items-center gap-3 p-3',
+                    innerSurface,
+                    innerSurfaceInteractive,
+                  )}
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-sm font-medium text-ink">{conn.label}</span>
+                    {conn.unreadable ? (
+                      <span className="type-caption text-warning">
+                        ilegível com a chave atual — grave de novo
+                      </span>
+                    ) : (
+                      <span className="type-caption truncate text-ink-dim">
+                        {Object.values(conn.visible)[0] ?? 'configurado'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={testing === conn.id}
+                      onClick={() => void test(conn)}
+                    >
+                      {testing === conn.id ? 'Testando…' : 'Testar'}
+                    </Button>
+                    {conn.visible.provider !== 'google' && (
+                      <IconAction
+                        variant="outline"
+                        label="Editar"
+                        onClick={() => startEdit(conn)}
+                        icon={<Pencil className="size-4" />}
+                      />
+                    )}
+                    {conn.visible.provider === 'google' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadCalendars(conn.id)}
+                      >
+                        Escolher agendas
+                      </Button>
+                    )}
+                    <IconAction
+                      variant="outline"
+                      label="Remover"
+                      className="text-danger hover:border-danger/40 hover:text-danger"
+                      onClick={() => void remove(conn)}
+                      icon={<Trash2 className="size-4" />}
+                    />
+                  </div>
+
+                  {calendars[conn.id] && (
+                    <fieldset className="flex basis-full flex-col gap-2 rounded-md border p-3">
+                      <legend className="type-caption px-2 text-ink-mid">
+                        Quais agendas mostrar
+                      </legend>
+                      {calendars[conn.id].map((cal) => (
+                        <label
+                          key={cal.id}
+                          className="type-caption flex cursor-pointer items-center gap-2"
+                        >
+                          <input
+                            type="checkbox"
+                            className="size-4 shrink-0 cursor-pointer accent-brand"
+                            checked={(chosenCalendars[conn.id] ?? []).includes(cal.id)}
+                            onChange={(e) =>
+                              setChosenCalendars((prev) => {
+                                const current = prev[conn.id] ?? [];
+                                return {
+                                  ...prev,
+                                  [conn.id]: e.target.checked
+                                    ? [...current, cal.id]
+                                    : current.filter((id) => id !== cal.id),
+                                };
+                              })
+                            }
+                          />
+                          <span>{cal.label}</span>
+                        </label>
+                      ))}
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-2 self-start"
+                        onClick={() => void saveCalendars(conn.id)}
+                      >
+                        Salvar seleção
+                      </Button>
+                    </fieldset>
+                  )}
+                  {result && (
+                    <p
+                      className={cn(
+                        'type-caption flex basis-full items-center gap-2',
+                        result.ok ? 'text-success' : 'text-danger',
+                      )}
+                      role="status"
+                    >
+                      {result.ok ? (
+                        <CheckCircle width={14} height={14} />
+                      ) : (
+                        <WarningCircle width={14} height={14} />
+                      )}
+                      {result.message}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {isEditing ? (
+          <form
+            className={cn('flex max-w-3xl flex-col gap-3 p-4', innerSurface)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
+            {spec.multi && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-ink-mid" htmlFor="conn-label-input">
+                  Nome desta conexão
+                </Label>
+                <Input
+                  id="conn-label-input"
+                  value={label}
+                  placeholder="Trabalho, Pessoal…"
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </div>
+            )}
+
+            {fields.map((field) => (
+              <Field
+                key={field.name}
+                spec={field}
+                value={values[field.name] ?? ''}
+                alreadySet={
+                  editing.id
+                    ? (mod.connections
+                        .find((c) => c.id === editing.id)
+                        ?.secretsSet.includes(field.name) ?? false)
+                    : false
+                }
+                mstodoAvailable={payload.mstodoAvailable}
+                onChange={(value) =>
+                  setValues((prev) => {
+                    const next = { ...prev, [field.name]: value };
+                    // Trocar de provedor preenche host e porta na hora, em
+                    // vez de deixar a pessoa procurar isso na internet.
+                    return field.name === 'preset' ? applyMailPreset(next) : next;
+                  })
+                }
+              />
+            ))}
+
+            <div className="mt-2 flex gap-2">
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving ? 'Salvando…' : 'Salvar'}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={cancel}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        ) : (
+          mod.module === 'agenda' &&
+          payload.googleConfigured && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => startNew(mod.module)}
+            >
+              Usar link iCal
+            </Button>
+          )
+        )}
+      </div>
+    );
+  };
+
+  const activeMod = payload.modules.find((mod) => mod.module === activeModule) ?? null;
+
   return (
-    <Section eyebrow="Integrações">
+    <div className="flex flex-col gap-4">
       {!payload.vaultReady && (
         <PanelError>
           DAILY_WEB_SECRET_KEY não está configurada no servidor. Sem ela nenhuma credencial pode ser
@@ -354,319 +661,55 @@ export function IntegrationsPanel() {
         </p>
       )}
 
-      <p className="max-w-[60ch] text-sm text-ink-mid">
-        Cada módulo é independente e opcional. Conecte só o que você usa — o painel mostra apenas os
-        que estiverem ligados.
-      </p>
+      {/* 12 columns, three each: four cards to a row, narrowing on smaller screens. */}
+      <div className="grid grid-cols-12 gap-4">
+        {payload.modules.map((mod) => {
+          const connected = mod.connections.length > 0;
 
-      {payload.modules.map((mod) => {
-        const spec = MODULES[mod.module];
-        const isEditing = editing?.module === mod.module;
-
-        return (
-          <article
-            key={mod.module}
-            className="flex flex-col gap-3 border-b border-line-soft py-4 last:border-b-0 last:pb-0"
-          >
-            <header className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="type-subhead">{mod.label}</h3>
-                <p className="text-sm text-ink-mid">{mod.summary}</p>
-              </div>
-              <label
-                className={cn(
-                  'type-caption inline-flex shrink-0 cursor-pointer items-center gap-2',
-                  mod.enabled ? 'text-brand' : 'text-ink-mid',
-                )}
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 cursor-pointer accent-brand"
-                  checked={mod.enabled}
-                  onChange={(e) => void toggleModule(mod.module, e.target.checked)}
-                  aria-label={`${mod.enabled ? 'desligar' : 'ligar'} ${mod.label}`}
-                />
-                <span>{mod.enabled ? 'Ligado' : 'Desligado'}</span>
-              </label>
-            </header>
-
-            {openHelp === mod.module && (
-              <ul className="type-caption flex max-w-[70ch] flex-col gap-2 border-l border-line-soft pl-4 text-ink-mid">
-                {spec.instructions.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            )}
-
-            {/* O Google é o caminho confiável para contas Google: o link iCal
-                quebra quando o administrador bloqueia compartilhamento
-                externo, e é fácil colar o link errado. */}
-            {mod.module === 'agenda' && payload.googleConfigured && !isEditing && (
-              <Button asChild size="sm" className="w-fit">
-                <a href="/api/integrations/agenda/google/start">Conectar com Google</a>
-              </Button>
-            )}
-
-            {/* A cópia das notas no Drive só nasce pelo Google: não há o que
-                preencher. Uma conexão por pessoa; trocar de conta é remover
-                e conectar de novo. */}
-            {mod.module === 'notes' &&
-              payload.googleConfigured &&
-              mod.connections.length === 0 &&
-              !isEditing && (
-                <Button asChild size="sm" className="w-fit">
-                  <a href="/api/integrations/agenda/google/start?purpose=notes">
-                    Guardar no Google Drive
-                  </a>
-                </Button>
+          return (
+            <article
+              key={mod.module}
+              className={cn(
+                'col-span-12 flex flex-col gap-4 p-4 sm:col-span-6 lg:col-span-3',
+                innerSurface,
+                innerSurfaceInteractive,
               )}
-
-            {mod.module === 'slack' && payload.slackConfigured && !isEditing && (
-              <Button asChild size="sm" className="w-fit">
-                <a href="/api/integrations/slack/start">
-                  {mod.connections.length > 0 ? 'Reconectar' : 'Conectar com Slack'}
-                </a>
-              </Button>
-            )}
-
-            {/* Sem client no servidor, quem administra a instância precisa
-                saber o que falta — e principalmente qual URI registrar, que é
-                onde o setup costuma falhar. */}
-            {mod.module === 'agenda' && !payload.googleConfigured && (
-              <p className="type-caption max-w-[70ch] rounded-md border border-dashed border-line-strong p-3 text-ink-mid">
-                Para conectar contas Google, quem administra este servidor precisa definir{' '}
-                <code className="font-mono text-ink">GOOGLE_CLIENT_ID</code> e{' '}
-                <code className="font-mono text-ink">GOOGLE_CLIENT_SECRET</code>. Criar o client é
-                gratuito; registre esta URI de redirecionamento:{' '}
-                <code className="mt-1 inline-block font-mono text-ink [overflow-wrap:anywhere]">
-                  {payload.googleRedirectUri}
-                </code>
-              </p>
-            )}
-
-            {mod.module === 'slack' && !payload.slackConfigured && (
-              <p className="type-caption max-w-[70ch] rounded-md border border-dashed border-line-strong p-3 text-ink-mid">
-                Para conectar o Slack, quem administra este servidor precisa definir{' '}
-                <code className="font-mono text-ink">SLACK_CLIENT_ID</code> e{' '}
-                <code className="font-mono text-ink">SLACK_CLIENT_SECRET</code>. Registre esta URI
-                de redirecionamento:{' '}
-                <code className="mt-1 inline-block font-mono text-ink [overflow-wrap:anywhere]">
-                  {payload.slackRedirectUri}
-                </code>
-              </p>
-            )}
-
-            {mod.connections.length > 0 && (
-              <ul className="flex flex-col gap-3">
-                {mod.connections.map((conn) => {
-                  const result = testResult[conn.id];
-                  return (
-                    <li
-                      key={conn.id}
-                      className={cn(
-                        'flex flex-wrap items-center gap-3 p-3',
-                        innerSurface,
-                        innerSurfaceInteractive,
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-sm font-medium text-ink">{conn.label}</span>
-                        {conn.unreadable ? (
-                          <span className="type-caption text-warning">
-                            ilegível com a chave atual — grave de novo
-                          </span>
-                        ) : (
-                          <span className="type-caption truncate text-ink-dim">
-                            {Object.values(conn.visible)[0] ?? 'configurado'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={testing === conn.id}
-                          onClick={() => void test(conn)}
-                        >
-                          {testing === conn.id ? 'Testando…' : 'Testar'}
-                        </Button>
-                        {conn.visible.provider !== 'google' && (
-                          <IconAction
-                            variant="outline"
-                            label="Editar"
-                            onClick={() => startEdit(conn)}
-                            icon={<Pencil className="size-4" />}
-                          />
-                        )}
-                        {conn.visible.provider === 'google' && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void loadCalendars(conn.id)}
-                          >
-                            Escolher agendas
-                          </Button>
-                        )}
-                        <IconAction
-                          variant="outline"
-                          label="Remover"
-                          className="text-danger hover:border-danger/40 hover:text-danger"
-                          onClick={() => void remove(conn)}
-                          icon={<Trash2 className="size-4" />}
-                        />
-                      </div>
-
-                      {calendars[conn.id] && (
-                        <fieldset className="flex basis-full flex-col gap-2 rounded-md border p-3">
-                          <legend className="type-caption px-2 text-ink-mid">
-                            Quais agendas mostrar
-                          </legend>
-                          {calendars[conn.id].map((cal) => (
-                            <label
-                              key={cal.id}
-                              className="type-caption flex cursor-pointer items-center gap-2"
-                            >
-                              <input
-                                type="checkbox"
-                                className="size-4 shrink-0 cursor-pointer accent-brand"
-                                checked={(chosenCalendars[conn.id] ?? []).includes(cal.id)}
-                                onChange={(e) =>
-                                  setChosenCalendars((prev) => {
-                                    const current = prev[conn.id] ?? [];
-                                    return {
-                                      ...prev,
-                                      [conn.id]: e.target.checked
-                                        ? [...current, cal.id]
-                                        : current.filter((id) => id !== cal.id),
-                                    };
-                                  })
-                                }
-                              />
-                              <span>{cal.label}</span>
-                            </label>
-                          ))}
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-2 self-start"
-                            onClick={() => void saveCalendars(conn.id)}
-                          >
-                            Salvar seleção
-                          </Button>
-                        </fieldset>
-                      )}
-                      {result && (
-                        <p
-                          className={cn(
-                            'type-caption flex basis-full items-center gap-2',
-                            result.ok ? 'text-success' : 'text-danger',
-                          )}
-                          role="status"
-                        >
-                          {result.ok ? (
-                            <CheckCircle width={14} height={14} />
-                          ) : (
-                            <WarningCircle width={14} height={14} />
-                          )}
-                          {result.message}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
-            {isEditing ? (
-              <form
-                className={cn('flex max-w-3xl flex-col gap-3 p-4', innerSurface)}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void save();
-                }}
-              >
-                {spec.multi && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-ink-mid" htmlFor="conn-label-input">
-                      Nome desta conexão
-                    </Label>
-                    <Input
-                      id="conn-label-input"
-                      value={label}
-                      placeholder="Trabalho, Pessoal…"
-                      onChange={(e) => setLabel(e.target.value)}
-                    />
-                  </div>
+            >
+              <div className="flex items-start justify-between gap-2">
+                <ToolLogo moduleId={mod.module} />
+                {connected && (
+                  <span className="rounded-full bg-brand-tint px-2.5 py-0.5 text-xs font-medium text-brand">
+                    Conectado
+                  </span>
                 )}
-
-                {fields.map((field) => (
-                  <Field
-                    key={field.name}
-                    spec={field}
-                    value={values[field.name] ?? ''}
-                    alreadySet={
-                      editing.id
-                        ? (mod.connections
-                            .find((c) => c.id === editing.id)
-                            ?.secretsSet.includes(field.name) ?? false)
-                        : false
-                    }
-                    mstodoAvailable={payload.mstodoAvailable}
-                    onChange={(value) =>
-                      setValues((prev) => {
-                        const next = { ...prev, [field.name]: value };
-                        // Trocar de provedor preenche host e porta na hora, em
-                        // vez de deixar a pessoa procurar isso na internet.
-                        return field.name === 'preset' ? applyMailPreset(next) : next;
-                      })
-                    }
-                  />
-                ))}
-
-                <div className="mt-2 flex gap-2">
-                  <Button type="submit" size="sm" disabled={saving}>
-                    {saving ? 'Salvando…' : 'Salvar'}
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={cancel}>
-                    Cancelar
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              // Ajuda e ação na mesma linha, com separação: soltas no fluxo
-              // elas encostavam uma na outra e liam como uma frase só.
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Um módulo sem campo visível não tem o que conectar pelo
-                    formulário: o botão abriria um formulário vazio. */}
-                {spec.fields.some((field) => !field.hidden) &&
-                  (spec.multi || mod.connections.length === 0) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => startNew(mod.module)}
-                  >
-                    {mod.connections.length === 0 ? 'Conectar' : 'Adicionar outra'}
-                  </Button>
-                )}
+              </div>
+              <h3 className="type-subhead">{mod.label}</h3>
+              <div className="mt-auto flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" onClick={() => openDetails(mod, 'connect')}>
+                  {connected ? 'Gerenciar' : 'Conectar'}
+                </Button>
                 <Button
                   type="button"
-                  variant="link"
+                  variant="ghost"
                   size="sm"
-                  className="px-0 text-ink-mid underline decoration-dotted underline-offset-[3px] hover:text-brand"
-                  aria-expanded={openHelp === mod.module}
-                  onClick={() => setOpenHelp(openHelp === mod.module ? null : mod.module)}
+                  className="text-ink-mid"
+                  disabled={connected}
+                  onClick={() => openDetails(mod, 'help')}
                 >
-                  {openHelp === mod.module ? 'Esconder ajuda' : 'Como conseguir isso'}
+                  Como conectar
                 </Button>
               </div>
-            )}
-          </article>
-        );
-      })}
+            </article>
+          );
+        })}
+      </div>
+
+      <Dialog open={activeMod !== null} onOpenChange={(open) => !open && closeDetails()}>
+        <DialogContent showCloseButton className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          {activeMod && renderDetails(activeMod)}
+        </DialogContent>
+      </Dialog>
       {dialog}
-    </Section>
+    </div>
   );
 }
