@@ -10,8 +10,11 @@ import {
   setDashboardLayout,
   setDashboardLayouts,
   resetDashboardLayout,
+  savedAppearance,
+  setAppearance,
 } from '@/lib/preferences';
 import { dropCache, patchCachedState, refreshAll } from '@/lib/refresher';
+import { parseAppearancePatch } from '@/lib/theme';
 
 /**
  * Preferências de visualização do usuário logado.
@@ -111,6 +114,14 @@ export async function PATCH(request: NextRequest) {
     setTasksView(userId, view);
     patchCachedState(userId, (state) => ({ ...state, tasksView: view }));
     return NextResponse.json({ tasksView: view });
+  }
+
+  // Only how the page looks: nothing on the dashboard changes, so no cache to patch.
+  if ('appearance' in body) {
+    const patch = parseAppearancePatch(body.appearance);
+    if (!patch) return NextResponse.json({ error: 'aparência inválida' }, { status: 400 });
+    setAppearance(userId, patch);
+    return NextResponse.json({ appearance: savedAppearance(userId) });
   }
 
   return NextResponse.json({ error: 'nenhuma preferência informada' }, { status: 400 });

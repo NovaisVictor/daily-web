@@ -139,3 +139,45 @@ describe('boas-vindas', () => {
     expect(welcomeKind(USER)).toBe('first');
   });
 });
+
+describe('aparência guardada na conta', () => {
+  it('não devolve nada de quem nunca escolheu', async () => {
+    const { savedAppearance } = await import('@/lib/preferences');
+    expect(savedAppearance(USER)).toEqual({});
+  });
+
+  it('guarda por campo e mescla as escolhas seguintes', async () => {
+    const { savedAppearance, setAppearance } = await import('@/lib/preferences');
+
+    setAppearance(USER, { theme: 'dark' });
+    setAppearance(USER, { width: 'limited', density: 'compact' });
+
+    expect(savedAppearance(USER)).toEqual({ theme: 'dark', density: 'compact', width: 'limited' });
+  });
+
+  it('o padrão escolhido também fica guardado', async () => {
+    const { savedAppearance, setAppearance } = await import('@/lib/preferences');
+
+    setAppearance(USER, { theme: 'dark' });
+    setAppearance(USER, { theme: 'system' });
+
+    expect(savedAppearance(USER).theme).toBe('system');
+  });
+
+  it('é por pessoa', async () => {
+    const { savedAppearance, setAppearance } = await import('@/lib/preferences');
+
+    setAppearance(USER, { backdrop: 'dracula' });
+
+    expect(savedAppearance(OTHER)).toEqual({});
+  });
+
+  it('ignora um valor ilegível gravado à mão, em vez de confiar nele', async () => {
+    const { savedAppearance, setPreference, APPEARANCE_KEYS } = await import('@/lib/preferences');
+
+    setPreference(USER, APPEARANCE_KEYS.theme, 'sepia');
+    setPreference(USER, APPEARANCE_KEYS.width, 'limited');
+
+    expect(savedAppearance(USER)).toEqual({ width: 'limited' });
+  });
+});

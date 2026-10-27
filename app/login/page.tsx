@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +26,10 @@ export default function LoginPage() {
         setError(data.error ?? 'Falha ao entrar');
         return;
       }
-      router.push('/');
+      // A full load, not a client navigation: the root layout paints the person's saved
+      // appearance on <html>, and it only runs again on a load. A soft navigation would leave
+      // the login screen's defaults in place until the next reload.
+      window.location.assign('/');
     } finally {
       setSubmitting(false);
     }

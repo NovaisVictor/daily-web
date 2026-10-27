@@ -24,8 +24,9 @@ import type { WelcomeKind } from '@/lib/greeting';
 import { ShellUserProvider } from './ShellUser';
 import { NAV_ITEMS, groupStart } from './nav-items';
 
-/** The page content never stretches past this, whatever the screen. The header stays full width. */
-const CONTAINER = 'mx-auto w-full max-w-[1216px]';
+/** The page content uses the whole window, unless the person chose the limited width in
+ *  Configuração (`data-width` on <html>, see `lib/theme.ts`). The header stays full width. */
+const CONTAINER = 'mx-auto w-full in-data-[width=limited]:max-w-[1216px]';
 
 interface Props {
   theme: ThemePreference;

@@ -3,14 +3,8 @@ import { cookies } from 'next/headers';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import { ServiceWorker } from '@/components/ServiceWorker';
-import {
-  BACKDROP_COOKIE,
-  DENSITY_COOKIE,
-  THEME_COOKIE,
-  parseBackdrop,
-  parseDensity,
-  parseTheme,
-} from '@/lib/theme';
+import { getCurrentUser } from '@/lib/auth/currentUser';
+import { resolveAppearance } from '@/lib/appearance';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -51,9 +45,11 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
-  const theme = parseTheme(jar.get(THEME_COOKIE)?.value);
-  const density = parseDensity(jar.get(DENSITY_COOKIE)?.value);
-  const backdrop = parseBackdrop(jar.get(BACKDROP_COOKIE)?.value);
+  const user = await getCurrentUser();
+  const { theme, density, backdrop, width } = resolveAppearance(
+    (name) => jar.get(name)?.value,
+    user?.id ?? null,
+  );
   const forced = theme === 'system' ? '' : theme;
 
   return (
@@ -63,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       data-density={density === 'compact' ? 'compact' : undefined}
       data-backdrop={backdrop === 'mesh' ? undefined : backdrop}
+      data-width={width === 'full' ? undefined : width}
       className={`${GeistSans.variable} ${GeistMono.variable} ${forced}`.trim()}
     >
       {/* No background utility here: body paints --mesh-base from globals.css,
