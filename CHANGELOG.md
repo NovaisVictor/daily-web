@@ -18,12 +18,17 @@ Only `main` is maintained; there are no release branches.
 - "Feito" shows its first 10 notes, with "Mostrar todas (n)" for the rest.
 - In the list, the always-visible red "Apagar" and the small "+" for subtasks
   moved into the row's "⋯" menu, and the subtask arrow grew to 24px.
-- Navigation moved from the sidebar to a header: Início, Kanban, Agentes and
-  Ferramentas, centred, with Configuração, Perfil, "Novidades" and sign-out in
-  the avatar menu. Page content is capped at 1216px and sits 40px below the
-  header, which stays full width. The refresh button now lives in the header,
+- Navigation moved from the sidebar to a header: Início, Kanban and
+  Ferramentas, centred, with Perfil, "Conectar agente" (`/access`), Configurações,
+  "Novidades" and sign-out in the avatar menu. The Agentes item and the
+  "Conectar agente" button on the kanban page are gone. Page content sits 40px below the header and uses the
+  whole window by default; Configuração > Largura do conteúdo has a "Limitar
+  largura" switch that caps it at 1216px. The header always stays full width. The refresh button now lives in the header,
   beside the bell, and refreshes the dashboard panels too: the header and the
-  home page share one dashboard state instead of polling separately.
+  home page share one dashboard state instead of polling separately. The
+  header's bell is the only one: the home page lost its own, and the "Avisar no
+  computador" switch and the desktop alerts moved to it, so they now work on
+  every page.
 - The dashboard of panels is now the home page, "Início" (`/`); the agents
   kanban moved to `/kanban`. `/workspace` redirects to `/`.
 - Integrations moved from Configuração to a new "Ferramentas" page (`/tools`),
@@ -34,7 +39,7 @@ Only `main` is maintained; there are no release branches.
   tool already turns its module on. The Google and Slack OAuth returns and the
   `connections_setup` MCP operation now point to `/tools` instead of `/config`.
   Configuração has no tabs: appearance, panel layout and users.
-- Panels are rearranged by pressing and holding one for 1 s, then dragging in the
+- Panels are rearranged by pressing and holding one for 0.5 s, then dragging in the
   same press; every panel shakes while the mode is on, and a floating bar saves or
   discards (Esc discards). A ring and a countdown follow the pointer during the
   hold. The "Organizar" button is gone. Buttons, links and text fields count as
@@ -51,6 +56,14 @@ Only `main` is maintained; there are no release branches.
   a large title and a dark "Continuar" button.
 
 ### Added
+- Appearance (theme, density, background and content width) is saved on the
+  account, not in the browser: it follows the person to any browser or device.
+  The browser's cookie only fills in what was never saved and serves the login
+  screen. Each control saves through `PATCH /api/preferences` (`appearance`,
+  strictly validated) and says so if it could not; the choice still applies
+  at once, in that browser. Sign-in is now a full page load so the saved
+  appearance is painted instead of the login screen's defaults. Desktop alerts
+  stay per browser, since the notification permission is.
 - A profile page (`/perfil`): photo, full name, e-mail and password change.
   The photo is stored as a data URL on the user (`avatar_url`) and the name and
   e-mail in `full_name` and `email` (migrations 21 and 22), all optional. A
