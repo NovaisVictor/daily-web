@@ -16,7 +16,6 @@ function band(over: Partial<Parameters<typeof NowBand>[0]> = {}) {
       welcome="first"
       pomodoro={null}
       onChanged={() => {}}
-      bell={null}
       {...over}
     />
   );
@@ -47,6 +46,12 @@ describe('NowBand greeting', () => {
 
     expect(screen.queryByText(/atualizado/i)).toBeNull();
     expect(screen.queryByText(/próxima em/i)).toBeNull();
+  });
+
+  it('has no bell of its own: the header has the only one', () => {
+    render(band());
+
+    expect(screen.queryByRole('button', { name: /notificações/ })).toBeNull();
   });
 
   it('no longer carries the refresh button or the settings link', () => {

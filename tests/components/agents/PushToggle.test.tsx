@@ -18,6 +18,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (navigator as { serviceWorker?: unknown }).serviceWorker; });
 
 describe('push toggle', () => {
+  it('says nothing when the server has no push keys', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ publicKey: null })));
+    const { container } = render(<PushToggle />);
+
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(container.textContent).toBe('');
+    expect(screen.queryByText(/configurados no servidor/)).toBeNull();
+  });
   it('subscribes this device with the server key, then tests and disables it', async () => {
     render(<PushToggle />);
     fireEvent.click(await screen.findByRole('button', { name: /Ativar avisos/ }));
