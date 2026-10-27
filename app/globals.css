@@ -995,7 +995,7 @@
   overflow: hidden;
 }
 
-/* O 1 s de pressão: um anel da cor da marca vai se formando em volta do painel. Nada
+/* O 0,5 s de pressão: um anel da cor da marca vai se formando em volta do painel. Nada
    que mude a geometria: encolher o painel fazia a borda passar por baixo do ponteiro. */
 @keyframes panel-press {
   from {
@@ -1009,7 +1009,7 @@
 }
 
 .dashboard-grid [data-slot='grid-panel'][data-pressing] {
-  animation: panel-press 1s linear forwards;
+  animation: panel-press 0.5s linear forwards;
 }
 
 /* O tremor do modo de organizar, como os ícones da tela inicial do celular. Gira
