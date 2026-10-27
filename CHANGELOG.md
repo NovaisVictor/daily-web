@@ -254,6 +254,9 @@ Only `main` is maintained; there are no release branches.
   `components/data/EmptyState`.
 
 ### Fixed
+- Empty states (no tasks, no notes, nothing in a panel) no longer show as a
+  black box inside the cards in the dark theme: they use the same translucent,
+  dashed well as an empty column of the tasks board.
 - On a narrow tasks panel, a list row keeps its title. The tags, date and
   subtask counter kept their width on one line, so the title was the only
   thing left to shrink and disappeared; on a narrow panel they now drop to a
