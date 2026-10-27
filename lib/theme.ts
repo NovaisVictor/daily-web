@@ -1,7 +1,7 @@
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
-/** The page background: the iridescent mesh, or a flat Catppuccin or Dracula base. */
-export type Backdrop = 'mesh' | 'catppuccin' | 'dracula';
+/** The page background: the iridescent mesh, a flat Catppuccin or Dracula base, or the WezTerm purple. */
+export type Backdrop = 'mesh' | 'catppuccin' | 'dracula' | 'wezterm';
 
 export const THEME_COOKIE = 'theme';
 export const DENSITY_COOKIE = 'density';
@@ -48,7 +48,7 @@ export function applyDensity(d: Density, root: HTMLElement = document.documentEl
 
 /** The mesh is the absence of the cookie, like "comfortable" and "system". */
 export function parseBackdrop(raw: string | undefined): Backdrop {
-  return raw === 'catppuccin' || raw === 'dracula' ? raw : 'mesh';
+  return raw === 'catppuccin' || raw === 'dracula' || raw === 'wezterm' ? raw : 'mesh';
 }
 
 export function applyBackdrop(b: Backdrop, root: HTMLElement = document.documentElement): void {

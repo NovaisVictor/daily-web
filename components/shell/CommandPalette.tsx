@@ -36,6 +36,7 @@ const DENSITIES: { value: Density; label: string }[] = [
 const BACKDROPS: { value: Backdrop; label: string }[] = [
   { value: 'mesh', label: 'Fundo gradiente' },
   { value: 'catppuccin', label: 'Fundo Catppuccin' },
+  { value: 'wezterm', label: 'Fundo WezTerm' },
 ];
 
 /** Coisas que não são uma tela própria, mas ainda devem ser achadas pela

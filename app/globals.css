@@ -79,7 +79,7 @@
 
   /* Background atmosphere. Iridescent and fixed on purpose: the accent stays the
      color of action and of data. Background here is atmosphere, not signal.
-     The Catppuccin and Dracula backdrops, chosen in the account menu, override
+     The Catppuccin, Dracula and WezTerm backdrops, chosen in the account menu, override
      these at the end of the token blocks. */
   --mesh-base: oklch(0.986 0.004 265);
   --mesh-1: oklch(0.957 0.017 255);
@@ -640,6 +640,47 @@
   --chart-3: var(--drc-yellow);
   --chart-4: var(--drc-pink);
   --chart-5: var(--drc-orange);
+}
+
+/* WezTerm, dark theme only: a WezTerm terminal background without its
+   wallpaper. The terminal paints #11071d at 75% over a blurred desktop; the
+   blobs stand in for that translucency, tinted with the terminal's own cursor,
+   magenta and cyan, kept as dim as the default dark mesh so glass cards stay
+   legible. Only the page floor changes: text, accent and status colors keep
+   the dark theme. Like Dracula there is no light base, so a light page keeps
+   the mesh. The mapping is written twice, as the dark theme is. */
+:root[data-backdrop='wezterm'] {
+  --wzt-background: oklch(0.158 0.047 302.755); /* #11071d */
+  --wzt-recessed: oklch(0.13 0.038 302.755);
+  --wzt-glow-purple: oklch(0.22 0.09 302.755);
+  --wzt-glow-cursor: oklch(0.21 0.085 339.288); /* hue of cursor_bg #a63f8b */
+  --wzt-glow-magenta: oklch(0.2 0.07 357.741); /* hue of #ff4499 */
+  --wzt-glow-cyan: oklch(0.2 0.05 194.87); /* hue of #2de2e2 */
+  --wzt-glow-haze: oklch(0.175 0.04 302.755);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-backdrop='wezterm']:not(.light) {
+    --surface-0: var(--wzt-background);
+    --surface-1: var(--wzt-recessed);
+    --mesh-base: var(--wzt-background);
+    --mesh-1: var(--wzt-glow-purple);
+    --mesh-2: var(--wzt-glow-cursor);
+    --mesh-3: var(--wzt-glow-magenta);
+    --mesh-4: var(--wzt-glow-cyan);
+    --mesh-5: var(--wzt-glow-haze);
+  }
+}
+
+:root.dark[data-backdrop='wezterm'] {
+  --surface-0: var(--wzt-background);
+  --surface-1: var(--wzt-recessed);
+  --mesh-base: var(--wzt-background);
+  --mesh-1: var(--wzt-glow-purple);
+  --mesh-2: var(--wzt-glow-cursor);
+  --mesh-3: var(--wzt-glow-magenta);
+  --mesh-4: var(--wzt-glow-cyan);
+  --mesh-5: var(--wzt-glow-haze);
 }
 
 @theme inline {

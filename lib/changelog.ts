@@ -13,6 +13,18 @@ export interface Release {
 /** Newest first. A new release is one more entry at the top. */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-27-wezterm',
+    date: '2026-10-27',
+    title: 'Fundo WezTerm',
+    items: [
+      {
+        title: 'O roxo do terminal, sem imagem',
+        detail:
+          'Em Fundo, no menu da conta, nas Configurações ou na busca: no tema escuro, a página ganha o roxo profundo do WezTerm com brilhos em magenta e ciano. Cartões, texto e destaque seguem o tema escuro. No tema claro o gradiente continua.',
+      },
+    ],
+  },
+  {
     id: '2026-10-23-agent-workspace',
     date: '2026-10-23',
     title: 'Seu trabalho com agentes, em um só lugar',

@@ -42,6 +42,7 @@ const BACKDROP_LABEL: Record<Backdrop, string> = {
   catppuccin: 'Catppuccin',
   // Dracula only remaps the dark theme, so the hint keeps a light-theme pick from looking broken.
   dracula: 'Dracula (só no tema escuro)',
+  wezterm: 'WezTerm (só no tema escuro)',
 };
 
 interface Props {
@@ -160,7 +161,7 @@ export function AccountMenu({
           value={backdrop}
           onValueChange={(v) => chooseBackdrop(v as Backdrop)}
         >
-          {(['mesh', 'catppuccin', 'dracula'] as const).map((value) => (
+          {(['mesh', 'catppuccin', 'dracula', 'wezterm'] as const).map((value) => (
             <DropdownMenuRadioItem key={value} value={value}>
               {BACKDROP_LABEL[value]}
             </DropdownMenuRadioItem>

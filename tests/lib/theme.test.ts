@@ -15,9 +15,13 @@ describe('parseBackdrop', () => {
     expect(parseBackdrop('dracula')).toBe('dracula');
   });
 
+  it('reconhece o WezTerm', () => {
+    expect(parseBackdrop('wezterm')).toBe('wezterm');
+  });
+
   // Cookie ausente, apagado ou escrito à mão cai no gradiente, que é o padrão.
   it('cai no gradiente para qualquer outro valor', () => {
-    for (const valor of [undefined, '', 'mesh', 'Catppuccin', 'Dracula', 'lixo']) {
+    for (const valor of [undefined, '', 'mesh', 'Catppuccin', 'Dracula', 'WezTerm', 'lixo']) {
       expect(parseBackdrop(valor), String(valor)).toBe('mesh');
     }
   });
@@ -36,6 +40,13 @@ describe('applyBackdrop', () => {
 
     expect(document.documentElement.dataset.backdrop).toBe('dracula');
     expect(document.cookie).toContain(`${BACKDROP_COOKIE}=dracula`);
+  });
+
+  it('marca o elemento raiz e grava o cookie ao escolher o WezTerm', () => {
+    applyBackdrop('wezterm');
+
+    expect(document.documentElement.dataset.backdrop).toBe('wezterm');
+    expect(document.cookie).toContain(`${BACKDROP_COOKIE}=wezterm`);
   });
 
   it('troca do Catppuccin para o Dracula sem deixar as duas marcas', () => {

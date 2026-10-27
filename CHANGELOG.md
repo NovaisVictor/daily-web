@@ -51,6 +51,11 @@ Only `main` is maintained; there are no release branches.
   a large title and a dark "Continuar" button.
 
 ### Added
+- A "WezTerm" page background, beside Gradiente, Catppuccin and Dracula: in
+  the dark theme the page floor takes the terminal's `#11071d` purple with dim
+  glows in its cursor, magenta and cyan, and no wallpaper image. Like Dracula
+  it only remaps the dark theme; a light page keeps the mesh. Selectable in the
+  account menu, in Configuração → Aparência and in the command palette.
 - A profile page (`/perfil`): photo, full name, e-mail and password change.
   The photo is stored as a data URL on the user (`avatar_url`) and the name and
   e-mail in `full_name` and `email` (migrations 21 and 22), all optional. A
