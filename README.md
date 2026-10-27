@@ -172,6 +172,14 @@ same whether your workflow ends in "Resolvido" or in "Done".
 [github.com/settings/tokens](https://github.com/settings/tokens). Scope `repo`
 for private repositories; for public ones, no scope is needed.
 
+Under **Repositórios acompanhados**, each tracked repository can follow only
+some authors: add their GitHub logins below the repository. A repository with
+no authors shows everyone's work. With authors set, its pull requests come from
+one GitHub search per author instead of the repository's 50 most recently
+updated, so an older PR is never cut; its issues are still shown in full. Up to
+10 authors per repository and 20 distinct authors in total, since each one is a
+search on every refresh.
+
 **Slack** — click **Conectar com Slack**. The panel shows mentions from the
 last seven days and unread direct messages for the account that authorized it.
 Some workspaces require an administrator to approve the app first.

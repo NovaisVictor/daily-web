@@ -27,7 +27,8 @@ configuration operations.
 | `github_work` | Captured tracked/review/mine provider models; existing state snapshot read model | URL filters/paging, default-branch metadata, partial data, invalid result enum/cursor, safe upstream failure |
 | `github_repositories` | Shared owned-connection read; GET `/api/pulls/repos` | Configuration remains usable while module is disabled; foreign connections fail closed |
 | `github_repository_add` | Local atomic receipt; POST `/api/pulls/repos` | Replay, no duplicate repository, capacity boundary through browser tests; no remote write |
-| `github_repository_remove` | Local atomic receipt; DELETE `/api/pulls/repos` | Replay and removal; no remote write |
+| `github_repository_remove` | Local atomic receipt; DELETE `/api/pulls/repos` | Replay and removal, which also forgets the repo's followed authors; no remote write |
+| `github_repository_authors` | Local atomic receipt; PUT `/api/pulls/repos/authors` | Replay, empty list follows everyone, untracked repo refusal, per-repo and total author limits; no remote write |
 | `github_review` | Shared current pull/viewer preflight and review adapter; browser reviews route | Server-side self-review/draft/closed refusal; provider permission denial, malformed result state, uncertain write and confirmed replay |
 | `github_comment` | Shared comment adapter; browser comments route | Confirmed identity/URL replay, 4xx refusal, network uncertainty, required text/length, browser idempotency and Origin check |
 | `github_request_review` | Shared current-pull preflight and reviewer adapter; browser reviewers route | Users/teams, deduplication, author/draft restrictions, invalid response, 4xx refusal, uncertain write/replay |

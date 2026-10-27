@@ -26,7 +26,9 @@ export function pullOperationError(error:unknown,userId:string):NextResponse {
   }
   if(error instanceof AccessError){
     if(error.code==='repository_limit')return NextResponse.json({error:'limite de 30 repositórios acompanhados — remova um antes de adicionar outro'},{status:400});
+    if(error.code==='author_limit')return NextResponse.json({error:'limite de 10 autores por repositório e 20 no total — remova um antes de adicionar outro'},{status:400});
     const messages:Record<string,string>={
+      repository_not_tracked:'Acompanhe o repositório antes de escolher os autores',
       draft_pull:'O PR ainda é um rascunho',
       self_review:'Você não pode revisar seu próprio PR',
       author_review:'O autor do PR não pode ser solicitado como revisor',

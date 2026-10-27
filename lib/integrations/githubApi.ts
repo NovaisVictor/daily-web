@@ -1,9 +1,14 @@
 import type { Connection } from '@/lib/vault/connections';
 import type { MyPullsDigest, PullsDigest, PullRequestItem, ReviewRequestsDigest } from '@/lib/types';
 import { isValidRepo } from '@/lib/api/validation';
+import { isGithubLogin } from '@/lib/githubLogin';
 import { githubCall, githubGraphql, graphqlErrorMessage, type GraphqlReply } from './github/client';
 import {
+  authorAlias,
+  AUTHORS_PER_QUERY,
+  authorsQuery,
   MY_PULLS_QUERY,
+  parseAuthorsData,
   MY_PULLS_SEARCH,
   parseReposData,
   parseSearchData,
@@ -13,6 +18,7 @@ import {
   reposQuery,
   REVIEW_REQUESTS_QUERY,
   REVIEW_REQUESTS_SEARCH,
+  type AuthorGroup,
   type ParsedRepos,
 } from './github/pulls';
 
@@ -50,6 +56,71 @@ export function parseRepoList(raw: string): string[] {
 
 export function serializeRepoList(repos: string[]): string {
   return repos.join(', ');
+}
+
+/** Each distinct author is one GitHub search per refresh cycle. */
+export const TRACKED_AUTHORS_MAX = 20;
+export const AUTHORS_PER_REPO_MAX = 10;
+
+/** Followed authors by tracked repo. A repo absent from the map shows every author. */
+export type RepoAuthors = Record<string, string[]>;
+
+const caseless = (value: string) => value.toLowerCase();
+
+/** Stored as JSON beside `repos`, not inside it: a server still on the
+ *  previous version reads `repos` unchanged and just shows every author. Only
+ *  the panel writes this, so a value it could not have written is an error,
+ *  not an empty list that would silently widen the panel back to everyone. */
+export function parseRepoAuthors(raw: string): RepoAuthors {
+  if (raw.trim() === '') return {};
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error('lista de autores acompanhados ilegível — remova e adicione os autores de novo');
+  }
+  const valid =
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.entries(value).every(
+      ([repo, authors]) => isValidRepo(repo) && Array.isArray(authors) && authors.every(isGithubLogin),
+    );
+  if (!valid) throw new Error('lista de autores acompanhados ilegível — remova e adicione os autores de novo');
+  return value as RepoAuthors;
+}
+
+/** Never `''`: saving a hidden field empty means "keep what is there", so
+ *  clearing the last list must still write something. */
+export function serializeRepoAuthors(authors: RepoAuthors): string {
+  return JSON.stringify(Object.fromEntries(Object.entries(authors).filter(([, logins]) => logins.length > 0)));
+}
+
+export function trackedAuthors(conn: Connection): RepoAuthors {
+  return parseRepoAuthors(conn.values.repoAuthors ?? '');
+}
+
+/** Logins are case-insensitive on GitHub; the first spelling seen wins. */
+export function distinctAuthors(logins: string[]): string[] {
+  const seen = new Set<string>();
+  return logins.filter((login) => {
+    if (seen.has(caseless(login))) return false;
+    seen.add(caseless(login));
+    return true;
+  });
+}
+
+/** Inverts repo → authors into author → repos, one search per author. */
+export function authorGroups(repos: string[], authors: RepoAuthors): AuthorGroup[] {
+  const groups = new Map<string, AuthorGroup>();
+  for (const repo of repos) {
+    for (const author of distinctAuthors(authors[repo] ?? [])) {
+      const group = groups.get(caseless(author)) ?? { author, repos: [] };
+      group.repos.push(repo);
+      groups.set(caseless(author), group);
+    }
+  }
+  return [...groups.values()];
 }
 
 export function githubToken(conn: Connection): string {
@@ -101,13 +172,22 @@ export function trackedRepos(conn: Connection): string[] {
   return parseRepoList(conn.values.repos ?? '');
 }
 
-async function fetchRepoBatch(token: string, repos: string[]): Promise<ParsedRepos> {
-  const { query, variables } = reposQuery(repos);
+async function fetchRepoBatch(token: string, repos: string[], withoutPulls: ReadonlySet<string>): Promise<ParsedRepos> {
+  const { query, variables } = reposQuery(repos, withoutPulls);
   const { data, errors } = await githubGraphql(token, query, variables);
   const aliases = new Set(repos.map((_, index) => repoAlias(index)));
   const global = errors.find((error) => !aliases.has(error.path[0] ?? ''));
   if (global) throw new Error(graphqlErrorMessage(global));
-  return parseReposData(data, repos, errors);
+  return parseReposData(data, repos, errors, withoutPulls);
+}
+
+async function fetchAuthorBatch(token: string, groups: AuthorGroup[]): Promise<ParsedRepos> {
+  const { query, variables } = authorsQuery(groups);
+  const { data, errors } = await githubGraphql(token, query, variables);
+  const aliases = new Set(groups.map((_, index) => authorAlias(index)));
+  const global = errors.find((error) => !aliases.has(error.path[0] ?? ''));
+  if (global) throw new Error(graphqlErrorMessage(global));
+  return parseAuthorsData(data, groups, errors);
 }
 
 function batchesOf<T>(values: T[], size: number): T[][] {
@@ -118,10 +198,16 @@ function batchesOf<T>(values: T[], size: number): T[][] {
 
 /** Tracked repos in GraphQL queries of up to REPOS_PER_QUERY repos each, run in
  *  parallel, never one call per repo. A failed query puts only its repos in
- *  `errors`; when every query fails, the panel fails with the first reason. */
+ *  `errors`; when every query fails, the panel fails with the first reason.
+ *
+ *  A repo with followed authors takes its PRs from a search per author instead
+ *  of its own pull list: that list holds only the PER_REPO_LIMIT most recently
+ *  updated, so filtering it would silently lose an author's older PRs in a busy
+ *  repo. Its issues still come from the repo query, unfiltered. */
 export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
   const token = githubToken(conn);
   const tracked = trackedRepos(conn);
+  const authors = trackedAuthors(conn);
   const empty: PullsDigest = { items: [], errors: [], defaultBranches: [], truncated: [] };
   if (tracked.length === 0) return empty;
 
@@ -131,16 +217,26 @@ export async function fetchPulls(conn: Connection): Promise<PullsDigest> {
     .map((repo) => `${repo}: nome inválido — use o formato dono/nome`);
   if (repos.length === 0) return { ...empty, errors: invalid };
 
-  const batches = batchesOf(repos, REPOS_PER_QUERY);
-  const settled = await Promise.allSettled(batches.map((batch) => fetchRepoBatch(token, batch)));
+  const groups = authorGroups(repos, authors);
+  const byAuthor = new Set(groups.flatMap((group) => group.repos));
+  const repoBatches = batchesOf(repos, REPOS_PER_QUERY);
+  const authorBatches = batchesOf(groups, AUTHORS_PER_QUERY);
+  const settled = await Promise.allSettled([
+    ...repoBatches.map((batch) => fetchRepoBatch(token, batch, byAuthor)),
+    ...authorBatches.map((batch) => fetchAuthorBatch(token, batch)),
+  ]);
   const failures = settled.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []));
   if (failures.length === settled.length) throw failures[0];
 
+  const subjects = [
+    ...repoBatches,
+    ...authorBatches.map((batch) => batch.map((group) => `autor ${group.author}`)),
+  ];
   const merged: PullsDigest = { ...empty, errors: [...invalid] };
   settled.forEach((outcome, index) => {
     if (outcome.status === 'rejected') {
       const reason = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
-      merged.errors.push(...batches[index].map((repo) => `${repo}: ${reason}`));
+      merged.errors.push(...subjects[index].map((subject) => `${subject}: ${reason}`));
       return;
     }
     merged.items.push(...outcome.value.items);

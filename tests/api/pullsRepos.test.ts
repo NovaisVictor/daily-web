@@ -15,6 +15,7 @@ vi.mock('@/lib/api/context', async (importOriginal) => ({
 }));
 
 import { POST, GET, DELETE } from '@/app/api/pulls/repos/route';
+import { PUT } from '@/app/api/pulls/repos/authors/route';
 import { listConnections, saveConnection } from '@/lib/vault/connections';
 
 let dir: string;
@@ -70,7 +71,39 @@ describe('POST /api/pulls/repos', () => {
 
 it('lists and removes repositories through the same shared configuration operation',async()=>{
   saveConnection(ME.id,'pulls','GitHub',{token:'test-only-token',repos:'acme/repo-1, acme/repo-2'});
-  expect(await(await GET()).json()).toEqual({repos:['acme/repo-1','acme/repo-2']});
+  expect(await(await GET()).json()).toEqual({repos:['acme/repo-1','acme/repo-2'],authors:{}});
   const removed=await DELETE(new NextRequest('http://localhost/api/pulls/repos',{method:'DELETE',body:JSON.stringify({repo:'acme/repo-1'})}));
-  expect(await removed.json()).toEqual({repos:['acme/repo-2']});
+  expect(await removed.json()).toEqual({repos:['acme/repo-2'],authors:{}});
+});
+
+describe('PUT /api/pulls/repos/authors', () => {
+  function put(body: unknown) {
+    return PUT(new NextRequest('http://localhost/api/pulls/repos/authors', { method: 'PUT', body: JSON.stringify(body) }));
+  }
+
+  it('follows only the chosen authors in a tracked repo and returns the new configuration', async () => {
+    saveConnection(ME.id, 'pulls', 'GitHub', { token: 't', repos: 'acme/repo-1, acme/repo-2' });
+    const res = await put({ repo: 'acme/repo-1', authors: ['alice', 'bob'] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ repos: ['acme/repo-1', 'acme/repo-2'], authors: { 'acme/repo-1': ['alice', 'bob'] } });
+  });
+
+  it('says why when the repo is not tracked, without saving', async () => {
+    saveConnection(ME.id, 'pulls', 'GitHub', { token: 't', repos: 'acme/repo-1' });
+    const res = await put({ repo: 'acme/other', authors: ['alice'] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Acompanhe o repositório antes de escolher os autores');
+  });
+
+  it('refuses an eleventh author in one repo with the limit in the message', async () => {
+    saveConnection(ME.id, 'pulls', 'GitHub', { token: 't', repos: 'acme/repo-1' });
+    const res = await put({ repo: 'acme/repo-1', authors: Array.from({ length: 11 }, (_, i) => `user-${i}`) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('limite de 10 autores por repositório e 20 no total — remova um antes de adicionar outro');
+  });
+
+  it('refuses a body without an author list', async () => {
+    saveConnection(ME.id, 'pulls', 'GitHub', { token: 't', repos: 'acme/repo-1' });
+    expect((await put({ repo: 'acme/repo-1' })).status).toBe(400);
+  });
 });

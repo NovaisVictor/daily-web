@@ -20,7 +20,7 @@ import {
   reviewerStateOf,
   reviewFromDecision,
 } from '@/lib/integrations/githubApi';
-import { reposQuery } from '@/lib/integrations/github/pulls';
+import { authorSearch, reposQuery } from '@/lib/integrations/github/pulls';
 import type { Connection } from '@/lib/vault/connections';
 import type { PullRequestItem } from '@/lib/types';
 
@@ -57,8 +57,9 @@ function find(items: PullRequestItem[], repo: string, number: number): PullReque
   return item;
 }
 
-function conn(repos = TRACKED.join(', ')): Connection {
-  return { id: 'c1', module: 'pulls', label: 'GitHub', values: { token: 'ghp_token', repos } } as unknown as Connection;
+function conn(repos = TRACKED.join(', '), repoAuthors?: Record<string, string[]>): Connection {
+  const values = { token: 'ghp_token', repos, ...(repoAuthors ? { repoAuthors: JSON.stringify(repoAuthors) } : {}) };
+  return { id: 'c1', module: 'pulls', label: 'GitHub', values } as unknown as Connection;
 }
 
 function reply(body: unknown, headers: Record<string, string> = {}, status = 200) {
@@ -515,6 +516,92 @@ describe('fetchPulls', () => {
     const digest = await fetchPulls(conn(`${TRACKED.join(', ')}, not-a-repo`));
     expect(digest.errors).toEqual(['not-a-repo: nome inválido — use o formato dono/nome']);
     expect(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)).variables).not.toHaveProperty('owner8');
+  });
+});
+
+describe('fetchPulls with followed authors', () => {
+  type Body = { query: string; variables: Record<string, string> };
+  const bodyOf = (init: RequestInit) => JSON.parse(String(init.body)) as Body;
+  const searchNode = (repo: string, number: number, author: string) => {
+    const base = (dataOf(reposCapture).repo2 as { pullRequests: { nodes: Record<string, unknown>[] } }).pullRequests.nodes[0];
+    return { ...base, id: `PR_${repo}_${number}`, number, url: `https://github.com/${repo}/pull/${number}`, author: { login: author }, repository: { nameWithOwner: repo } };
+  };
+
+  /** Answers the repo query with empty repos and each author search from `found`. */
+  function stubGithub(found: Record<string, unknown[] | { issueCount: number; nodes: unknown[] }>, extra: (body: Body) => Record<string, unknown> = () => ({})) {
+    const mock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = bodyOf(init);
+      const data: Record<string, unknown> = { viewer: { login: 'viewer' } };
+      for (const [key, value] of Object.entries(body.variables)) {
+        if (key.startsWith('owner')) {
+          const index = key.slice('owner'.length);
+          const repo = emptyRepo(`${value}/${body.variables[`name${index}`]}`) as Record<string, unknown>;
+          if (!body.query.includes(`repo${index}: repository(owner: $owner${index}, name: $name${index}) { ...RepoFields ...RepoPulls }`)) delete repo.pullRequests;
+          data[`repo${index}`] = repo;
+        }
+        if (key.startsWith('q')) {
+          const hit = found[value] ?? [];
+          data[`author${key.slice(1)}`] = Array.isArray(hit) ? { issueCount: hit.length, nodes: hit } : hit;
+        }
+      }
+      return reply({ data, ...extra(body) });
+    });
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  it('searches each followed author once across their repos and skips those repos\' own pull lists', async () => {
+    const fetchMock = stubGithub({
+      'is:open is:pr author:alice repo:acme/a repo:acme/b': [searchNode('acme/a', 1, 'alice'), searchNode('acme/b', 2, 'alice')],
+      'is:open is:pr author:bob repo:acme/a': [searchNode('acme/a', 3, 'bob')],
+    });
+    const digest = await fetchPulls(conn('acme/a, acme/b, acme/c', { 'acme/a': ['alice', 'bob'], 'acme/b': ['Alice'] }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const bodies = fetchMock.mock.calls.map(([, init]) => bodyOf(init));
+    const repos = bodies.find((body) => body.query.includes('TrackedRepos'))!;
+    const authors = bodies.find((body) => body.query.includes('TrackedAuthors'))!;
+    expect(repos.query).toContain('repo0: repository(owner: $owner0, name: $name0) { ...RepoFields }');
+    expect(repos.query).toContain('repo2: repository(owner: $owner2, name: $name2) { ...RepoFields ...RepoPulls }');
+    expect(Object.values(authors.variables)).toEqual([
+      'is:open is:pr author:alice repo:acme/a repo:acme/b',
+      'is:open is:pr author:bob repo:acme/a',
+    ]);
+    expect(digest.items.map((item) => `${item.repo}#${item.number}`).sort()).toEqual(['acme/a#1', 'acme/a#3', 'acme/b#2']);
+    expect(digest.errors).toEqual([]);
+  });
+
+  it('declares no pull fragments when every repo follows authors, since GraphQL rejects unused fragments', () => {
+    const { query } = reposQuery(['acme/a'], new Set(['acme/a']));
+    expect(query).not.toContain('RepoPulls');
+    expect(query).not.toContain('fragment PullFields');
+  });
+
+  it('searches an app author by its app name, not its bot login', () => {
+    expect(authorSearch({ author: 'dependabot[bot]', repos: ['acme/a'] })).toBe('is:open is:pr author:app/dependabot repo:acme/a');
+  });
+
+  it('fails one author GitHub refused without hiding the others', async () => {
+    stubGithub(
+      { 'is:open is:pr author:bob repo:acme/a': [searchNode('acme/a', 3, 'bob')] },
+      (body) => (body.query.includes('TrackedAuthors') ? { errors: [{ type: 'INVALID', path: ['author0'], message: 'The listed users cannot be searched' }] } : {}),
+    );
+    const digest = await fetchPulls(conn('acme/a', { 'acme/a': ['ghost', 'bob'] }));
+    expect(digest.errors).toEqual(['autor ghost: The listed users cannot be searched']);
+    expect(digest.items.map((item) => item.number)).toEqual([3]);
+  });
+
+  it('says when an author has more open PRs than one search page holds', async () => {
+    stubGithub({ 'is:open is:pr author:alice repo:acme/a': { issueCount: 80, nodes: [searchNode('acme/a', 1, 'alice')] } });
+    const digest = await fetchPulls(conn('acme/a', { 'acme/a': ['alice'] }));
+    expect(digest.errors).toEqual(['autor alice: mostrando 1 de 80 pull requests abertos']);
+  });
+
+  it('fails visibly instead of showing everyone when the stored author list is unreadable', async () => {
+    const fetchMock = stubFetch();
+    const broken = { ...conn('acme/a'), values: { token: 't', repos: 'acme/a', repoAuthors: '{not json' } } as unknown as Connection;
+    await expect(fetchPulls(broken)).rejects.toThrow('lista de autores acompanhados ilegível');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

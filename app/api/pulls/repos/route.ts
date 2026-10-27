@@ -8,10 +8,10 @@ export async function GET() {
   const auth=await requireUser();
   if(!auth.ok)return auth.response;
   const connection=listConnections(auth.value.id,'pulls')[0];
-  if(!connection)return NextResponse.json({repos:[]});
+  if(!connection)return NextResponse.json({repos:[],authors:{}});
   try {
     const result=await runPullOperation(new Request('http://localhost/api/pulls/repos'),{user:auth.value,connection},'github_repositories',{});
-    return NextResponse.json({repos:result.repositories});
+    return NextResponse.json({repos:result.repositories,authors:result.authors});
   } catch(error){return pullOperationError(error,auth.value.id);}
 }
 
@@ -26,7 +26,7 @@ async function change(request:NextRequest,action:'add'|'remove') {
   try {
     await runPullOperation(request,ctx,`github_repository_${action}`,{repo:body.repo});
     const result=await runPullOperation(new Request(request.url),ctx,'github_repositories',{});
-    return NextResponse.json({repos:result.repositories});
+    return NextResponse.json({repos:result.repositories,authors:result.authors});
   } catch(error){return pullOperationError(error,auth.value.id);}
 }
 export function POST(request:NextRequest){return change(request,'add');}

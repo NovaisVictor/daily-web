@@ -12,7 +12,7 @@ import type {
   ReviewRequestsDigest,
 } from '@/lib/types';
 import { PanelError } from '@/components/data/PanelError';
-import { groupByRepo, repoUrl, type RepoGroup } from '@/lib/integrations/githubApi';
+import { groupByRepo, repoUrl, type RepoAuthors as RepoAuthorsMap, type RepoGroup } from '@/lib/integrations/githubApi';
 import { Section } from './ui/Section';
 import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/data/EmptyState';
@@ -25,6 +25,7 @@ import { MyPullsPanel } from './pulls/MyPullsPanel';
 import { PullFilters } from './pulls/PullFilters';
 import { DefaultBranchAlert } from './pulls/DefaultBranchAlert';
 import { PullsActionsProvider } from './pulls/context';
+import { RepoAuthors } from './pulls/RepoAuthors';
 import { hasPullFilters, matchesPullFilters, parsePullFilters } from '@/lib/pullFilters';
 
 const NO_FILTER_MATCH = 'Nenhum resultado para os filtros.';
@@ -139,6 +140,7 @@ export function PullsPanel({
   };
 
   const [repos, setRepos] = useState<string[]>([]);
+  const [authors, setAuthors] = useState<RepoAuthorsMap>({});
   const [newRepo, setNewRepo] = useState('');
   const [reposError, setReposError] = useState<string | null>(null);
 
@@ -147,6 +149,7 @@ export function PullsPanel({
     if (!res.ok) return;
     const data = await res.json();
     setRepos(data.repos ?? []);
+    setAuthors(data.authors ?? {});
   };
 
   useEffect(() => {
@@ -166,6 +169,7 @@ export function PullsPanel({
       return;
     }
     setRepos(data.repos ?? []);
+    setAuthors(data.authors ?? {});
     setNewRepo('');
     onChanged?.();
   };
@@ -183,7 +187,22 @@ export function PullsPanel({
       return;
     }
     setRepos(data.repos ?? []);
+    setAuthors(data.authors ?? {});
     onChanged?.();
+  };
+
+  const saveAuthors = async (repo: string, next: string[]): Promise<string | null> => {
+    const res = await fetch('/api/pulls/repos/authors', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, authors: next }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error ?? 'Falha ao salvar os autores';
+    setRepos(data.repos ?? []);
+    setAuthors(data.authors ?? {});
+    onChanged?.();
+    return null;
   };
 
   const filtros = parsePullFilters(new URLSearchParams(searchParams.toString()));
@@ -321,32 +340,34 @@ export function PullsPanel({
             <summary className="cursor-pointer text-sm text-ink-dim transition-colors duration-100 ease-brand hover:text-ink-mid motion-reduce:transition-none">
               Repositórios acompanhados
             </summary>
-            <div className="my-3 flex flex-wrap gap-2">
+            <ul className="my-3 flex flex-col gap-3">
               {repos.map((repo) => (
-                <span
-                  key={repo}
-                  className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-surface-2 py-0.5 pr-1 pl-3 text-sm text-ink-mid shadow-e1"
-                >
-                  {repo}
-                  <button
-                    type="button"
-                    aria-label={`remover ${repo}`}
-                    onClick={() => void removeRepo(repo)}
-                    className={cn(
-                      'rounded-full p-1 leading-none text-ink-dim transition-colors duration-100 ease-brand hover:text-danger motion-reduce:transition-none',
-                      focusRing,
-                    )}
-                  >
-                    ×
-                  </button>
-                </span>
+                <li key={repo} className="flex flex-col items-start gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-surface-2 py-0.5 pr-1 pl-3 text-sm text-ink-mid shadow-e1">
+                    {repo}
+                    <button
+                      type="button"
+                      aria-label={`remover ${repo}`}
+                      onClick={() => void removeRepo(repo)}
+                      className={cn(
+                        'rounded-full p-1 leading-none text-ink-dim transition-colors duration-100 ease-brand hover:text-danger motion-reduce:transition-none',
+                        focusRing,
+                      )}
+                    >
+                      ×
+                    </button>
+                  </span>
+                  <RepoAuthors
+                    repo={repo}
+                    authors={authors[repo] ?? []}
+                    onSave={(next) => saveAuthors(repo, next)}
+                  />
+                </li>
               ))}
               {repos.length === 0 && (
-                <span className="py-2 text-sm text-ink-dim">
-                  Nenhum repositório acompanhado ainda.
-                </span>
+                <li className="py-2 text-sm text-ink-dim">Nenhum repositório acompanhado ainda.</li>
               )}
-            </div>
+            </ul>
             <div className="flex gap-2">
               <Input
                 className="h-8 min-w-0 flex-1"

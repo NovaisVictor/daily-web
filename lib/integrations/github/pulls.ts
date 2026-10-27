@@ -47,13 +47,17 @@ fragment PullFields on PullRequest {
 }`;
 }
 
-const REPO_FIELDS = `
-fragment RepoFields on Repository {
-  nameWithOwner
+const REPO_PULLS = `
+fragment RepoPulls on Repository {
   pullRequests(states: OPEN, first: ${PER_REPO_LIMIT}, orderBy: { field: UPDATED_AT, direction: DESC }) {
     totalCount
     nodes { ...PullFields }
   }
+}`;
+
+const REPO_FIELDS = `
+fragment RepoFields on Repository {
+  nameWithOwner
   issues(states: OPEN, first: ${PER_REPO_LIMIT}, orderBy: { field: UPDATED_AT, direction: DESC }) {
     totalCount
     nodes { id number title url createdAt updatedAt author { login } }
@@ -66,8 +70,12 @@ export function repoAlias(index: number): string {
 }
 
 /** One query for every tracked repo, one alias each. Owner and name travel as
- *  variables, never spliced into the query text. */
-export function reposQuery(repos: string[]): { query: string; variables: Record<string, string> } {
+ *  variables, never spliced into the query text. A repo in `withoutPulls` has
+ *  its PRs fetched by author search instead, so it skips its pull list. */
+export function reposQuery(
+  repos: string[],
+  withoutPulls: ReadonlySet<string> = new Set(),
+): { query: string; variables: Record<string, string> } {
   const variables: Record<string, string> = {};
   const declarations: string[] = [];
   const selections: string[] = [];
@@ -76,10 +84,53 @@ export function reposQuery(repos: string[]): { query: string; variables: Record<
     variables[`owner${index}`] = owner;
     variables[`name${index}`] = name;
     declarations.push(`$owner${index}: String!`, `$name${index}: String!`);
-    selections.push(`${repoAlias(index)}: repository(owner: $owner${index}, name: $name${index}) { ...RepoFields }`);
+    const fragments = withoutPulls.has(repo) ? '...RepoFields' : '...RepoFields ...RepoPulls';
+    selections.push(`${repoAlias(index)}: repository(owner: $owner${index}, name: $name${index}) { ${fragments} }`);
   });
   const args = declarations.length > 0 ? `(${declarations.join(', ')})` : '';
-  const query = `query TrackedRepos${args} {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${REPO_FIELDS}\n${pullFields(false)}`;
+  // GraphQL rejects a query that declares a fragment it never spreads.
+  const pulls = repos.some((repo) => !withoutPulls.has(repo)) ? `\n${REPO_PULLS}\n${pullFields(false)}` : '';
+  const query = `query TrackedRepos${args} {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${REPO_FIELDS}${pulls}`;
+  return { query, variables };
+}
+
+/** Authors per GraphQL request, for the same reason as REPOS_PER_QUERY. */
+export const AUTHORS_PER_QUERY = 10;
+
+/** One followed author and every tracked repo that follows them. */
+export interface AuthorGroup {
+  author: string;
+  repos: string[];
+}
+
+export function authorAlias(index: number): string {
+  return `author${index}`;
+}
+
+const BOT_SUFFIX = '[bot]';
+
+/** One search per author, not per (repo, author) pair: several `repo:`
+ *  qualifiers combine as OR, so the author's PRs in all their repos come back
+ *  in one page. Apps are `app/name` in search, not the `name[bot]` login. */
+export function authorSearch(group: AuthorGroup): string {
+  const author = group.author.endsWith(BOT_SUFFIX)
+    ? `app/${group.author.slice(0, -BOT_SUFFIX.length)}`
+    : group.author;
+  return ['is:open is:pr', `author:${author}`, ...group.repos.map((repo) => `repo:${repo}`)].join(' ');
+}
+
+export function authorsQuery(groups: AuthorGroup[]): { query: string; variables: Record<string, string> } {
+  const variables: Record<string, string> = {};
+  const declarations: string[] = [];
+  const selections: string[] = [];
+  groups.forEach((group, index) => {
+    variables[`q${index}`] = authorSearch(group);
+    declarations.push(`$q${index}: String!`);
+    selections.push(
+      `${authorAlias(index)}: search(query: $q${index}, type: ISSUE, first: ${SEARCH_LIMIT}) { issueCount nodes { ... on PullRequest { ...PullFields repository { nameWithOwner } } } }`,
+    );
+  });
+  const query = `query TrackedAuthors(${declarations.join(', ')}) {\n  viewer { login }\n  ${selections.join('\n  ')}\n}\n${pullFields(false)}`;
   return { query, variables };
 }
 
@@ -337,17 +388,17 @@ export interface ParsedRepos {
   truncated: PullsTruncation[];
 }
 
-function parseRepo(raw: unknown, repo: string, login: string): Omit<ParsedRepos, 'errors'> {
+function parseRepo(raw: unknown, repo: string, login: string, withPulls: boolean): Omit<ParsedRepos, 'errors'> {
   const node = record(raw, `em ${repo}`, 'repositório');
   const where = `em ${repo}`;
-  const pulls = record(node.pullRequests, where, 'pullRequests');
+  const pulls = withPulls ? record(node.pullRequests, where, 'pullRequests') : null;
   const issues = record(node.issues, where, 'issues');
-  const pullNodes = nodesOf(pulls, where, 'pullRequests');
+  const pullNodes = pulls ? nodesOf(pulls, where, 'pullRequests') : [];
   const issueNodes = nodesOf(issues, where, 'issues');
   const answered = (node: unknown) => node !== null;
 
   const truncated: PullsTruncation[] = [];
-  const pullTotal = count(pulls, 'totalCount', where);
+  const pullTotal = pulls ? count(pulls, 'totalCount', where) : 0;
   const issueTotal = count(issues, 'totalCount', where);
   if (pullTotal > pullNodes.length) truncated.push({ repo, kind: 'pulls', shown: pullNodes.length, total: pullTotal });
   if (issueTotal > issueNodes.length) truncated.push({ repo, kind: 'issues', shown: issueNodes.length, total: issueTotal });
@@ -388,6 +439,7 @@ export function parseReposData(
   data: Record<string, unknown>,
   repos: string[],
   graphqlErrors: GraphqlError[],
+  withoutPulls: ReadonlySet<string> = new Set(),
 ): ParsedRepos {
   const login = viewerLogin(data);
   const result: ParsedRepos = { items: [], errors: [], defaultBranches: [], truncated: [] };
@@ -404,7 +456,7 @@ export function parseReposData(
       return;
     }
     try {
-      const parsed = parseRepo(data[alias], repo, login);
+      const parsed = parseRepo(data[alias], repo, login, !withoutPulls.has(repo));
       result.items.push(...parsed.items);
       result.defaultBranches.push(...parsed.defaultBranches);
       result.truncated.push(...parsed.truncated);
@@ -422,16 +474,54 @@ export interface ParsedSearch {
   total: number;
 }
 
-/** Search results span repos outside the tracked list: each node names its own. */
-export function parseSearchData(data: Record<string, unknown>): ParsedSearch {
-  const search = record(data.search, 'na busca', 'search');
-  const total = count(search, 'issueCount', 'na busca');
-  const nodes = nodesOf(search, 'na busca', 'search');
+function parseSearch(raw: unknown, where: string, what: string, login: string): ParsedSearch {
+  const search = record(raw, where, what);
+  const total = count(search, 'issueCount', where);
+  const nodes = nodesOf(search, where, what);
   const items = nodes
     .filter((node) => node !== null)
     .map((node) => {
-      const repository = record(isRecord(node) ? node.repository : null, 'na busca', 'repository');
-      return parsePullNode(node, text(repository, 'nameWithOwner', 'na busca'), '');
+      const repository = record(isRecord(node) ? node.repository : null, where, 'repository');
+      return parsePullNode(node, text(repository, 'nameWithOwner', where), login);
     });
   return { items, total };
+}
+
+/** Search results span repos outside the tracked list: each node names its own. */
+export function parseSearchData(data: Record<string, unknown>): ParsedSearch {
+  return parseSearch(data.search, 'na busca', 'search', '');
+}
+
+/** `groups[i]` answered under alias `author{i}`, isolated like the repos: one
+ *  author GitHub refused (a deleted account) does not hide the others. A
+ *  search that holds more than one page says so instead of cutting silently. */
+export function parseAuthorsData(
+  data: Record<string, unknown>,
+  groups: AuthorGroup[],
+  graphqlErrors: GraphqlError[],
+): ParsedRepos {
+  const login = viewerLogin(data);
+  const result: ParsedRepos = { items: [], errors: [], defaultBranches: [], truncated: [] };
+  groups.forEach((group, index) => {
+    const alias = authorAlias(index);
+    const subject = `autor ${group.author}`;
+    const own = graphqlErrors.filter((error) => error.path[0] === alias);
+    const failure = own.find((error) => error.path.length === 1);
+    if (failure) {
+      result.errors.push(`${subject}: ${failure.message}`);
+      return;
+    }
+    try {
+      const { items, total } = parseSearch(data[alias], `na busca de ${group.author}`, 'search', login);
+      result.items.push(...items);
+      if (total > items.length) {
+        result.errors.push(`${subject}: mostrando ${items.length} de ${total} pull requests abertos`);
+      }
+      const note = partialNote(subject, own);
+      if (note) result.errors.push(note);
+    } catch (error) {
+      result.errors.push(`${subject}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+  return result;
 }

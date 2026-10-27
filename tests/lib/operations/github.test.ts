@@ -38,6 +38,7 @@ function input(name:string):Record<string,unknown> {
     case 'github_work':return {connectionId};
     case 'github_repositories':return {connectionId};
     case 'github_repository_add':case 'github_repository_remove':return {...common,repo:'acme/new'};
+    case 'github_repository_authors':return {...common,repo:'acme/repo-4',authors:['alice']};
     case 'github_review':return {...common,...ref,event:'APPROVE'};
     case 'github_comment':return {...common,...ref,body:'Test-only comment'};
     case 'github_request_review':return {...common,...ref,reviewers:['reviewer-1'],teams:['team-1']};
@@ -87,10 +88,44 @@ describe('every GitHub shared operation boundary',()=>{
     const add=input('github_repository_add'),remove=input('github_repository_remove');
     await runGithubOperation(owner,'github_repository_add',add);
     await runGithubOperation(owner,'github_repository_add',add);
-    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4','acme/new']});
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4','acme/new'],authors:{}});
     await runGithubOperation(owner,'github_repository_remove',remove);
     await runGithubOperation(owner,'github_repository_remove',remove);
-    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4']});
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4'],authors:{}});
+  });
+  it('follows chosen authors per tracked repo, idempotently, and an empty list follows everyone again',async()=>{
+    const values=input('github_repository_authors');
+    await runGithubOperation(owner,'github_repository_authors',values);
+    await runGithubOperation(owner,'github_repository_authors',values);
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4'],authors:{'acme/repo-4':['alice']}});
+    await runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),authors:['Bob','bob']});
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toMatchObject({authors:{'acme/repo-4':['Bob']}});
+    await runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),authors:[]});
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4'],authors:{}});
+  });
+  it('refuses authors for an untracked repo, past the per-repo or total limit, and invalid logins',async()=>{
+    await expect(runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),repo:'acme/elsewhere'})).rejects.toMatchObject({status:409,code:'repository_not_tracked'});
+    const eleven=Array.from({length:11},(_,index)=>`user-${index}`);
+    await expect(runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),authors:eleven})).rejects.toMatchObject({status:400,code:'author_limit'});
+    const repos=['acme/repo-4','acme/repo-5','acme/repo-6'];
+    saveConnection(owner.userId,'pulls','GitHub',{repos:repos.join(', ')},connectionId);
+    await runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),repo:repos[0],authors:eleven.slice(0,10)});
+    await runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),repo:repos[1],authors:Array.from({length:10},(_,index)=>`other-${index}`)});
+    await expect(runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),repo:repos[2],authors:['one-more']})).rejects.toMatchObject({status:400,code:'author_limit'});
+    // Someone already followed elsewhere is no new search, so it fits under the total.
+    await runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),repo:repos[2],authors:['USER-0']});
+    await expect(runGithubOperation(owner,'github_repository_authors',{...input('github_repository_authors'),authors:['not a login']})).rejects.toMatchObject({status:400,code:'invalid_input'});
+  });
+  it('forgets the authors of a removed repo, so adding it back follows everyone',async()=>{
+    await runGithubOperation(owner,'github_repository_authors',input('github_repository_authors'));
+    await runGithubOperation(owner,'github_repository_remove',{...input('github_repository_remove'),repo:'acme/repo-4'});
+    await runGithubOperation(owner,'github_repository_add',{...input('github_repository_add'),repo:'acme/repo-4'});
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toEqual({repositories:['acme/repo-4'],authors:{}});
+  });
+  it('keeps the followed authors when the settings form saves the connection without them',async()=>{
+    await runGithubOperation(owner,'github_repository_authors',input('github_repository_authors'));
+    saveConnection(owner.userId,'pulls','GitHub',{repos:'acme/repo-4'},connectionId);
+    expect(await runGithubOperation(owner,'github_repositories',{connectionId})).toMatchObject({authors:{'acme/repo-4':['alice']}});
   });
   it('reads tracked/review/mine views, default branch information and cursor pages from captured provider contracts',async()=>{
     const digest=captureDigest();

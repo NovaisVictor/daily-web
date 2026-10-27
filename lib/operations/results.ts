@@ -13,7 +13,7 @@ const task=z.object({id:z.string(),title:z.string(),completed:z.boolean(),due:z.
 const module=z.object({module:z.enum(['jira','pulls','tasks']),label:z.string(),summary:z.string(),multi:z.boolean(),enabled:z.boolean(),configured:z.boolean(),connections:z.array(z.object({id:z.string(),module:z.enum(['jira','pulls','tasks']),label:z.string(),visible:z.record(z.string(),z.string()),secretsSet:z.array(z.string()),updatedAt:z.string(),unreadable:z.boolean()}))});
 const schemas:Record<string,z.ZodType>={
   github_work:z.object({items:z.array(pull),...pager}).passthrough(),
-  github_repositories:z.object({repositories:z.array(z.string())}),
+  github_repositories:z.object({repositories:z.array(z.string()),authors:z.record(z.string(),z.array(z.string()))}),
   jira_work:z.object({items:z.array(jiraItem),ancestors:z.array(jiraItem),connectionId:z.string(),...pager}).passthrough(),
   jira_transitions:z.object({transitions:z.array(transition)}),
   jira_approvals:z.object({approvals:z.array(z.object({id:z.string(),name:z.string()}))}),
@@ -31,7 +31,7 @@ const schemas:Record<string,z.ZodType>={
   connections_test:z.union([success,z.object({state:z.literal('not_applicable'),message:z.string()})]),
   focus_targets:z.object({targets:z.array(z.object({id:z.string(),label:z.string()}))}),
 };
-const writes=new Set(['github_repository_add','github_repository_remove','github_review','github_comment','github_request_review','github_merge','github_rerun','jira_transition','jira_approval','jira_comment','jira_flag','jira_edit','jira_story_create','jira_parent','jira_people_follow','jira_watch','tasks_create','tasks_edit','tasks_transition','tasks_delete','tasks_subtask_create','tasks_subtask_edit','connections_update','connections_remove','connections_toggle','focus_create']);
+const writes=new Set(['github_repository_add','github_repository_remove','github_repository_authors','github_review','github_comment','github_request_review','github_merge','github_rerun','jira_transition','jira_approval','jira_comment','jira_flag','jira_edit','jira_story_create','jira_parent','jira_people_follow','jira_watch','tasks_create','tasks_edit','tasks_transition','tasks_delete','tasks_subtask_create','tasks_subtask_edit','connections_update','connections_remove','connections_toggle','focus_create']);
 export function resultSchemaFor(name:string):z.ZodType {
   if(name==='github_jira_sync')return z.union([success,z.object({transition})]);
   if(name.startsWith('github_')&&writes.has(name))return githubSuccess;

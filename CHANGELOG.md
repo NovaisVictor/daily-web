@@ -51,6 +51,12 @@ Only `main` is maintained; there are no release branches.
   a large title and a dark "Continuar" button.
 
 ### Added
+- The GitHub panel can follow only some authors in each tracked repository,
+  under "Repositórios acompanhados". Those repositories take their pull
+  requests from one GitHub search per author instead of their 50 most recently
+  updated, so an older PR is never cut; issues stay unfiltered. Up to 10
+  authors per repository and 20 in total. Stored as `repoAuthors` beside
+  `repos` in the connection, and exposed to MCP as `github_repository_authors`.
 - A profile page (`/perfil`): photo, full name, e-mail and password change.
   The photo is stored as a data URL on the user (`avatar_url`) and the name and
   e-mail in `full_name` and `email` (migrations 21 and 22), all optional. A

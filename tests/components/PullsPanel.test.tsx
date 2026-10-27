@@ -194,6 +194,57 @@ describe('PullsPanel', () => {
   });
 });
 
+describe('autores acompanhados por repositório', () => {
+  const empty = { data: { items: [], errors: [], defaultBranches: [], truncated: [] }, error: null };
+
+  it('diz que o repositório sem autores escolhidos acompanha todo mundo', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ repos: ['a/b', 'a/c'], authors: { 'a/c': ['maria'] } }), { status: 200 }),
+    );
+    render(<PullsPanel pulls={empty} />);
+    await waitFor(() => expect(screen.getByText('maria')).toBeInTheDocument());
+    expect(screen.getAllByText('todos os autores')).toHaveLength(1);
+  });
+
+  it('acompanha só um autor no repositório e chama onChanged', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ repos: ['a/b'], authors: {} }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ repos: ['a/b'], authors: { 'a/b': ['maria'] } }), { status: 200 }));
+    const onChanged = vi.fn();
+    render(<PullsPanel pulls={empty} onChanged={onChanged} />);
+    await waitFor(() => expect(screen.getByLabelText('novo autor em a/b')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('novo autor em a/b'), { target: { value: '@maria' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Acompanhar autor em a/b' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/pulls/repos/authors',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ repo: 'a/b', authors: ['maria'] }) }),
+    );
+    expect(screen.getByLabelText('deixar de acompanhar maria em a/b')).toBeInTheDocument();
+  });
+
+  it('recusa um login inválido sem chamar o servidor', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(new Response(JSON.stringify({ repos: ['a/b'], authors: {} }), { status: 200 }));
+    render(<PullsPanel pulls={empty} />);
+    await waitFor(() => expect(screen.getByLabelText('novo autor em a/b')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('novo autor em a/b'), { target: { value: 'não é login' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Acompanhar autor em a/b' }));
+    expect(screen.getByRole('alert').textContent).toContain('login do GitHub inválido');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('mostra o motivo quando o servidor recusa a lista', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ repos: ['a/b'], authors: {} }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'limite de autores' }), { status: 400 }));
+    render(<PullsPanel pulls={empty} />);
+    await waitFor(() => expect(screen.getByLabelText('novo autor em a/b')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('novo autor em a/b'), { target: { value: 'maria' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Acompanhar autor em a/b' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('limite de autores'));
+  });
+});
+
 describe('repositório clicável', () => {
   it('o nome do repositório abre o repositório no GitHub', () => {
     render(<PullsPanel pulls={{ data: { items: [pull({})], errors: [], defaultBranches: [], truncated: [] }, error: null }} />);

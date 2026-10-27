@@ -230,6 +230,8 @@ export const MODULES: Record<ModuleId, ModuleSpec> = {
         placeholder: 'dono/repo, dono/outro',
         help: 'Separados por vírgula. Dá para editar depois direto no painel.',
       },
+      // Edited only from the panel; hidden so a settings-form save keeps it.
+      { name: 'repoAuthors', label: 'Autores acompanhados', type: 'text', hidden: true },
     ],
   },
   slack: {

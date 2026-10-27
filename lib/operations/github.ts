@@ -6,7 +6,7 @@ import * as actions from '@/lib/integrations/github/actions';
 import { GithubResponseError } from '@/lib/integrations/github/client';
 import { ExternalPartialOutcome, localMutation } from '@/lib/access/receipts';
 import { findConnection, saveConnection } from '@/lib/vault/connections';
-import { isRequestableLogin } from '@/lib/githubLogin';
+import { isGithubLogin, isRequestableLogin } from '@/lib/githubLogin';
 import { isValidRepo } from '@/lib/api/validation';
 import { parsePullFilters, matchesPullFilters } from '@/lib/pullFilters';
 import { dropCache } from '@/lib/refresher';
@@ -19,6 +19,7 @@ const pullSnapshot = z.object({state:z.enum(['open','closed']),draft:z.boolean()
 const viewerSchema = z.object({login:z.string().min(1)});
 const reviewer = z.string().refine(isRequestableLogin);
 const team = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/);
+const author = z.string().refine(isGithubLogin);
 
 function repositoryConnection(p:Principal,id:string,scope:string) {
   requireScope(p,scope);
@@ -52,7 +53,12 @@ export const githubOperations = [
     const complete=(digest.errors?.length ?? 0)===0 && (Array.isArray(digest.truncated)?digest.truncated.length===0:!digest.truncated);
     return {...digest,...page(items,i,item=>`${item.repo}#${item.number}`),errors:(digest.errors??[]).map(()=> 'upstream_query_failed'),complete};
   }),
-  operation('github_repositories','List tracked repositories','github:read','read',connectionShape,async(p,i)=>({repositories:github.trackedRepos(repositoryConnection(p,i.connectionId,'github:read'))})),
+  operation('github_repositories','List tracked repositories and the authors followed in each; a repository without authors follows everyone','github:read','read',connectionShape,async(p,i)=>{
+    const conn=repositoryConnection(p,i.connectionId,'github:read');
+    const repositories=github.trackedRepos(conn),authors=github.trackedAuthors(conn);
+    // The settings form can drop a repo without touching its authors; a list for an untracked repo is not followed.
+    return {repositories,authors:Object.fromEntries(repositories.flatMap(repo=>authors[repo]?.length?[[repo,authors[repo]]]:[]))};
+  }),
   ...(['add','remove'] as const).map(action=>operation(`github_repository_${action}`,`${action} a tracked repository`,'github:write','write',{...repoShape,...mutationShape},async(p,i)=>{
     const conn=repositoryConnection(p,i.connectionId,'github:write');
     return localMutation(p.userId,`github_repository_${action}`,{id:i.repo,connectionId:conn.id,input:i},{key:i.operationId,requestedAt:i.requestedAt},()=>{
@@ -60,8 +66,23 @@ export const githubOperations = [
       const repos=github.trackedRepos(current);
       const next=action==='add'?[...new Set([...repos,i.repo])]:repos.filter(r=>r!==i.repo);
       if(next.length>github.TRACKED_REPOS_MAX)throw new AccessError(400,'repository_limit','Remove a tracked repository before adding another');
-      saveConnection(p.userId,'pulls',current.label,{...current.values,repos:github.serializeRepoList(next)},current.id);dropCache(p.userId);return {ok:true};});
+      const values:Record<string,string>={...current.values,repos:github.serializeRepoList(next)};
+      // Re-adding a removed repo must start from everyone, not revive its old authors.
+      if(action==='remove'&&current.values.repoAuthors)values.repoAuthors=github.serializeRepoAuthors(Object.fromEntries(Object.entries(github.trackedAuthors(current)).filter(([repo])=>repo!==i.repo)));
+      saveConnection(p.userId,'pulls',current.label,values,current.id);dropCache(p.userId);return {ok:true};});
   })),
+  operation('github_repository_authors','Set the authors followed in a tracked repository; an empty list follows everyone','github:write','write',{...repoShape,authors:z.array(author).max(100),...mutationShape},async(p,i)=>{
+    const conn=repositoryConnection(p,i.connectionId,'github:write');
+    return localMutation(p.userId,'github_repository_authors',{id:i.repo,connectionId:conn.id,input:i},{key:i.operationId,requestedAt:i.requestedAt},()=>{
+      const current=repositoryConnection(p,i.connectionId,'github:write');
+      const repos=github.trackedRepos(current);
+      if(!repos.includes(i.repo))throw new AccessError(409,'repository_not_tracked','Track the repository before choosing its authors');
+      const chosen=github.distinctAuthors(i.authors);
+      const authors={...github.trackedAuthors(current),[i.repo]:chosen};
+      const followed=github.distinctAuthors(repos.flatMap(repo=>authors[repo]??[]));
+      if(chosen.length>github.AUTHORS_PER_REPO_MAX||followed.length>github.TRACKED_AUTHORS_MAX)throw new AccessError(400,'author_limit','Unfollow an author before following another');
+      saveConnection(p.userId,'pulls',current.label,{...current.values,repoAuthors:github.serializeRepoAuthors(authors)},current.id);dropCache(p.userId);return {ok:true};});
+  }),
   operation('github_review','Approve or request changes on a pull request','github:write','write',{...writeShape,event:z.enum(['APPROVE','REQUEST_CHANGES']),body:z.string().trim().max(actions.TEXT_MAX).nullable().default(null)},async(p,i)=>{
     const conn=connection(p,i.connectionId,'pulls','github:write');
     if(i.event==='REQUEST_CHANGES'&&!i.body)throw new AccessError(400,'body_required','Requesting changes needs an explanation');
