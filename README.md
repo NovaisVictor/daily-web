@@ -5,10 +5,11 @@
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-brightgreen)](.nvmrc)
 
 A personal workspace for agent work and daily integrations, behind a login.
-The home screen is a task kanban for Claude, Codex and Gemini; the original
-email, calendar, Jira, pull requests, tasks and focus dashboard remains at `/workspace`.
+The home screen ("Início") is the email, calendar, Jira, pull requests, tasks
+and focus dashboard; the task kanban for Claude, Codex and Gemini is at
+`/kanban`. The old `/workspace` address redirects to the home screen.
 
-Everyone connects their own accounts from the settings screen. Nothing is
+Everyone connects their own accounts from the Ferramentas screen (`/tools`). Nothing is
 shared between users and no module is mandatory — if you do not use Jira, you
 do not turn Jira on.
 
@@ -177,10 +178,11 @@ Some workspaces require an administrator to approve the app first.
 
 ## Rearranging the dashboard
 
-Click **Organizar** to move panels by dragging and resize them by the
-bottom-right corner; **Concluir** leaves the mode. Outside it the panels are
-ordinary content, so clicking a message, ticking a task and selecting text
-keep working.
+Press and hold a panel for one second to start the mode: every panel shakes,
+and the same press carries on as a drag. Move panels by dragging and resize
+them by the bottom-right corner; **Esc** or **Descartar** leaves the mode.
+Outside it the panels are ordinary content, so clicking a message, ticking a
+task and selecting text keep working.
 
 **Salvar para esta tela** stores the arrangement together with the exact
 window size it was made at; **Descartar** throws the changes away. Opening the
