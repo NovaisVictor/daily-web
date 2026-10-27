@@ -574,6 +574,21 @@ function addPushNotifications(instance: Database.Database): void {
   `);
 }
 
+// Avatar do usuário, como data URL (o upload já vem em base64 do navegador,
+// e uma foto de perfil é pequena o bastante para não pesar no banco). NULL
+// quer dizer "sem foto" — a tela cai para as iniciais do nome.
+function addUserAvatar(instance: Database.Database): void {
+  instance.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`);
+}
+
+// Nome completo e e-mail: informativos do perfil, não usados para login.
+function addUserProfileFields(instance: Database.Database): void {
+  instance.exec(`
+    ALTER TABLE users ADD COLUMN full_name TEXT;
+    ALTER TABLE users ADD COLUMN email TEXT;
+  `);
+}
+
 const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addUserScope,
   addConnections,
@@ -595,6 +610,8 @@ const MIGRATIONS: ((instance: Database.Database) => void)[] = [
   addAgentTaskHolds,
   addAgentSessionAttention,
   addPushNotifications,
+  addUserAvatar,
+  addUserProfileFields,
 ];
 
 function migrate(instance: Database.Database): void {

@@ -2,14 +2,14 @@ import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { getCurrentUser } from '@/lib/auth/currentUser';
+import { greetingName } from '@/lib/greeting';
+import { welcomeKind } from '@/lib/preferences';
 import {
   BACKDROP_COOKIE,
   DENSITY_COOKIE,
-  SIDEBAR_COOKIE,
   THEME_COOKIE,
   parseBackdrop,
   parseDensity,
-  parseSidebar,
   parseTheme,
 } from '@/lib/theme';
 
@@ -26,8 +26,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       theme={parseTheme(jar.get(THEME_COOKIE)?.value)}
       density={parseDensity(jar.get(DENSITY_COOKIE)?.value)}
       backdrop={parseBackdrop(jar.get(BACKDROP_COOKIE)?.value)}
-      sidebar={parseSidebar(jar.get(SIDEBAR_COOKIE)?.value)}
       username={user?.username ?? null}
+      avatarUrl={user?.avatarUrl ?? null}
+      greetingName={user ? greetingName(user.fullName, user.username) : null}
+      welcome={user ? welcomeKind(user.id) : 'first'}
     >
       {children}
     </AppShell>

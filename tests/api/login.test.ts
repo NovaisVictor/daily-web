@@ -42,6 +42,31 @@ function sessionCookie(res: Response): string {
 }
 
 describe('POST /api/login com usuários no banco', () => {
+  it('registra cada login: o primeiro recebe boas-vindas, o segundo recebe "de volta"', async () => {
+    const { POST, createUser } = await load();
+    const { welcomeKind } = await import('@/lib/preferences');
+    const created = await createUser('maria', 'senha-da-maria');
+    expect(welcomeKind(created.id)).toBe('first');
+
+    await POST(loginRequest('maria', 'senha-da-maria') as never);
+    expect(welcomeKind(created.id)).toBe('first');
+
+    await POST(loginRequest('maria', 'senha-da-maria') as never);
+    expect(welcomeKind(created.id)).toBe('returning');
+  });
+
+  it('não conta uma tentativa com a senha errada', async () => {
+    const { POST, createUser } = await load();
+    const { welcomeKind } = await import('@/lib/preferences');
+    const created = await createUser('maria', 'senha-da-maria');
+
+    await POST(loginRequest('maria', 'errada') as never);
+    await POST(loginRequest('maria', 'errada') as never);
+    await POST(loginRequest('maria', 'senha-da-maria') as never);
+
+    expect(welcomeKind(created.id)).toBe('first');
+  });
+
   it('aceita a senha correta e devolve uma sessão com o userId', async () => {
     const { POST, createUser, verifySessionToken } = await load();
     const created = await createUser('maria', 'senha-da-maria');

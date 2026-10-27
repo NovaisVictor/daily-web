@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { IconAction } from '@/components/data/IconAction';
 import { MobileModuleNav } from '@/components/MobileModuleNav';
@@ -33,6 +33,12 @@ interface Props {
   onSave: (layout: PanelPlacement[]) => Promise<void> | void;
 }
 
+/** How long a panel has to be held before the arrange mode starts, as on a phone's home screen. */
+const HOLD_MS = 1000;
+/** A hand is never perfectly still: the pointer may drift this far before the press is read as a
+ *  selection or a drag and not as a hold. */
+const HOLD_SLOP_PX = 24;
+
 export function DashboardGrid({ layout, panels, onSave }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,9 +48,20 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
   const [dragging, setDragging] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const narrowRef = useRef<HTMLDivElement>(null);
-  // O botão é a única entrada do modo: deixa preso até a pessoa desligar, e
-  // funciona igual em tela de toque, onde não há tecla para segurar.
+  // Segurar um painel por 1 s liga o modo e o deixa preso até a pessoa salvar
+  // ou descartar. É o gesto da tela inicial do celular, e funciona igual com
+  // mouse e com toque.
   const [pinned, setPinned] = useState(false);
+  // O painel segurado e onde está o ponteiro: dá retorno enquanto o 1 s passa.
+  const [holding, setHolding] = useState<{ panelId: string; x: number; y: number } | null>(null);
+  // Quanto da espera já passou, para o contador ao lado do ponteiro.
+  const [heldMs, setHeldMs] = useState(0);
+  // Desfaz o gesto em andamento: o timer e os ouvidos da janela.
+  const stopHoldRef = useRef<(() => void) | null>(null);
+  // O mouse ainda pressionado quando o 1 s completa: o arrasto continua dele, sem soltar.
+  const handoffRef = useRef<{ panel: HTMLElement; x: number; y: number; released: boolean } | null>(
+    null,
+  );
   // O que está sendo arrastado, ainda não gravado. Enquanto existe, é ele que
   // a grade desenha — arrastar deixou de gravar sozinho.
   const [rascunho, setRascunho] = useState<PanelPlacement[] | null>(null);
@@ -123,10 +140,135 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
     setPinned(false);
   };
 
-  const descartar = () => {
+  const descartar = useCallback(() => {
     setRascunho(null);
     setPinned(false);
-  };
+  }, []);
+
+  const cancelHold = useCallback(() => {
+    stopHoldRef.current?.();
+    stopHoldRef.current = null;
+    setHolding(null);
+  }, []);
+
+  useEffect(() => cancelHold, [cancelHold]);
+
+  const startHold = useCallback(
+    (event: PointerEvent, panel: HTMLElement, panelId: string) => {
+      if (arranging || event.button > 0) return;
+      cancelHold();
+
+      const isMouse = event.pointerType === 'mouse';
+      const startedAt = Date.now();
+      const start = { x: event.clientX, y: event.clientY };
+      let last = start;
+
+      // Moving, releasing, cancelling and the browser taking over for a native drag all end the
+      // hold. They are heard on the window, not on the panel: a panel that moves or resizes under
+      // the pointer fires `pointerleave` on itself, and that used to kill a still hand's hold.
+      const onMove = (move: PointerEvent) => {
+        last = { x: move.clientX, y: move.clientY };
+        setHolding((current) => (current ? { ...current, x: last.x, y: last.y } : current));
+        if (Math.hypot(last.x - start.x, last.y - start.y) > HOLD_SLOP_PX) cancelHold();
+      };
+      const onEnd = () => cancelHold();
+      const ticker = setInterval(() => setHeldMs(Date.now() - startedAt), 100);
+      const detach = () => {
+        clearTimeout(timer);
+        clearInterval(ticker);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onEnd);
+        window.removeEventListener('pointercancel', onEnd);
+        window.removeEventListener('dragstart', onEnd, true);
+      };
+
+      const timer = setTimeout(() => {
+        detach();
+        stopHoldRef.current = null;
+        setHolding(null);
+        // A field the press landed on keeps the caret and would go on taking keystrokes.
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+
+        // O botão ainda está pressionado. A soltura que vem depois não pode virar um clique no que
+        // estava debaixo do ponteiro, e o arrasto continua desta mesma pressão.
+        const swallowClick = (click: Event) => {
+          click.preventDefault();
+          click.stopPropagation();
+        };
+        const handoff = isMouse ? { panel, x: last.x, y: last.y, released: false } : null;
+        handoffRef.current = handoff;
+        const stopSwallowing = () => {
+          window.removeEventListener('click', swallowClick, true);
+          window.removeEventListener('pointerup', onRelease, true);
+          window.removeEventListener('pointerdown', stopSwallowing, true);
+        };
+        // O clique vem logo depois do pointerup, na mesma tarefa: só tirar o engolidor no timeout.
+        const onRelease = () => {
+          if (handoff) handoff.released = true;
+          setTimeout(stopSwallowing, 0);
+        };
+        window.addEventListener('click', swallowClick, true);
+        window.addEventListener('pointerup', onRelease, true);
+        // Se a soltura se perdeu (fora da janela, por exemplo), a próxima pressão encerra o
+        // engolidor antes do clique dela, em vez de ele comer um clique legítimo.
+        window.addEventListener('pointerdown', stopSwallowing, true);
+        setPinned(true);
+      }, HOLD_MS);
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
+      window.addEventListener('dragstart', onEnd, true);
+      stopHoldRef.current = detach;
+      setHeldMs(0);
+      setHolding({ panelId, x: start.x, y: start.y });
+    },
+    [arranging, cancelHold],
+  );
+
+  // Heard in the capture phase on the window, not as a React handler on the panel: a child that
+  // stops propagation (a drag library, a menu) would otherwise hide the press from the grid.
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      const panel = (event.target as Element | null)?.closest?.('[data-slot="grid-panel"]');
+      if (!(panel instanceof HTMLElement)) return;
+      const item = panel.parentElement;
+      if (!item?.id.startsWith('painel-')) return;
+      startHold(event, panel, item.id.slice('painel-'.length));
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  }, [startHold]);
+
+  // The grid only starts a drag from a mousedown, and the one that began this press arrived while
+  // dragging was still off. Once the mode is on, replay it at the pointer's position: the drag then
+  // follows the real mouse moves, so holding and dragging is a single gesture.
+  useEffect(() => {
+    if (!pinned) return;
+    const handoff = handoffRef.current;
+    handoffRef.current = null;
+    if (!handoff || handoff.released || !handoff.panel.isConnected) return;
+    handoff.panel.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+        clientX: handoff.x,
+        clientY: handoff.y,
+      }),
+    );
+  }, [pinned]);
+
+  // Escape leaves the mode the way "Descartar" does.
+  useEffect(() => {
+    if (!pinned) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') descartar();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pinned, descartar]);
 
   // Objetos de configuração recriados a cada render provocam a mesma
   // re-sincronização que matava o arrasto.
@@ -202,20 +344,23 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
 
   return (
     <div ref={containerRef}>
-      {/* A control bar floats on the background: a card is for content. */}
-      <div className="flex items-center justify-between gap-4 pb-3">
-        <p
-          role="status"
-          className={cn(
-            'min-w-0 text-sm text-ink-dim transition-opacity duration-150 motion-reduce:transition-none',
-            arranging ? 'opacity-100' : 'opacity-0',
-          )}
+      {holding && (
+        <div
+          role="timer"
+          aria-live="off"
+          className="pointer-events-none fixed z-50 rounded-full border bg-glass-strong px-3 py-1 text-xs text-ink-mid shadow-e3 backdrop-blur-xl"
+          style={{ left: holding.x + 18, top: holding.y + 18 }}
         >
-          {arranging
-            ? `Arraste para mover, puxe o canto para redimensionar. Salvar guarda para ${janela.largura} × ${janela.altura}.`
-            : ''}
-        </p>
-        {arranging ? (
+          {`Segure para organizar · ${(Math.max(HOLD_MS - heldMs, 0) / 1000).toFixed(1).replace('.', ',')} s`}
+        </div>
+      )}
+
+      {/* Only while arranging, and floating, so entering the mode does not push the panels down. */}
+      {arranging && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-full border bg-glass-strong py-2 pr-2 pl-5 shadow-e4 backdrop-blur-xl">
+          <p role="status" className="min-w-0 truncate text-sm text-ink-mid">
+            {`Arraste para mover, puxe o canto para redimensionar. Salvar guarda para ${janela.largura} × ${janela.altura}.`}
+          </p>
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
@@ -233,15 +378,8 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
               icon={<X className="size-4" />}
             />
           </div>
-        ) : (
-          <IconAction
-            variant="outline"
-            label="Organizar"
-            onClick={() => setPinned(true)}
-            icon={<LayoutGrid className="size-4" />}
-          />
-        )}
-      </div>
+        </div>
+      )}
 
       {mounted && (
         <GridLayout
@@ -266,17 +404,24 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
           onResizeStop={() => setDragging(false)}
         >
           {visible.map((p) => (
+            // The outer element is the one the grid positions with a transform; the card
+            // inside is what shakes, because a rotation set on the positioned element would
+            // swing it around a point far from its own centre.
             <div
               key={p.i}
               // Id estável: é por ele que uma confirmação de outro painel
               // consegue trazer a tela até aqui.
               id={`painel-${p.i}`}
               tabIndex={-1}
-              data-slot="grid-panel"
-              className={cn(cardSurface, 'flex min-w-0 flex-col overflow-hidden')}
               data-grid={{ ...p, minW: MIN_PANEL_WIDTH, minH: MIN_PANEL_HEIGHT }}
             >
-              <PanelFrame>{panels.find((painel) => painel.id === p.i)?.node}</PanelFrame>
+              <div
+                data-slot="grid-panel"
+                data-pressing={holding?.panelId === p.i ? 'true' : undefined}
+                className={cn(cardSurface, 'flex size-full min-w-0 flex-col overflow-hidden')}
+              >
+                <PanelFrame>{panels.find((painel) => painel.id === p.i)?.node}</PanelFrame>
+              </div>
             </div>
           ))}
         </GridLayout>

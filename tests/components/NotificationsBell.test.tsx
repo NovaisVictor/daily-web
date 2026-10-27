@@ -104,7 +104,8 @@ describe('NotificationsBell', () => {
 
   it('mostra a contagem de não lidas', () => {
     render(<Bell onMarkedRead={() => {}} notifications={{ data: items, error: null }} onChanged={() => {}} />);
-    expect(screen.getByRole('button', { name: /notificações/ }).textContent).toContain('1');
+    // O número flutua fora do botão, para não empurrar o ícone de lugar.
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   it('abre o painel e lista as notificações', () => {
@@ -187,7 +188,12 @@ describe('NotificationsBell', () => {
   it('mostra o estado vazio quando não há notificações', () => {
     render(<Bell onMarkedRead={() => {}} notifications={{ data: [], error: null }} onChanged={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /notificações/ }));
-    expect(screen.getByText(/nada por aqui/i)).toBeInTheDocument();
+    expect(screen.getByText('Nenhuma notificação')).toBeInTheDocument();
+  });
+
+  it('não mostra o número quando não há nenhuma não lida', () => {
+    render(<Bell onMarkedRead={() => {}} notifications={{ data: [], error: null }} onChanged={() => {}} />);
+    expect(screen.queryByText('0')).toBeNull();
   });
 
   it('fecha com a tecla Escape', () => {

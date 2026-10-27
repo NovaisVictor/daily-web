@@ -9,6 +9,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+// The header's notification bell polls /api/state; jsdom has no origin to resolve it against.
+vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false })));
+
 const KEY = 'daily-web:changelog-seen';
 
 const releases: Release[] = [
@@ -49,9 +52,9 @@ describe('ChangelogDialog', () => {
     expect(within(dialog).getByText('02/11/2026')).toBeInTheDocument();
   });
 
-  it('stores the newest id on "Entendi" and stays closed on the next load', async () => {
+  it('stores the newest id on "Continuar" and stays closed on the next load', async () => {
     const { unmount } = render(<Harness />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Entendi' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(localStorage.getItem(KEY)).toBe('new');
@@ -101,14 +104,14 @@ describe('ChangelogDialog', () => {
     });
     render(<Harness />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Entendi' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('reopens the latest release from the account menu after it was seen', async () => {
     localStorage.setItem(KEY, RELEASES[0].id);
     render(
-      <AppShell theme="system" density="comfortable" backdrop="mesh" sidebar="expanded" username="ana">
+      <AppShell theme="system" density="comfortable" backdrop="mesh" username="ana" avatarUrl={null} greetingName="ana" welcome="first">
         <p>conteúdo</p>
       </AppShell>,
     );

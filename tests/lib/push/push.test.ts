@@ -37,7 +37,7 @@ beforeEach(()=>{
  vi.stubEnv('DAILY_WEB_VAPID_PRIVATE_KEY','private-key');
  vi.stubEnv('DAILY_WEB_AGENT_DECK_OWNER','');
  for(const id of ['a','b'])getDb().prepare('INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES(?,?,?,?,?)').run(id,id,'unused',0,new Date().toISOString());
- vi.mocked(getCurrentUser).mockResolvedValue({id:'a',username:'a',passwordHash:'unused',isAdmin:false,createdAt:'2026-01-01'});
+ vi.mocked(getCurrentUser).mockResolvedValue({id:'a',username:'a',passwordHash:'unused',isAdmin:false,createdAt:'2026-01-01',avatarUrl:null,fullName:null,email:null});
  push.send.mockReset();push.send.mockResolvedValue({statusCode:201});
 });
 afterEach(()=>{vi.useRealTimers();vi.unstubAllEnvs();rmSync(dir,{recursive:true,force:true});});

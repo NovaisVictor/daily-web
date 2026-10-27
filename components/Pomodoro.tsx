@@ -91,42 +91,36 @@ export function Pomodoro({ pomodoro, onChanged }: Props) {
   };
 
   const isFocus = pomodoro.phase === 'focus';
-  const total = (isFocus ? pomodoro.focusMinutes : pomodoro.restMinutes) * 60;
   const remaining = pomodoro.running ? ticked : pomodoro.remainingSeconds;
-  const progress = total > 0 ? 1 - remaining / total : 0;
 
   return (
     <div className="flex flex-col gap-2 pb-2" data-testid="pomodoro">
-      <div className="h-0.5 w-42 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-        <span
-          className="block h-full w-full origin-left bg-brand transition-transform duration-150 ease-linear motion-reduce:transition-none"
-          style={{ transform: `scaleX(${Math.min(Math.max(progress, 0), 1)})` }}
-        />
-      </div>
-      <div className="flex items-baseline gap-3">
-        <span className="type-caption text-ink-dim">{isFocus ? 'foco' : 'descanso'}</span>
+      <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="type-caption text-ink-dim">{isFocus ? 'foco' : 'descanso'}</span>
+          <span className={cn('type-caption text-ink-dim', tabular)} title="focos concluídos">
+            {pomodoro.completedFocusCount} focos
+          </span>
+        </div>
         <span className={cn('type-subhead text-ink', tabular)}>{formatRemaining(remaining)}</span>
-        <span className={cn('type-caption text-ink-dim', tabular)} title="focos concluídos">
-          {pomodoro.completedFocusCount} focos
-        </span>
-      </div>
-      <div className="flex gap-2">
-        <IconAction
-          variant="default"
-          label={pomodoro.running ? 'pausar foco' : 'iniciar foco'}
-          onClick={() =>
-            void post(
-              pomodoro.running ? '/api/pomodoro/pause' : '/api/pomodoro/start',
-              'Falha ao atualizar pomodoro',
-            )
-          }
-          icon={pomodoro.running ? <Pause className="size-4" /> : <Play className="size-4" />}
-        />
-        <IconAction
-          label="zerar pomodoro"
-          onClick={() => void post('/api/pomodoro/reset', 'Falha ao zerar pomodoro')}
-          icon={<Broom className="size-4" />}
-        />
+        <div className="flex gap-2">
+          <IconAction
+            variant="default"
+            label={pomodoro.running ? 'pausar foco' : 'iniciar foco'}
+            onClick={() =>
+              void post(
+                pomodoro.running ? '/api/pomodoro/pause' : '/api/pomodoro/start',
+                'Falha ao atualizar pomodoro',
+              )
+            }
+            icon={pomodoro.running ? <Pause className="size-4" /> : <Play className="size-4" />}
+          />
+          <IconAction
+            label="zerar pomodoro"
+            onClick={() => void post('/api/pomodoro/reset', 'Falha ao zerar pomodoro')}
+            icon={<Broom className="size-4" />}
+          />
+        </div>
       </div>
       {error && (
         <span role="alert" className="type-caption text-danger">

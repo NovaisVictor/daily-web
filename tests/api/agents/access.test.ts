@@ -9,7 +9,7 @@ import {GET,POST} from '@/app/api/agent-access/tokens/route';
 import {DELETE} from '@/app/api/agent-access/tokens/[id]/route';
 import {GET as prompt} from '@/app/api/agent-access/prompt/route';
 let dir:string;
-beforeEach(()=>{dir=mkdtempSync(path.join(tmpdir(),'daily-agent-access-'));process.env.DAILY_WEB_DB_PATH=path.join(dir,'test.db');process.env.PUBLIC_ORIGIN='https://daily.example';getDb().prepare("INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES('a','a','unused',1,'2026-01-01')").run();vi.mocked(getCurrentUser).mockResolvedValue({id:'a',username:'a',passwordHash:'unused',isAdmin:true,createdAt:'2026-01-01'});});
+beforeEach(()=>{dir=mkdtempSync(path.join(tmpdir(),'daily-agent-access-'));process.env.DAILY_WEB_DB_PATH=path.join(dir,'test.db');process.env.PUBLIC_ORIGIN='https://daily.example';getDb().prepare("INSERT INTO users(id,username,password_hash,is_admin,created_at) VALUES('a','a','unused',1,'2026-01-01')").run();vi.mocked(getCurrentUser).mockResolvedValue({id:'a',username:'a',passwordHash:'unused',isAdmin:true,createdAt:'2026-01-01',avatarUrl:null,fullName:null,email:null});});
 afterEach(()=>{delete process.env.PUBLIC_ORIGIN;rmSync(dir,{recursive:true,force:true});});
 const request=(origin='https://daily.example')=>new Request('https://daily.example/api/agent-access/tokens',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({label:'My key',scopes:['agents:read']})});
 it('requires authenticated same-origin browser administration',async()=>{expect((await POST(request('https://attacker.example'))).status).toBe(403);vi.mocked(getCurrentUser).mockResolvedValue(null);expect((await POST(request())).status).toBe(401);});

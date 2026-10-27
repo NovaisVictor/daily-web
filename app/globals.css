@@ -995,6 +995,59 @@
   overflow: hidden;
 }
 
+/* O 1 s de pressão: um anel da cor da marca vai se formando em volta do painel. Nada
+   que mude a geometria: encolher o painel fazia a borda passar por baixo do ponteiro. */
+@keyframes panel-press {
+  from {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+  to {
+    outline: 2px solid var(--brand);
+    outline-offset: 6px;
+  }
+}
+
+.dashboard-grid [data-slot='grid-panel'][data-pressing] {
+  animation: panel-press 1s linear forwards;
+}
+
+/* O tremor do modo de organizar, como os ícones da tela inicial do celular. Gira
+   o cartão de dentro, não o item posicionado pela grade: lá a rotação orbitaria
+   um ponto distante do próprio centro e o painel andaria pela tela. O painel
+   arrastado fica parado, como no celular. A regra global de movimento reduzido
+   já corta a duração e as repetições. */
+@keyframes panel-jiggle {
+  0%,
+  100% {
+    rotate: -0.4deg;
+  }
+  50% {
+    rotate: 0.4deg;
+  }
+}
+
+.dashboard-grid.is-arranging
+  .react-grid-item:not(.react-draggable-dragging):not(.react-grid-placeholder)
+  > [data-slot='grid-panel'] {
+  animation: panel-jiggle 0.18s ease-in-out infinite;
+}
+
+/* Fases e durações diferentes, para os painéis não tremerem em uníssono. */
+.dashboard-grid.is-arranging
+  .react-grid-item:nth-child(2n):not(.react-draggable-dragging)
+  > [data-slot='grid-panel'] {
+  animation-duration: 0.22s;
+  animation-delay: -0.07s;
+}
+
+.dashboard-grid.is-arranging
+  .react-grid-item:nth-child(3n):not(.react-draggable-dragging)
+  > [data-slot='grid-panel'] {
+  animation-duration: 0.2s;
+  animation-delay: -0.12s;
+}
+
 .react-grid-item.react-draggable-dragging {
   cursor: grabbing;
   z-index: 3;

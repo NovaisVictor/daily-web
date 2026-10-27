@@ -19,7 +19,7 @@ const metadata=z.object({
 }).strict();
 export const connectionOperations=[
   operation('connections_list','List your supported integration metadata without secrets','connections:read','read',{},async(p)=>({modules:moduleStates(p.userId).filter(m=>['jira','pulls','tasks'].includes(m.module))})),
-  operation('connections_setup','Get the authenticated browser URL to enter or change a secret','connections:write','read',{module:moduleId},async(_p,i)=>({url:new URL(`/config?module=${i.module}`,oauthConfig().origin).href,instruction:'Open this authenticated same-origin page to enter credentials. Never pass credentials to an MCP tool.'})),
+  operation('connections_setup','Get the authenticated browser URL to enter or change a secret','connections:write','read',{module:moduleId},async(_p,i)=>({url:new URL(`/tools?module=${i.module}`,oauthConfig().origin).href,instruction:'Open this authenticated same-origin page to enter credentials. Never pass credentials to an MCP tool.'})),
   operation('connections_update','Change connection labels or declared non-secret settings; secret fields are rejected','connections:write','write',{connectionId:z.string().min(1),label:z.string().trim().min(1).max(100).optional(),values:metadata.optional()},async(p,i)=>{
     const conn=findConnection(p.userId,i.connectionId);if(!conn||!['jira','pulls','tasks'].includes(conn.module))throw new AccessError(404,'not_found','Connection not found');
     const allowed=new Set(MODULES[conn.module].fields.filter(field=>!field.secret&&!field.hidden).map(field=>field.name));

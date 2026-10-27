@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword } from '@/lib/auth/password';
 import { createSessionToken, SESSION_COOKIE } from '@/lib/auth/session';
 import { findUserByUsername } from '@/lib/auth/users';
+import { recordLogin } from '@/lib/preferences';
 import { isRateLimited, registerFailedAttempt, clearAttempts, extractClientIp } from '@/lib/auth/rateLimit';
 
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   clearAttempts(ip);
+  recordLogin(user.id);
   const token = await createSessionToken(user.id, user.username, secret);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, {
