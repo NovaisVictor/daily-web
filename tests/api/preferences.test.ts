@@ -144,3 +144,53 @@ describe('visualização das tarefas', () => {
     expect(tasksView('u-1')).toBe('board');
   });
 });
+
+describe('aparência', () => {
+  it('grava só o que veio e devolve o que está guardado', async () => {
+    const res = await route(req({ appearance: { width: 'limited' } }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).appearance).toEqual({ width: 'limited' });
+
+    const again = await route(req({ appearance: { theme: 'dark', density: 'compact' } }));
+    expect((await again.json()).appearance).toEqual({
+      theme: 'dark',
+      density: 'compact',
+      width: 'limited',
+    });
+  });
+
+  it('guarda o padrão quando é escolhido, para valer mais que um cookie antigo', async () => {
+    await route(req({ appearance: { theme: 'dark' } }));
+    const res = await route(req({ appearance: { theme: 'system' } }));
+
+    expect((await res.json()).appearance.theme).toBe('system');
+  });
+
+  it('é por usuário: o que um guarda não aparece para o outro', async () => {
+    await route(req({ appearance: { width: 'limited' } }));
+    currentUser.mockResolvedValue({ ...ME, id: 'u-2', username: 'maria' });
+
+    const res = await route(req({ appearance: { theme: 'light' } }));
+    expect((await res.json()).appearance).toEqual({ theme: 'light' });
+  });
+
+  it.each([
+    ['um valor que não existe', { theme: 'sepia' }],
+    ['uma chave que não existe', { fonte: 'grande' }],
+    ['um valor de outro tipo', { width: true }],
+    ['um objeto vazio', {}],
+    ['algo que não é objeto', 'dark'],
+    ['uma lista', ['dark']],
+    ['um valor válido junto de um inválido', { theme: 'dark', width: 'enorme' }],
+  ])('recusa %s', async (_nome, appearance) => {
+    const res = await route(req({ appearance }));
+    expect(res.status).toBe(400);
+  });
+
+  it('não grava nada quando um dos valores é inválido', async () => {
+    await route(req({ appearance: { theme: 'dark', width: 'enorme' } }));
+    const ok = await route(req({ appearance: { density: 'compact' } }));
+
+    expect((await ok.json()).appearance).toEqual({ density: 'compact' });
+  });
+});

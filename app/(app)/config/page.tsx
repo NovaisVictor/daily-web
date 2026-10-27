@@ -3,14 +3,8 @@ import { UsersPanel } from '@/components/UsersPanel';
 import { LayoutPanel } from '@/components/LayoutPanel';
 import { AppearancePanel } from '@/components/AppearancePanel';
 import { PageHeader } from '@/components/data/PageHeader';
-import {
-  BACKDROP_COOKIE,
-  DENSITY_COOKIE,
-  THEME_COOKIE,
-  parseBackdrop,
-  parseDensity,
-  parseTheme,
-} from '@/lib/theme';
+import { getCurrentUser } from '@/lib/auth/currentUser';
+import { resolveAppearance } from '@/lib/appearance';
 
 /**
  * No back link and no breadcrumb: the shell's sidebar is the way back, and it is
@@ -21,6 +15,8 @@ import {
  */
 export default async function ConfigPage() {
   const jar = await cookies();
+  const user = await getCurrentUser();
+  const appearance = resolveAppearance((name) => jar.get(name)?.value, user?.id ?? null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -31,9 +27,10 @@ export default async function ConfigPage() {
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <AppearancePanel
-          initialTheme={parseTheme(jar.get(THEME_COOKIE)?.value)}
-          initialDensity={parseDensity(jar.get(DENSITY_COOKIE)?.value)}
-          initialBackdrop={parseBackdrop(jar.get(BACKDROP_COOKIE)?.value)}
+          initialTheme={appearance.theme}
+          initialDensity={appearance.density}
+          initialBackdrop={appearance.backdrop}
+          initialWidth={appearance.width}
         />
         <div className="flex flex-col gap-4">
           <LayoutPanel />

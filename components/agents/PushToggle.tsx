@@ -8,7 +8,6 @@ import { mutationHeaders } from './request';
 type State = 'checking' | 'unsupported' | 'unconfigured' | 'denied' | 'off' | 'on';
 const NOTES: Partial<Record<State, string>> = {
   unsupported: 'Este navegador não recebe avisos. No iPhone, instale o app pela Tela de Início.',
-  unconfigured: 'Os avisos ainda não estão configurados no servidor.',
   denied: 'Avisos bloqueados nas permissões do navegador.',
 };
 

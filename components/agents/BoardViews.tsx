@@ -1,7 +1,21 @@
-import { Bot, ChevronDown, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bot, ChevronDown, ListFilter, Search, TriangleAlert } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { IconAction } from '@/components/data/IconAction';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { EmptyState } from '@/components/data/EmptyState';
-import { ACTIVITY_WINDOWS, activityWindow, formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress, type TaskStatus } from './contracts';
+import { ACTIVITY_WINDOWS, activityWindow, DEFAULT_ACTIVITY_WINDOW, formatTime, LIVE_LABELS, LIVE_TONES, NEEDS_YOU_LABELS, STATUS_LABELS, TASK_STATUSES, waitedFor, type AgentTask, type AgentSession, type SubtaskProgress, type TaskStatus } from './contracts';
 import { TaskCard } from './TaskCard';
 
 const ACTIVE: readonly TaskStatus[] = ['queued', 'working', 'waiting', 'blocked'];
@@ -60,12 +74,129 @@ export function SessionGrid({ sessions, onSelect }: { sessions: AgentSession[]; 
 }
 
 const fieldClass = 'h-9 rounded-lg border border-line-strong bg-surface-2 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
-export function BoardFilters({ params, onChange }: { params: Pick<URLSearchParams, 'get'>; onChange: (name: string, value: string) => void }) {
-  return <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1 p-3">
-    <label className="flex flex-1 items-center gap-2 text-sm"><span className="sr-only">Buscar tarefas</span><input type="search" value={params.get('q') ?? ''} onChange={event => onChange('q', event.target.value)} placeholder="Buscar tarefa…" maxLength={200} className={`${fieldClass} w-full min-w-40`} /></label>
-    <label className="flex items-center gap-2 text-xs text-ink-mid">Status<select value={params.get('status') ?? ''} onChange={event => onChange('status', event.target.value)} className={fieldClass}><option value="">Todos</option>{TASK_STATUSES.map(status => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}</select></label>
-    <label className="flex items-center gap-2 text-xs text-ink-mid">Período<select value={activityWindow(params.get('days'))} onChange={event => onChange('days', event.target.value)} className={fieldClass}>{ACTIVITY_WINDOWS.map(days => <option key={days} value={days}>Últimos {days} dias</option>)}</select></label>
-    <label className="flex items-center gap-2 text-xs text-ink-mid">Ordem<select value={params.get('sort') ?? 'newest'} onChange={event => onChange('sort', event.target.value)} className={fieldClass}><option value="newest">Atividade recente</option><option value="oldest">Atividade mais antiga</option></select></label>
-    {params.get('sessionId') && <Button size="sm" variant="ghost" onClick={() => onChange('sessionId', '')}>Limpar sessão</Button>}
-  </div>;
+type FilterParams = Pick<URLSearchParams, 'get'>;
+type FilterChange = (name: string, value: string) => void;
+
+/** The empty string means "no filter" in the URL, but a radio item cannot carry it. */
+const ALL = 'all';
+
+/**
+ * The URL is the truth for the search, but it answers a keystroke late: an input driven straight
+ * from it gave back the old value in between and dropped letters typed quickly. The field keeps
+ * its own text and the URL follows after a short pause.
+ */
+const SEARCH_DEBOUNCE_MS = 250;
+
+function SearchField({ query, onChange }: { query: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(query);
+  // The last value this field wrote to the URL, to tell its own echo from an outside change.
+  const pushed = useRef(query);
+  const latestOnChange = useRef(onChange);
+  latestOnChange.current = onChange;
+
+  useEffect(() => {
+    if (query !== pushed.current) {
+      pushed.current = query;
+      setDraft(query);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    if (draft === pushed.current) return;
+    const timer = setTimeout(() => {
+      pushed.current = draft;
+      latestOnChange.current(draft);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft]);
+
+  return (
+    <input
+      type="search"
+      autoFocus
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      placeholder="Buscar tarefa…"
+      maxLength={200}
+      aria-label="Buscar tarefas"
+      className={`${fieldClass} w-full`}
+    />
+  );
+}
+
+/** Search sits behind an icon: one input took a whole bar across the page. */
+export function BoardSearch({ params, onChange }: { params: FilterParams; onChange: FilterChange }) {
+  const query = params.get('q') ?? '';
+  return (
+    <div className="relative">
+      <Popover>
+        <PopoverTrigger asChild>
+          <IconAction variant="outline" label="Buscar tarefas" icon={<Search className="size-4" />} />
+        </PopoverTrigger>
+        <PopoverContent align="center" className="w-80 p-2">
+          <SearchField query={query} onChange={(value) => onChange('q', value)} />
+        </PopoverContent>
+      </Popover>
+      {/* A search that is on has to show without opening the popover. */}
+      {query && (
+        <span aria-hidden className="pointer-events-none absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-brand" />
+      )}
+    </div>
+  );
+}
+
+/** Status, period and order in one dropdown; the number says how many differ from the default. */
+export function BoardFilterMenu({ params, onChange }: { params: FilterParams; onChange: FilterChange }) {
+  const status = params.get('status') ?? '';
+  const days = activityWindow(params.get('days'));
+  const sort = params.get('sort') === 'oldest' ? 'oldest' : 'newest';
+  const sessionId = params.get('sessionId');
+  const active =
+    (status ? 1 : 0) + (days !== DEFAULT_ACTIVITY_WINDOW ? 1 : 0) + (sort !== 'newest' ? 1 : 0) + (sessionId ? 1 : 0);
+
+  // Several filters are usually changed in a row, so choosing one does not close the menu.
+  const keepOpen = (event: Event) => event.preventDefault();
+
+  return (
+    <div className="relative">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconAction variant="outline" label="Filtros" icon={<ListFilter className="size-4" />} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="w-60">
+          <DropdownMenuLabel>Status</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={status || ALL} onValueChange={(value) => onChange('status', value === ALL ? '' : value)}>
+            <DropdownMenuRadioItem value={ALL} onSelect={keepOpen}>Todos</DropdownMenuRadioItem>
+            {TASK_STATUSES.map((value) => (
+              <DropdownMenuRadioItem key={value} value={value} onSelect={keepOpen}>{STATUS_LABELS[value]}</DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Período</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={String(days)} onValueChange={(value) => onChange('days', value)}>
+            {ACTIVITY_WINDOWS.map((window) => (
+              <DropdownMenuRadioItem key={window} value={String(window)} onSelect={keepOpen}>Últimos {window} dias</DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Ordem</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={sort} onValueChange={(value) => onChange('sort', value)}>
+            <DropdownMenuRadioItem value="newest" onSelect={keepOpen}>Atividade recente</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="oldest" onSelect={keepOpen}>Atividade mais antiga</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+          {sessionId && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onChange('sessionId', '')}>Limpar sessão</DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {active > 0 && (
+        <Badge className="pointer-events-none absolute -top-1 -right-1 min-w-4 justify-center rounded-full px-1 type-caption leading-none tabular-nums">
+          {active}
+        </Badge>
+      )}
+    </div>
+  );
 }

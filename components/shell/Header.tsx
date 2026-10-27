@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LogOut, Search, Settings2, Sparkles, User as UserIcon } from 'lucide-react';
+import { Bot, LogOut, Search, Settings2, Sparkles, User as UserIcon } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -19,7 +19,7 @@ import { HeaderNotifications } from './HeaderNotifications';
 import { NAV_ITEMS } from './nav-items';
 
 // The rest (Configuração, Acesso dos agentes) is reached from the avatar menu and from
-// the "Conectar agente" button on the Agentes page.
+// the "Conectar agente" item of the avatar menu.
 const HEADER_NAV_ITEMS = NAV_ITEMS.filter((item) => item.placement === 'header');
 
 interface Props {
@@ -80,9 +80,7 @@ export function Header({
         aria-label and the native title. */}
       <nav aria-label="Principal" className="flex shrink-0 items-center gap-1">
         {HEADER_NAV_ITEMS.map((item) => {
-          const isActive = [item.href, ...(item.alsoActiveOn ?? [])].some((href) =>
-            isActivePath(pathname, href),
-          );
+          const isActive = isActivePath(pathname, item.href);
           const Icon = item.icon;
           return (
             <Link
@@ -136,6 +134,12 @@ export function Header({
               <Link href="/perfil">
                 <UserIcon className="size-4" />
                 Perfil
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/access">
+                <Bot className="size-4" />
+                Conectar agente
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

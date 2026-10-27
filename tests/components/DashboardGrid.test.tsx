@@ -74,7 +74,7 @@ const ultimasProps = () => props[props.length - 1];
 const painelDe = (texto: string) =>
   screen.getByText(texto).closest('[data-slot="grid-panel"]') as HTMLElement;
 
-// O modo liga ao segurar um painel por 1 s. Os timers falsos só valem durante o gesto: o resto
+// O modo liga ao segurar um painel por 0,5 s. Os timers falsos só valem durante o gesto: o resto
 // dos testes usa `waitFor`, que precisa do relógio de verdade.
 function segurarPainel(texto = 'painel de e-mail', ms = 1000) {
   vi.useFakeTimers();
@@ -121,7 +121,7 @@ describe('DashboardGrid', () => {
     expect((ultimasProps().resizeConfig as { enabled: boolean }).enabled).toBe(false);
   });
 
-  it('segurar um painel por 1 s prende o modo até ser desligado', () => {
+  it('segurar um painel por 0,5 s prende o modo até ser desligado', () => {
     render(<DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />);
 
     segurarPainel();
@@ -236,20 +236,20 @@ describe('DashboardGrid', () => {
 describe('segurar um painel para organizar', () => {
   const entrou = () => (ultimasProps().dragConfig as { enabled: boolean }).enabled;
 
-  it('não liga antes de 1 s', () => {
+  it('não liga antes de 0,5 s', () => {
     render(<DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />);
-    segurarPainel('painel de e-mail', 900);
+    segurarPainel('painel de e-mail', 400);
 
     expect(entrou()).toBe(false);
     expect(screen.queryByRole('button', { name: /Salvar/ })).toBeNull();
   });
 
-  it('soltar antes de 1 s cancela', () => {
+  it('soltar antes de 0,5 s cancela', () => {
     render(<DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />);
     vi.useFakeTimers();
     fireEvent.pointerDown(painelDe('painel de e-mail'), { button: 0, clientX: 10, clientY: 10 });
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(200);
     });
     fireEvent.pointerUp(painelDe('painel de e-mail'));
     act(() => {
@@ -364,11 +364,11 @@ describe('segurar um painel para organizar', () => {
 
     vi.useFakeTimers();
     fireEvent.pointerDown(painelDe('painel de e-mail'), { button: 0, clientX: 10, clientY: 10 });
-    expect(screen.getByRole('timer')).toHaveTextContent('1,0 s');
+    expect(screen.getByRole('timer')).toHaveTextContent('0,5 s');
     act(() => {
       vi.advanceTimersByTime(400);
     });
-    expect(screen.getByRole('timer')).toHaveTextContent(/0,6 s|0,5 s/);
+    expect(screen.getByRole('timer')).toHaveTextContent(/0,1 s|0,0 s/);
 
     fireEvent.pointerUp(painelDe('painel de e-mail'));
     expect(screen.queryByRole('timer')).toBeNull();
@@ -431,7 +431,7 @@ describe('segurar um painel para organizar', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it('soltar depois de 1 s não dispara o clique do botão que estava debaixo', () => {
+  it('soltar depois de 0,5 s não dispara o clique do botão que estava debaixo', () => {
     const onClick = vi.fn();
     render(
       <DashboardGrid
@@ -463,7 +463,7 @@ describe('segurar um painel para organizar', () => {
 
   // O painel mudar de tamanho ou de lugar debaixo do ponteiro faz o navegador disparar
   // `pointerleave` nele; isso não pode matar o gesto.
-  it('o ponteiro sair do painel no meio do 1 s não cancela', () => {
+  it('o ponteiro sair do painel no meio do 0,5 s não cancela', () => {
     render(<DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />);
     vi.useFakeTimers();
     fireEvent.pointerDown(painelDe('painel de e-mail'), { button: 0, clientX: 10, clientY: 10 });
@@ -503,7 +503,7 @@ describe('segurar um painel para organizar', () => {
     expect(entrou()).toBe(false);
   });
 
-  it('marca o painel segurado enquanto o 1 s passa', () => {
+  it('marca o painel segurado enquanto o 0,5 s passa', () => {
     render(<DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />);
     vi.useFakeTimers();
     fireEvent.pointerDown(painelDe('painel de e-mail'), { button: 0, clientX: 10, clientY: 10 });
@@ -534,6 +534,22 @@ describe('segurar um painel para organizar', () => {
 
     expect(entrou()).toBe(false);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // A barra de salvar flutua sobre o pé da janela; sem folga, ela cobriria a alça de redimensionar
+  // do último painel.
+  it('deixa folga embaixo enquanto organiza, para a barra não cobrir o último painel', () => {
+    const { container } = render(
+      <DashboardGrid layout={defaultLayout()} panels={painéis} onSave={() => {}} />,
+    );
+    const raiz = container.firstElementChild as HTMLElement;
+    expect(raiz).not.toHaveClass('pb-28');
+
+    segurarPainel();
+    expect(raiz).toHaveClass('pb-28');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+    expect(raiz).not.toHaveClass('pb-28');
   });
 
   it('não existe mais o botão Organizar', () => {

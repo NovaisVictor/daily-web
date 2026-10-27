@@ -1,6 +1,5 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import type { PomodoroState } from '@/lib/types';
 import { WELCOME_LABELS, type WelcomeKind } from '@/lib/greeting';
 import { Clock } from './Clock';
@@ -11,13 +10,9 @@ interface Props {
   welcome: WelcomeKind;
   pomodoro: PomodoroState | null;
   onChanged: () => void;
-  bell: ReactNode;
-  /** Ações que só existem em certas situações — restaurar a disposição dos
-   *  painéis, por exemplo, que só faz sentido depois de alguém mexer. */
-  extra?: ReactNode;
 }
 
-export function NowBand({ greetingName, welcome, pomodoro, onChanged, bell, extra }: Props) {
+export function NowBand({ greetingName, welcome, pomodoro, onChanged }: Props) {
   return (
     <header className="mb-10 flex flex-wrap items-end justify-between gap-6 pb-2">
       <div className="flex flex-col gap-1.5">
@@ -27,10 +22,6 @@ export function NowBand({ greetingName, welcome, pomodoro, onChanged, bell, extr
       <div className="flex flex-wrap items-end gap-10">
         <Pomodoro pomodoro={pomodoro} onChanged={onChanged} />
         <Clock />
-        <div className="flex items-center gap-3 self-end">
-          {extra}
-          {bell}
-        </div>
       </div>
     </header>
   );

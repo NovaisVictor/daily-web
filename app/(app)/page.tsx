@@ -5,9 +5,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useSharedDashboardState } from '@/lib/hooks/DashboardStateProvider';
 import { useShellUser } from '@/components/shell/ShellUser';
-import { useDesktopAlerts } from '@/lib/hooks/useDesktopAlerts';
 import { NowBand } from '@/components/NowBand';
-import { NotificationsBell } from '@/components/NotificationsBell';
 import { EmailPanel } from '@/components/EmailPanel';
 import { AgendaPanel } from '@/components/AgendaPanel';
 import { PullsPanel } from '@/components/PullsPanel';
@@ -30,8 +28,6 @@ import {
 } from '@/lib/dashboardLayout';
 import {
   markEmailsSeen,
-  markNotificationRead,
-  markNotificationsRead,
   removeEmails,
   removeTask,
   setSubtaskCompleted,
@@ -43,7 +39,6 @@ import {
 export default function DashboardPage() {
   const { state, loading, reload, mutate } = useSharedDashboardState();
   const { greetingName, welcome } = useShellUser();
-  const desktop = useDesktopAlerts(state);
   const [layoutError, setLayoutError] = useState<string | null>(null);
   const booting = loading && !state;
   // As duas listas de PRs, para o Jira mostrar sob cada issue o PR que a cita.
@@ -197,23 +192,6 @@ export default function DashboardPage() {
         welcome={welcome}
         pomodoro={state?.pomodoro ?? null}
         onChanged={reload}
-        bell={
-          has('jira') || has('email') || has('pulls') || has('slack') ? (
-            <NotificationsBell
-              notifications={state?.notifications ?? { data: [], error: null }}
-              onChanged={reload}
-              onMarkedRead={(id) => mutate((s) => markNotificationRead(s, id))}
-              onMarkedAllRead={(ids) => mutate((s) => markNotificationsRead(s, ids))}
-              desktop={{
-                supported: desktop.supported,
-                enabled: desktop.enabled,
-                permission: desktop.permission,
-                onEnable: () => void desktop.enable(),
-                onDisable: desktop.disable,
-              }}
-            />
-          ) : null
-        }
       />
 
       {layoutError && <ErrorState title="Não deu para guardar a disposição" description={layoutError} />}

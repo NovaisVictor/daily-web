@@ -12,6 +12,13 @@ import { isJiraAccountId } from './jiraAccount';
 import type { JiraPerson, TasksView } from './types';
 import { isJiraKey } from './jiraKey';
 import type { WelcomeKind } from './greeting';
+import {
+  isBackdrop,
+  isContentWidth,
+  isDensity,
+  isThemePreference,
+  type AppearancePatch,
+} from './theme';
 
 // Preferências de visualização por usuário. São escolhas de como olhar, não
 // de credencial: por isso não passam pelo cofre e não são cifradas.
@@ -21,6 +28,12 @@ export const DASHBOARD_LAYOUT = 'dashboardLayout';
 export const DASHBOARD_LAYOUTS = 'dashboardLayouts';
 export const TASKS_VIEW = 'tasksView';
 export const LOGIN_COUNT = 'loginCount';
+export const APPEARANCE_KEYS = {
+  theme: 'theme',
+  density: 'density',
+  backdrop: 'backdrop',
+  width: 'contentWidth',
+} as const;
 
 function read(userId: string, key: string): string | null {
   const row = getDb()
@@ -192,4 +205,32 @@ export function recordLogin(userId: string): void {
 export function welcomeKind(userId: string): WelcomeKind {
   const count = Number(read(userId, LOGIN_COUNT));
   return Number.isInteger(count) && count >= 2 ? 'returning' : 'first';
+}
+
+/**
+ * What this person chose in the appearance settings, and only that: a value never chosen is
+ * absent, so the caller can fall back to the browser's cookie. A value that is not a known one
+ * (written by hand, or by an older version) is treated as absent rather than trusted.
+ */
+export function savedAppearance(userId: string): AppearancePatch {
+  const saved: AppearancePatch = {};
+  const theme = read(userId, APPEARANCE_KEYS.theme);
+  const density = read(userId, APPEARANCE_KEYS.density);
+  const backdrop = read(userId, APPEARANCE_KEYS.backdrop);
+  const width = read(userId, APPEARANCE_KEYS.width);
+  if (isThemePreference(theme)) saved.theme = theme;
+  if (isDensity(density)) saved.density = density;
+  if (isBackdrop(backdrop)) saved.backdrop = backdrop;
+  if (isContentWidth(width)) saved.width = width;
+  return saved;
+}
+
+/** Defaults are stored too when chosen: an explicit "system" must beat a stale cookie that says
+ *  "dark". One transaction, so a patch with several keys is never half saved. */
+export function setAppearance(userId: string, patch: AppearancePatch): void {
+  getDb().transaction(() => {
+    for (const [field, value] of Object.entries(patch)) {
+      setPreference(userId, APPEARANCE_KEYS[field as keyof typeof APPEARANCE_KEYS], value);
+    }
+  })();
 }

@@ -23,6 +23,7 @@ import {
   type Density,
   type ThemePreference,
 } from '@/lib/theme';
+import { persistAppearance } from '@/lib/appearanceClient';
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 
@@ -88,16 +89,19 @@ export function AccountMenu({
   const chooseTheme = (pref: ThemePreference) => {
     applyTheme(pref);
     setTheme(pref);
+    persistAppearance({ theme: pref });
   };
 
   const chooseDensity = (d: Density) => {
     applyDensity(d);
     setDensity(d);
+    persistAppearance({ density: d });
   };
 
   const chooseBackdrop = (b: Backdrop) => {
     applyBackdrop(b);
     setBackdrop(b);
+    persistAppearance({ backdrop: b });
   };
 
   const signOut = async () => {

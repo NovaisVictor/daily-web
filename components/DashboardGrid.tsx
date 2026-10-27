@@ -34,7 +34,7 @@ interface Props {
 }
 
 /** How long a panel has to be held before the arrange mode starts, as on a phone's home screen. */
-const HOLD_MS = 1000;
+const HOLD_MS = 500;
 /** A hand is never perfectly still: the pointer may drift this far before the press is read as a
  *  selection or a drag and not as a hold. */
 const HOLD_SLOP_PX = 24;
@@ -48,17 +48,17 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
   const [dragging, setDragging] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const narrowRef = useRef<HTMLDivElement>(null);
-  // Segurar um painel por 1 s liga o modo e o deixa preso até a pessoa salvar
+  // Segurar um painel por 0,5 s liga o modo e o deixa preso até a pessoa salvar
   // ou descartar. É o gesto da tela inicial do celular, e funciona igual com
   // mouse e com toque.
   const [pinned, setPinned] = useState(false);
-  // O painel segurado e onde está o ponteiro: dá retorno enquanto o 1 s passa.
+  // O painel segurado e onde está o ponteiro: dá retorno enquanto o 0,5 s passa.
   const [holding, setHolding] = useState<{ panelId: string; x: number; y: number } | null>(null);
   // Quanto da espera já passou, para o contador ao lado do ponteiro.
   const [heldMs, setHeldMs] = useState(0);
   // Desfaz o gesto em andamento: o timer e os ouvidos da janela.
   const stopHoldRef = useRef<(() => void) | null>(null);
-  // O mouse ainda pressionado quando o 1 s completa: o arrasto continua dele, sem soltar.
+  // O mouse ainda pressionado quando o 0,5 s completa: o arrasto continua dele, sem soltar.
   const handoffRef = useRef<{ panel: HTMLElement; x: number; y: number; released: boolean } | null>(
     null,
   );
@@ -343,7 +343,9 @@ export function DashboardGrid({ layout, panels, onSave }: Props) {
   }
 
   return (
-    <div ref={containerRef}>
+    // While arranging, the floating bar sits over the bottom of the window; the room under the last
+    // panel lets it scroll clear of the bar, so its resize handle is never covered.
+    <div ref={containerRef} className={arranging ? 'pb-28' : undefined}>
       {holding && (
         <div
           role="timer"

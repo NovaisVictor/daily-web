@@ -2,16 +2,9 @@ import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/shell/AppShell';
 import { getCurrentUser } from '@/lib/auth/currentUser';
+import { resolveAppearance } from '@/lib/appearance';
 import { greetingName } from '@/lib/greeting';
 import { welcomeKind } from '@/lib/preferences';
-import {
-  BACKDROP_COOKIE,
-  DENSITY_COOKIE,
-  THEME_COOKIE,
-  parseBackdrop,
-  parseDensity,
-  parseTheme,
-} from '@/lib/theme';
 
 /**
  * Wraps the authenticated screens only. /login sits outside this group on
@@ -20,12 +13,16 @@ import {
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const jar = await cookies();
   const user = await getCurrentUser();
+  const { theme, density, backdrop } = resolveAppearance(
+    (name) => jar.get(name)?.value,
+    user?.id ?? null,
+  );
 
   return (
     <AppShell
-      theme={parseTheme(jar.get(THEME_COOKIE)?.value)}
-      density={parseDensity(jar.get(DENSITY_COOKIE)?.value)}
-      backdrop={parseBackdrop(jar.get(BACKDROP_COOKIE)?.value)}
+      theme={theme}
+      density={density}
+      backdrop={backdrop}
       username={user?.username ?? null}
       avatarUrl={user?.avatarUrl ?? null}
       greetingName={user ? greetingName(user.fullName, user.username) : null}

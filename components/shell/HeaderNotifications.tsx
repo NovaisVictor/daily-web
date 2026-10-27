@@ -3,19 +3,21 @@
 import { RefreshCw } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { useSharedDashboardState } from '@/lib/hooks/DashboardStateProvider';
+import { useDesktopAlerts } from '@/lib/hooks/useDesktopAlerts';
 import { markNotificationRead, markNotificationsRead } from '@/lib/statePatches';
 import { NotificationsBell } from '@/components/NotificationsBell';
 import { cn } from '@/lib/utils';
 
 /**
- * The header's refresh button and bell. Both read the dashboard state shared by
- * the shell, so opening the bell never triggers a fresh round-trip to Jira,
- * GitHub or the inbox — it reads what the last refresh cycle already cached —
- * and the refresh button updates the dashboard panels too. No desktop-alert
- * toggle here; that setting lives on the dashboard page's own bell.
+ * The header's refresh button and bell: the only bell in the app. Both read the dashboard
+ * state shared by the shell, so opening the bell never triggers a fresh round-trip to Jira,
+ * GitHub or the inbox — it reads what the last refresh cycle already cached — and the refresh
+ * button updates the dashboard panels too. The desktop alerts live here too, so they fire on
+ * every page and not only on the dashboard.
  */
 export function HeaderNotifications() {
   const { state, loading, refreshNow, reload, mutate } = useSharedDashboardState();
+  const desktop = useDesktopAlerts(state);
 
   return (
     <>
@@ -33,6 +35,13 @@ export function HeaderNotifications() {
         onChanged={reload}
         onMarkedRead={(id) => mutate((s) => markNotificationRead(s, id))}
         onMarkedAllRead={(ids) => mutate((s) => markNotificationsRead(s, ids))}
+        desktop={{
+          supported: desktop.supported,
+          enabled: desktop.enabled,
+          permission: desktop.permission,
+          onEnable: () => void desktop.enable(),
+          onDisable: desktop.disable,
+        }}
         triggerClassName="size-10 border-transparent"
       />
     </>

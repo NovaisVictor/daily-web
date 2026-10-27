@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/data/EmptyState';
 import { ErrorState } from '@/components/data/ErrorState';
 import { activityWindow, needsYou, parseSnapshot } from './contracts';
 import { useAgentPolling } from './useAgentPolling';
-import { BoardFilters, KanbanColumns, SessionGrid } from './BoardViews';
+import { BoardFilterMenu, BoardSearch, KanbanColumns, SessionGrid } from './BoardViews';
 import { PushToggle } from './PushToggle';
 
 export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' }) {
@@ -54,16 +54,19 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
   const nextCursor = tab === 'sessions' ? data?.sessions.nextCursor : data?.tasks.nextCursor;
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="type-heading">{detailed ? 'Agentes e atividades' : 'Kanban de tarefas'}</h1>
-        <div className="flex flex-wrap items-center gap-2">{waitingOnYou > 0 && <button type="button" onClick={jumpToNeedsYou} title="Ir para a primeira tarefa que precisa de você" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" /><span role="status">{waitingOnYou} aguardando você</span></button>}<PushToggle /><Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button><Button asChild size="sm"><Link href="/access">Conectar agente</Link></Button></div>
+        <div className="flex flex-wrap items-center gap-2">
+          {waitingOnYou > 0 && <button type="button" onClick={jumpToNeedsYou} title="Ir para a primeira tarefa que precisa de você" className="flex items-center gap-1.5 rounded-full bg-danger-tint px-3 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"><span aria-hidden className="size-1.5 rounded-full bg-danger motion-safe:animate-ping" /><span role="status">{waitingOnYou} aguardando você</span></button>}<PushToggle />
+          <Button variant="outline" size="sm" onClick={refresh} aria-label="Atualizar agentes"><RefreshCw className="size-4" />Atualizar</Button>
+          <BoardSearch params={params} onChange={changeFilter} />
+          <BoardFilterMenu params={params} onChange={changeFilter} />
+        </div>
       </header>
-      <BoardFilters params={params} onChange={changeFilter} />
       {detailed && <nav aria-label="Visão de agentes" className="flex gap-2"><Button variant={tab === 'tasks' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'tasks')}>Tarefas</Button><Button variant={tab === 'sessions' ? 'secondary' : 'ghost'} onClick={() => changeFilter('tab', 'sessions')}>Sessões</Button></nav>}
       {error && <ErrorState title={data ? 'Exibindo a última atualização recebida' : 'Não foi possível carregar os agentes'} description={error} onRetry={refresh} />}
       {phase === 'loading' && !data && <div role="status" className="rounded-xl border border-line bg-surface-1 p-12 text-center text-sm text-ink-mid">Carregando seu workspace…</div>}
       {data && tab === 'tasks' && <>
-        <div className="flex items-center justify-between text-xs text-ink-dim"><span>{tasks.length} tarefa{tasks.length === 1 ? '' : 's'} nesta página</span><span>Atividade nos últimos {days} dias · histórico guardado por 30 dias</span></div>
         {tasks.length === 0 && <EmptyState icon={<Columns3 />} title={params.get('q') || params.get('status') || params.get('sessionId') ? 'Nenhuma tarefa neste filtro' : days < 30 ? `Nenhuma tarefa nos últimos ${days} dias` : 'Seu próximo trabalho começa aqui'} description={days < 30 ? 'Amplie o período para ver tarefas mais antigas, ou conecte um agente para começar.' : 'Conecte Claude, Codex ou Gemini para acompanhar as tarefas conforme os agentes trabalham.'} action={<Button asChild><Link href="/access">Configurar acesso</Link></Button>} />}
         <KanbanColumns tasks={tasks} status={params.get('status')} progress={data.subtaskProgress} totals={data.statusCounts} showFinished={params.get('finished') === 'show'} onToggleFinished={() => changeFilter('finished', params.get('finished') === 'show' ? '' : 'show')} />
       </>}
@@ -72,7 +75,7 @@ export function AgentBoard({ mode = 'kanban' }: { mode?: 'kanban' | 'workspace' 
         next.set('sessionId', id); next.set('tab', 'tasks'); next.delete('cursor');
         router.replace(`${pathname}?${next}`, { scroll: false });
       }} />}
-      {data && <div className="flex items-center justify-between gap-3 text-xs text-ink-mid"><span>{nextCursor ? 'Mais resultados disponíveis; esta página não representa todo o workspace.' : 'Fim dos resultados.'}</span><div className="flex gap-2">{params.has('cursor') && <Button variant="outline" size="sm" onClick={() => changeFilter('cursor', '')}>Primeira página</Button>}{nextCursor && <Button variant="outline" size="sm" onClick={() => changeFilter('cursor', nextCursor)}>Próxima página</Button>}</div></div>}
+      {data && (nextCursor || params.has('cursor')) && <div className="flex items-center justify-between gap-3 text-xs text-ink-mid"><span>{nextCursor ? 'Mais resultados disponíveis; esta página não representa todo o workspace.' : null}</span><div className="flex gap-2">{params.has('cursor') && <Button variant="outline" size="sm" onClick={() => changeFilter('cursor', '')}>Primeira página</Button>}{nextCursor && <Button variant="outline" size="sm" onClick={() => changeFilter('cursor', nextCursor)}>Próxima página</Button>}</div></div>}
     </div>
   );
 }
