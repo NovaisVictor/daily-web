@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState, useEffect } from 'react';
-import { CalendarPlus, ChevronRight, Flag, GitPullRequest, Plus, X } from 'lucide-react';
+import { ArrowUpDown, CalendarPlus, ChevronRight, Flag, GitPullRequest, Plus, X } from 'lucide-react';
 import { IconAction } from '@/components/data/IconAction';
 import { NavArrowRight } from 'iconoir-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -36,7 +36,6 @@ import {
   parseJiraFilters,
   type JiraFilterState,
 } from '@/lib/jiraFilters';
-import { selectClass } from '@/lib/theme';
 import {
   buildJiraTree,
   dueLabel,
@@ -63,6 +62,15 @@ import { FilterBar } from './ui/FilterBar';
 import { SearchInput } from './ui/SearchInput';
 import { Chip } from './ui/Chip';
 import { ActiveFilters } from './ui/ActiveFilters';
+import { FilterPopover, FilterPopoverSection } from './ui/FilterPopover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import { EmptyState } from '@/components/data/EmptyState';
 import { SkeletonRows } from './ui/legacy-skeleton';
 import { Button } from './ui/button';
@@ -586,6 +594,11 @@ export function JiraPanel({
       : []),
   ];
 
+  // The search stays in plain sight, so the badge counts only what the panel
+  // hides. Display is left out: it narrows nothing, and the list itself shows
+  // which view is on.
+  const secondaryCount = activeFilters.filter((f) => f.id !== 'query').length;
+
   const clearFilter = (id: string) => {
     if (id === 'role') return setFilter('assignee');
     if (id === 'query' || isJiraFilterField(id)) setFiltros(clearJiraFilter(id));
@@ -711,24 +724,6 @@ export function JiraPanel({
                 },
               ]}
             />
-            {/* Papel e exibição só valem para "Em aberto": dividem a linha das abas
-          em vez de ocupar uma própria. */}
-            {aba === 'abertas' && (
-              <div
-                role="group"
-                aria-label="Papel e exibição"
-                className="mb-4 flex flex-wrap items-center gap-2"
-              >
-                {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-                  <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
-                    {pessoaAtiva ? FILTER_LABEL_PESSOA[f] : FILTER_LABEL[f]}
-                  </Chip>
-                ))}
-                <Chip active={!grouped} onClick={() => setGrouped((g) => !g)}>
-                  {grouped ? 'Lista simples' : 'Hierarquia'}
-                </Chip>
-              </div>
-            )}
           </div>
 
           {/* O período pertence às duas listas fechadas, e não a uma delas: ficar
@@ -751,84 +746,122 @@ export function JiraPanel({
               label="buscar issues"
               placeholder="chave ou resumo, até do épico"
             />
-            <JiraMultiFilterDropdown
-              label="filtrar por status"
-              title="Filtrar por Status"
-              placeholder="Status"
-              name="Status"
-              filter={filtros.status}
-              options={opcoes.statuses.map((status) => ({
-                value: status,
-                label: status,
-              }))}
-              onChange={(status) => setFiltros({ status })}
-            />
-            <JiraMultiFilterDropdown
-              label="filtrar por tipo"
-              title="Filtrar por Tipo"
-              placeholder="Tipo"
-              name="Tipo"
-              filter={filtros.tier}
-              options={JIRA_TIERS.map((tier) => ({
-                value: tier,
-                label: JIRA_TIER_LABEL[tier],
-              }))}
-              onChange={(tier) => setFiltros({ tier })}
-            />
-            {/* Os três degraus descem em cascata, e a seta diz isso: cada um
-            recorta as opções do seguinte. */}
-            <div
-              role="group"
-              aria-label="hierarquia do Jira"
-              className="inline-flex max-w-full flex-wrap items-center gap-0.5"
-            >
-              <JiraMultiFilterDropdown
-                label="filtrar por iniciativa"
-                title="Filtrar por Iniciativa"
-                placeholder="Iniciativa"
-                name="Iniciativa"
-                filter={filtros.initiative}
-                options={opcoes.initiatives.map(issueOption)}
-                formatLabel={rotuloDe}
-                onChange={(initiative) =>
-                  setFiltros(changeJiraFilter(filtros, 'initiative', initiative))
-                }
-              />
-              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
-              <JiraMultiFilterDropdown
-                label="filtrar por épico"
-                title="Filtrar por Épico"
-                placeholder="Épico"
-                name="Épico"
-                filter={filtros.epic}
-                options={opcoes.epics.map(issueOption)}
-                formatLabel={rotuloDe}
-                onChange={(epic) => setFiltros(changeJiraFilter(filtros, 'epic', epic))}
-              />
-              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
-              <JiraMultiFilterDropdown
-                label="filtrar por história"
-                title="Filtrar por História"
-                placeholder="História"
-                name="História"
-                filter={filtros.story}
-                options={opcoes.stories.map(issueOption)}
-                formatLabel={rotuloDe}
-                onChange={(story) => setFiltros({ story })}
-              />
-            </div>
-            <select
-              aria-label="ordenar issues"
-              className={cn(selectClass, 'border-line-strong')}
-              value={ordem}
-              onChange={(event) => setOrdem(parseJiraOrder(event.target.value))}
-            >
-              {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
-                <option key={o} value={o}>
-                  Ordenar: {JIRA_ORDER_LABEL[o]}
-                </option>
-              ))}
-            </select>
+            <FilterPopover label="filtros do Jira" count={secondaryCount}>
+              {/* Role and display only apply to "Em aberto". */}
+              {aba === 'abertas' && (
+                <>
+                  <FilterPopoverSection title="Papel">
+                    {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
+                      <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
+                        {pessoaAtiva ? FILTER_LABEL_PESSOA[f] : FILTER_LABEL[f]}
+                      </Chip>
+                    ))}
+                  </FilterPopoverSection>
+                  <FilterPopoverSection title="Exibição">
+                    <Chip active={!grouped} onClick={() => setGrouped((g) => !g)}>
+                      {grouped ? 'Lista simples' : 'Hierarquia'}
+                    </Chip>
+                  </FilterPopoverSection>
+                </>
+              )}
+              <FilterPopoverSection title="Status">
+                <JiraMultiFilterDropdown
+                  label="filtrar por status"
+                  title="Filtrar por Status"
+                  placeholder="Status"
+                  name="Status"
+                  filter={filtros.status}
+                  options={opcoes.statuses.map((status) => ({
+                    value: status,
+                    label: status,
+                  }))}
+                  onChange={(status) => setFiltros({ status })}
+                />
+              </FilterPopoverSection>
+              <FilterPopoverSection title="Tipo">
+                <JiraMultiFilterDropdown
+                  label="filtrar por tipo"
+                  title="Filtrar por Tipo"
+                  placeholder="Tipo"
+                  name="Tipo"
+                  filter={filtros.tier}
+                  options={JIRA_TIERS.map((tier) => ({
+                    value: tier,
+                    label: JIRA_TIER_LABEL[tier],
+                  }))}
+                  onChange={(tier) => setFiltros({ tier })}
+                />
+              </FilterPopoverSection>
+              <FilterPopoverSection title="Hierarquia">
+                {/* Os três degraus descem em cascata, e a seta diz isso: cada um
+                recorta as opções do seguinte. */}
+                <div
+                  role="group"
+                  aria-label="hierarquia do Jira"
+                  className="inline-flex max-w-full flex-wrap items-center gap-0.5"
+                >
+                  <JiraMultiFilterDropdown
+                    label="filtrar por iniciativa"
+                    title="Filtrar por Iniciativa"
+                    placeholder="Iniciativa"
+                    name="Iniciativa"
+                    filter={filtros.initiative}
+                    options={opcoes.initiatives.map(issueOption)}
+                    formatLabel={rotuloDe}
+                    onChange={(initiative) =>
+                      setFiltros(changeJiraFilter(filtros, 'initiative', initiative))
+                    }
+                  />
+                  <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
+                  <JiraMultiFilterDropdown
+                    label="filtrar por épico"
+                    title="Filtrar por Épico"
+                    placeholder="Épico"
+                    name="Épico"
+                    filter={filtros.epic}
+                    options={opcoes.epics.map(issueOption)}
+                    formatLabel={rotuloDe}
+                    onChange={(epic) => setFiltros(changeJiraFilter(filtros, 'epic', epic))}
+                  />
+                  <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-dim" />
+                  <JiraMultiFilterDropdown
+                    label="filtrar por história"
+                    title="Filtrar por História"
+                    placeholder="História"
+                    name="História"
+                    filter={filtros.story}
+                    options={opcoes.stories.map(issueOption)}
+                    formatLabel={rotuloDe}
+                    onChange={(story) => setFiltros({ story })}
+                  />
+                </div>
+              </FilterPopoverSection>
+            </FilterPopover>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label={`Ordenar: ${JIRA_ORDER_LABEL[ordem]}`}
+                title={`Ordenar: ${JIRA_ORDER_LABEL[ordem]}`}
+                className={cn(
+                  'inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-surface-2 text-ink-mid shadow-e1 transition-colors duration-100 ease-brand hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none',
+                  focusRing,
+                )}
+              >
+                <ArrowUpDown aria-hidden className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Ordenar por</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={ordem}
+                  onValueChange={(value) => setOrdem(parseJiraOrder(value))}
+                >
+                  {(Object.keys(JIRA_ORDER_LABEL) as JiraOrder[]).map((o) => (
+                    <DropdownMenuRadioItem key={o} value={o}>
+                      {JIRA_ORDER_LABEL[o]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </FilterBar>
 
           <ActiveFilters filters={activeFilters} onRemove={clearFilter} onClearAll={clearAll} />

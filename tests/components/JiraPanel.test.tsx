@@ -41,6 +41,9 @@ vi.mock('next/navigation', async () => {
 /** O status aparece também como opção do filtro; estes testes falam da linha. */
 const NA_LISTA = 'script, style, option';
 
+/** Papel, exibição, status, tipo e hierarquia ficam atrás do gatilho "Filtros". */
+const abrirFiltros = () => fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
+
 vi.mock('@/lib/hooks/useJiraPersonView', () => ({
   useJiraPersonView: vi.fn().mockReturnValue({ view: null, loading: false, error: null }),
 }));
@@ -127,6 +130,7 @@ describe('JiraPanel', () => {
         }}
       />,
     );
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
     expect(screen.getByText('A-2')).toBeInTheDocument();
     expect(screen.queryByText('A-1')).toBeNull();
@@ -143,6 +147,7 @@ describe('JiraPanel', () => {
         }}
       />,
     );
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
     expect(screen.getByText('A-2')).toBeInTheDocument();
     expect(screen.queryByText('A-1')).toBeNull();
@@ -349,6 +354,7 @@ describe('JiraPanel', () => {
         }}
       />,
     );
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Hierarquia' }));
 
     expect(screen.queryByRole('heading', { name: /^TT/ })).toBeNull();
@@ -368,6 +374,7 @@ describe('JiraPanel', () => {
         }}
       />,
     );
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
     expect(screen.getByText('1 de 2')).toBeInTheDocument();
   });
@@ -389,6 +396,7 @@ describe('situação, idade e prazo na linha', () => {
 
   it('ainda marca quando você é só o relator, que é a exceção', () => {
     render(<Panel watched={{ data: [], error: null }} onChanged={() => {}} jira={{ data: [issue({ role: 'reporter' })], error: null }} />);
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Ambas' }));
     expect(screen.getByText('REL')).toBeInTheDocument();
   });
@@ -592,6 +600,7 @@ describe('hierarquia expansível', () => {
   // Fora da hierarquia não há pai nem filho para revelar.
   it('a lista por situação não mostra setas', () => {
     montar();
+    abrirFiltros();
     // O chip diz a visão atual; clicar troca para a lista simples.
     fireEvent.click(screen.getByRole('button', { name: 'Hierarquia' }));
     expect(screen.queryByLabelText(/expandir/)).toBeNull();
@@ -724,6 +733,7 @@ describe('aguardando a minha aprovação', () => {
       />,
     );
 
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: /relator/i }));
 
     expect(screen.getByText('PDS-2138')).toBeInTheDocument();
@@ -1074,6 +1084,7 @@ describe('filtros do Jira', () => {
 
   it('filtra por status e grava na URL', () => {
     montar();
+    abrirFiltros();
     escolher('filtrar por status', 'Backlog');
 
     expect(params().get('jiraStatus')).toBe('Backlog');
@@ -1082,6 +1093,7 @@ describe('filtros do Jira', () => {
 
   it('permite alternar múltiplos status e alternar modo no dropdown interativo', () => {
     montar();
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: /abrir menu filtrar por status/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
     expect(params().get('jiraStatus')).toBe('Backlog');
@@ -1095,6 +1107,7 @@ describe('filtros do Jira', () => {
 
   it('remove um valor de uma seleção múltipla e mostra a dimensão com a contagem', () => {
     montar();
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: /abrir menu filtrar por status/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Backlog' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Aberto' }));
@@ -1109,6 +1122,7 @@ describe('filtros do Jira', () => {
 
   it('fecha o menu de filtro com Escape e devolve o foco ao gatilho', async () => {
     montar();
+    abrirFiltros();
     const gatilho = screen.getByRole('button', { name: /abrir menu filtrar por status/i });
     gatilho.focus();
     fireEvent.click(gatilho);
@@ -1124,16 +1138,19 @@ describe('filtros do Jira', () => {
 
   it('deixa o trio da hierarquia quebrar linha em telas estreitas', () => {
     montar();
+    abrirFiltros();
     expect(screen.getByRole('group', { name: 'hierarquia do Jira' })).toHaveClass('flex-wrap', 'max-w-full');
   });
 
   it('oferece só os status que existem na lista', () => {
     montar();
+    abrirFiltros();
     expect(opcoesDe('filtrar por status')).toEqual(['Aberto', 'Backlog', 'Em Andamento']);
   });
 
   it('filtra pelo tipo, mantendo o caminho até o topo', () => {
     montar();
+    abrirFiltros();
     escolher('filtrar por tipo', 'epic');
 
     expect(params().get('jiraTipo')).toBe('epic');
@@ -1144,6 +1161,7 @@ describe('filtros do Jira', () => {
 
   it('escolher uma iniciativa mostra só o que está debaixo dela', () => {
     montar();
+    abrirFiltros();
     escolher('filtrar por iniciativa', 'TT-10');
 
     expect(params().get('jiraIniciativa')).toBe('TT-10');
@@ -1152,6 +1170,7 @@ describe('filtros do Jira', () => {
 
   it('os épicos e histórias oferecidos descem em cascata da iniciativa', () => {
     montar();
+    abrirFiltros();
     expect(opcoesDe('filtrar por épico')).toEqual(['TT-21', 'TT-11']);
 
     escolher('filtrar por iniciativa', 'TT-10');
@@ -1162,6 +1181,7 @@ describe('filtros do Jira', () => {
   it('trocar a iniciativa solta o épico e a história escolhidos antes', () => {
     nav.search = 'jiraIniciativa=TT-10&jiraEpico=TT-11&jiraHistoria=TT-111';
     montar();
+    abrirFiltros();
     escolher('filtrar por iniciativa', 'TT-20');
 
     expect(params().get('jiraIniciativa')).toBe('TT-20');
@@ -1172,6 +1192,7 @@ describe('filtros do Jira', () => {
 
   it('escolher uma história mostra só ela', () => {
     montar();
+    abrirFiltros();
     escolher('filtrar por história', 'TT-112');
     expect(minhasNaTela()).toEqual(['TT-112']);
   });
@@ -1250,6 +1271,7 @@ describe('filtros do Jira', () => {
 
   it('o papel também vai para a URL', () => {
     montar();
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
     expect(params().get('jiraPapel')).toBe('reporter');
   });
@@ -1257,8 +1279,42 @@ describe('filtros do Jira', () => {
   it('tem como padrão o papel Minhas e limpa jiraPapel ao selecioná-lo', () => {
     nav.search = 'jiraPapel=both';
     montar();
+    abrirFiltros();
     fireEvent.click(screen.getByRole('button', { name: 'Minhas' }));
     expect(params().has('jiraPapel')).toBe(false);
+  });
+
+  it('conta no gatilho os filtros escondidos, sem a busca e sem o papel padrão', () => {
+    nav.search = 'jiraBusca=x&jiraStatus=Backlog,Aberto&jiraIniciativa=TT-10';
+    montar();
+    expect(screen.getByRole('button', { name: 'Filtros, 2 ativos' })).toBeInTheDocument();
+  });
+
+  it('conta o papel quando ele sai do padrão', () => {
+    montar();
+    expect(screen.getByRole('button', { name: 'Filtros, nenhum ativo' })).toBeInTheDocument();
+    abrirFiltros();
+    fireEvent.click(screen.getByRole('button', { name: 'Relator' }));
+    expect(screen.getByRole('button', { name: 'Filtros, 1 ativo' })).toBeInTheDocument();
+  });
+
+  it('organiza o painel de filtros em seções nomeadas', () => {
+    montar();
+    abrirFiltros();
+    const painel = screen.getByRole('dialog', { name: 'filtros do Jira' });
+    for (const secao of ['Papel', 'Exibição', 'Status', 'Tipo', 'Hierarquia']) {
+      expect(within(painel).getByRole('region', { name: secao })).toBeInTheDocument();
+    }
+  });
+
+  it('esconde papel e exibição fora de "Em aberto"', () => {
+    nav.search = 'jira=entregues';
+    montar();
+    abrirFiltros();
+    const painel = screen.getByRole('dialog', { name: 'filtros do Jira' });
+    expect(within(painel).queryByRole('region', { name: 'Papel' })).toBeNull();
+    expect(within(painel).queryByRole('region', { name: 'Exibição' })).toBeNull();
+    expect(within(painel).getByRole('region', { name: 'Status' })).toBeInTheDocument();
   });
 
   it('suporta filtro composto de status na URL e exibe os itens correspondentes', () => {
@@ -1353,30 +1409,50 @@ describe('ordenação', () => {
     issue({ key: 'A-2', updatedAt: '2026-10-01T10:00:00Z', priority: { name: 'Crítica', rank: 0 } }),
   ];
 
-  it('começa na ordem do Jira e grava a escolha na URL', () => {
+  /** O gatilho é um ícone; o nome diz a ordem atual. Radix abre o menu no pointer down. */
+  const abrirOrdem = (atual: string) =>
+    fireEvent.pointerDown(screen.getByRole('button', { name: `Ordenar: ${atual}` }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+  const ordenarPor = async (atual: string, proxima: string) => {
+    abrirOrdem(atual);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: proxima }));
+  };
+
+  it('começa na ordem do Jira e grava a escolha na URL', async () => {
     render(<Panel jira={{ data: lista, error: null }} />);
     expect(chavesNaTela()).toEqual(['A-1', 'A-2']);
 
-    fireEvent.change(screen.getByLabelText('ordenar issues'), { target: { value: 'prioridade' } });
+    await ordenarPor('Atualização', 'Prioridade');
 
     expect(new URLSearchParams(nav.search).get('jiraOrdem')).toBe('prioridade');
     expect(chavesNaTela()).toEqual(['A-2', 'A-1']);
+    expect(screen.getByRole('button', { name: 'Ordenar: Prioridade' })).toBeInTheDocument();
   });
 
-  it('lê a ordem da URL e volta ao padrão tirando o parâmetro', () => {
+  it('marca a ordem atual no menu', async () => {
+    nav.search = 'jiraOrdem=prazo';
+    render(<Panel jira={{ data: lista, error: null }} />);
+    abrirOrdem('Prazo');
+    expect(await screen.findByRole('menuitemradio', { name: 'Prazo' })).toBeChecked();
+    expect(screen.getByRole('menuitemradio', { name: 'Atualização' })).not.toBeChecked();
+  });
+
+  it('lê a ordem da URL e volta ao padrão tirando o parâmetro', async () => {
     nav.search = 'jiraOrdem=parado';
     render(<Panel jira={{ data: lista, error: null }} />);
-    expect(screen.getByLabelText('ordenar issues')).toHaveValue('parado');
     expect(chavesNaTela()).toEqual(['A-2', 'A-1']);
 
-    fireEvent.change(screen.getByLabelText('ordenar issues'), { target: { value: 'atualizacao' } });
+    await ordenarPor('Parado há mais tempo', 'Atualização');
     expect(nav.search).toBe('');
   });
 
   it('valor desconhecido na URL cai na ordem padrão', () => {
     nav.search = 'jiraOrdem=constructor';
     render(<Panel jira={{ data: lista, error: null }} />);
-    expect(screen.getByLabelText('ordenar issues')).toHaveValue('atualizacao');
+    expect(screen.getByRole('button', { name: 'Ordenar: Atualização' })).toBeInTheDocument();
   });
 });
 

@@ -82,6 +82,9 @@ const ITEMS = [
 
 const params = () => new URLSearchParams(nav.search);
 
+/** Repo, author and state live behind the "Filtros" trigger. */
+const openFilters = () => fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
+
 function optionsOf(label: string): string[] {
   const select = screen.getByRole('combobox', { name: label });
   return within(select)
@@ -112,35 +115,41 @@ describe('PullFilters', () => {
 
   it('replaces the URL without scrolling instead of pushing history', () => {
     render(<PullFilters items={ITEMS} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Rascunho' }));
+    openFilters();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Rascunho' }));
     expect(nav.replaced).toEqual([{ url: '/?pr_state=draft', options: { scroll: false } }]);
   });
 
   it('keeps params owned by other panels', () => {
     nav.search = 'pulls=meus&jiraBusca=x';
     render(<PullFilters items={ITEMS} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Conflito' }));
+    openFilters();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Conflito' }));
     expect(nav.search).toBe('pulls=meus&jiraBusca=x&pr_state=conflict');
   });
 
   it('offers the repos of the items sorted', () => {
     render(<PullFilters items={ITEMS} />);
+    openFilters();
     expect(optionsOf('filtrar por repositório')).toEqual(['joao/alpha', 'joao/zeta']);
   });
 
   it('offers the authors of the items sorted', () => {
     render(<PullFilters items={ITEMS} />);
+    openFilters();
     expect(optionsOf('filtrar por autor')).toEqual(['joao', 'maria']);
   });
 
   it('shows how many pull requests each repo has', () => {
     render(<PullFilters items={ITEMS} />);
+    openFilters();
     fireEvent.click(screen.getByRole('button', { name: 'abrir menu filtrar por repositório' }));
     expect(screen.getByRole('checkbox', { name: 'joao/alpha (2)' })).toBeInTheDocument();
   });
 
   it('adds a second repo to the selection', () => {
     render(<PullFilters items={ITEMS} />);
+    openFilters();
     fireEvent.click(screen.getByRole('button', { name: 'abrir menu filtrar por repositório' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'joao/alpha (2)' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'joao/zeta (1)' }));
@@ -149,23 +158,59 @@ describe('PullFilters', () => {
 
   it('writes the author selection into the URL', () => {
     render(<PullFilters items={ITEMS} />);
+    openFilters();
     fireEvent.change(screen.getByRole('combobox', { name: 'filtrar por autor' }), {
       target: { value: 'maria' },
     });
     expect(params().get('pr_author')).toBe('maria');
   });
 
-  it('turns a state chip off on the second click', () => {
+  it('turns a state off on the second click', () => {
     nav.search = 'pr_state=draft,stale';
     render(<PullFilters items={ITEMS} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Rascunho' }));
+    openFilters();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Rascunho' }));
     expect(params().get('pr_state')).toBe('stale');
   });
 
-  it('marks the chips read from the URL as pressed', () => {
+  it('toggles a state checkbox into the URL', () => {
+    render(<PullFilters items={ITEMS} />);
+    openFilters();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Aguardando você' }));
+    expect(params().get('pr_state')).toBe('awaiting-you');
+    expect(screen.getByRole('checkbox', { name: 'Aguardando você' })).toBeChecked();
+  });
+
+  it('marks the states read from the URL as checked', () => {
     nav.search = 'pr_state=ci-failing';
     render(<PullFilters items={ITEMS} />);
-    expect(screen.getByRole('button', { name: 'CI falhando' })).toHaveAttribute('aria-pressed', 'true');
+    openFilters();
+    expect(screen.getByRole('checkbox', { name: 'CI falhando' })).toBeChecked();
+  });
+
+  it('groups the states by the question they answer', () => {
+    render(<PullFilters items={ITEMS} />);
+    openFilters();
+    const expectStates = (section: string, names: string[]) => {
+      const boxes = within(screen.getByRole('region', { name: section })).getAllByRole('checkbox');
+      expect(boxes).toHaveLength(names.length);
+      boxes.forEach((box, i) => expect(box).toHaveAccessibleName(names[i]));
+    };
+    expectStates('Revisão', ['Aprovado', 'Mudanças pedidas', 'Aguardando você']);
+    expectStates('CI', ['CI falhando']);
+    expectStates('Situação', ['Rascunho', 'Conflito', 'Parado há 3+ dias']);
+  });
+
+  it('counts the hidden filters on the trigger, leaving the search out', () => {
+    nav.search = 'pr_q=x&pr_repo=joao/alpha&pr_state=draft,stale';
+    render(<PullFilters items={ITEMS} />);
+    expect(screen.getByRole('button', { name: 'Filtros, 3 ativos' })).toBeInTheDocument();
+  });
+
+  it('names the trigger without a count when nothing is hidden', () => {
+    nav.search = 'pr_q=x';
+    render(<PullFilters items={ITEMS} />);
+    expect(screen.getByRole('button', { name: 'Filtros, nenhum ativo' })).toBeInTheDocument();
   });
 
   it('removes one active filter', () => {
