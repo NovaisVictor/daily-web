@@ -207,6 +207,25 @@ func signOutForgetsTokenWhenLogoutFails(reply: StubReply) async {
   #expect(fixture.tokens.all.isEmpty)
 }
 
+@Test func credentialCheckingRouteKeepsTheSessionOnAWrongCredential() async {
+  let fixture = Fixture(replies: [.json(401, #"{"error":"senha atual incorreta"}"#)])
+  let endpoint = Endpoint<EmptyResponse>(.post, "/api/me/password", checksCredentials: true)
+  await expectError(.server(status: 401, message: "senha atual incorreta", code: nil, retry: nil)) {
+    () async throws(APIError) in
+    _ = try await fixture.client.send(endpoint)
+  }
+  #expect(!fixture.tokens.all.isEmpty)
+}
+
+@Test func credentialCheckingRouteStillEndsAnExpiredSession() async {
+  let fixture = Fixture(replies: [.json(401, #"{"error":"não autenticado"}"#)])
+  let endpoint = Endpoint<EmptyResponse>(.post, "/api/me/password", checksCredentials: true)
+  await expectError(.unauthorized) { () async throws(APIError) in
+    _ = try await fixture.client.send(endpoint)
+  }
+  #expect(fixture.tokens.all.isEmpty)
+}
+
 @Test func unreadableTokenStoreIsUnauthorized() async {
   let fixture = Fixture(failingStore: true, replies: [])
   await expectError(.unauthorized) { () async throws(APIError) in

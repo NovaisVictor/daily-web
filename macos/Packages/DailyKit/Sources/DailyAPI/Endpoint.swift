@@ -26,19 +26,25 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
   /// Adds `Idempotency-Key` and `X-Request-Timestamp`, read by the pulls writes
   /// and agent messages (`app/api/pulls/shared.ts`, `lib/access/receipts.ts`).
   public var idempotent: Bool
+  /// The route itself answers 401 for a wrong credential in the body (e.g.
+  /// "senha atual incorreta", `app/api/me/password/route.ts:16`). Such a 401 is
+  /// shown as a server error; only the middleware's own 401 still ends the session.
+  public var checksCredentials: Bool
 
   public init(
     _ method: HTTPMethod,
     _ path: String,
     query: [URLQueryItem] = [],
     body: (any Encodable & Sendable)? = nil,
-    idempotent: Bool = false
+    idempotent: Bool = false,
+    checksCredentials: Bool = false
   ) {
     self.method = method
     self.path = path
     self.query = query
     self.body = body
     self.idempotent = idempotent
+    self.checksCredentials = checksCredentials
   }
 
   /// Percent-encodes a single path segment (ids may contain `/`, `+`, `=`).

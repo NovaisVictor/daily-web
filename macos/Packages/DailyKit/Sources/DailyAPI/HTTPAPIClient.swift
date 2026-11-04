@@ -63,7 +63,7 @@ public final class HTTPAPIClient: APIClient {
     let request = try makeRequest(endpoint, origin: origin, token: token)
     let (data, response) = try await perform(request, label: endpoint.path)
 
-    if response.statusCode == 401 {
+    if response.statusCode == 401, !(endpoint.checksCredentials && !Self.isMiddlewareRejection(data)) {
       // `middleware.ts:37-40`: the token is invalid or expired; there is no refresh.
       logger.notice("\(endpoint.path, privacy: .public) answered 401; forgetting the session")
       forgetToken(for: origin)
@@ -263,6 +263,18 @@ public final class HTTPAPIClient: APIClient {
     let cookie = HTTPCookie.cookies(withResponseHeaderFields: fields, for: parseURL?.url ?? url)
       .first { $0.name == Self.sessionCookieName && !$0.value.isEmpty }
     return cookie?.value
+  }
+
+  /// The middleware's 401 body (`middleware.ts:38`), as opposed to a route
+  /// rejecting a credential the person typed.
+  static func isMiddlewareRejection(_ data: Data) -> Bool {
+    do {
+      return try JSONDecoder().decode(ServerErrorBody.self, from: data).message == "não autenticado"
+    } catch {
+      // An unreadable 401 body is not a route's credential message: end the
+      // session, which is the safe reading.
+      return true
+    }
   }
 
   // MARK: - Token
