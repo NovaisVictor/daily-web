@@ -1,0 +1,6 @@
+.build/
+DerivedData/
+dist/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+Packages/DailyKit/.swiftpm/

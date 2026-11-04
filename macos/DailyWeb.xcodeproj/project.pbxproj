@@ -1,0 +1,223 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D1A0000000000000000000B1 /* DailyKit in Frameworks */ = {isa = PBXBuildFile; productRef = D1A0000000000000000000C1 /* DailyKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D1A0000000000000000000A1 /* DailyWeb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyWeb.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A0000000000000000000A2 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		D1A0000000000000000000A3 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		D1A0000000000000000000A4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		D1A0000000000000000000A5 /* DailyWeb.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyWeb.entitlements; sourceTree = "<group>"; };
+		D1A0000000000000000000A6 /* DailyKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = DailyKit; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D1A0000000000000000000E1 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; path = App; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D1A0000000000000000000F1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1A0000000000000000000B1 /* DailyKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D1A000000000000000000101 = {
+			isa = PBXGroup;
+			children = (
+				D1A0000000000000000000E1 /* App */,
+				D1A000000000000000000102 /* Config */,
+				D1A000000000000000000103 /* Packages */,
+				D1A000000000000000000104 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D1A000000000000000000102 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				D1A0000000000000000000A2 /* Base.xcconfig */,
+				D1A0000000000000000000A3 /* Debug.xcconfig */,
+				D1A0000000000000000000A4 /* Release.xcconfig */,
+				D1A0000000000000000000A5 /* DailyWeb.entitlements */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		D1A000000000000000000103 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D1A0000000000000000000A6 /* DailyKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		D1A000000000000000000104 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D1A0000000000000000000A1 /* DailyWeb.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D1A000000000000000000201 /* DailyWeb */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A000000000000000000302 /* Build configuration list for PBXNativeTarget "DailyWeb" */;
+			buildPhases = (
+				D1A000000000000000000211 /* Sources */,
+				D1A0000000000000000000F1 /* Frameworks */,
+				D1A000000000000000000212 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D1A0000000000000000000E1 /* App */,
+			);
+			name = DailyWeb;
+			packageProductDependencies = (
+				D1A0000000000000000000C1 /* DailyKit */,
+			);
+			productName = DailyWeb;
+			productReference = D1A0000000000000000000A1 /* DailyWeb.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D1A000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					D1A000000000000000000201 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+				};
+			};
+			buildConfigurationList = D1A000000000000000000301 /* Build configuration list for PBXProject "DailyWeb" */;
+			developmentRegion = "pt-BR";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"pt-BR",
+				Base,
+			);
+			mainGroup = D1A000000000000000000101;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D1A0000000000000000000D1 /* XCLocalSwiftPackageReference "Packages/DailyKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D1A000000000000000000104 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D1A000000000000000000201 /* DailyWeb */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D1A000000000000000000212 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D1A000000000000000000211 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D1A000000000000000000401 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D1A0000000000000000000A3 /* Debug.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		D1A000000000000000000402 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D1A0000000000000000000A4 /* Release.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		D1A000000000000000000403 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		D1A000000000000000000404 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D1A000000000000000000301 /* Build configuration list for PBXProject "DailyWeb" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A000000000000000000401 /* Debug */,
+				D1A000000000000000000402 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D1A000000000000000000302 /* Build configuration list for PBXNativeTarget "DailyWeb" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A000000000000000000403 /* Debug */,
+				D1A000000000000000000404 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D1A0000000000000000000D1 /* XCLocalSwiftPackageReference "Packages/DailyKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/DailyKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D1A0000000000000000000C1 /* DailyKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DailyKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = D1A000000000000000000001 /* Project object */;
+}
