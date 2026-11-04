@@ -35,9 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    // Screens register pending writes (a note's autosave); quit once they land.
+    // Screens register pending writes (a note's autosave); quit once they land,
+    // but never hold the quit longer than a few seconds on a hung server: the
+    // unsaved text is the price of not blocking logout or shutdown.
     Task {
-      await environment.shutdown.flushAll()
+      await withTaskGroup(of: Void.self) { group in
+        group.addTask { await self.environment.shutdown.flushAll() }
+        group.addTask { try? await Task.sleep(for: .seconds(5)) }
+        await group.next()
+        group.cancelAll()
+      }
       sender.reply(toApplicationShouldTerminate: true)
     }
     return .terminateLater
