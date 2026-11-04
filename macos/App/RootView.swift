@@ -3,22 +3,17 @@ import DailyDesign
 import FeatureShell
 import SwiftUI
 
-/// Picks the screen for the session phase and keeps the poller's cadence in
-/// step with whether the app is in front.
+/// Picks the screen for the session phase. Launch and foreground tracking live
+/// in `AppDelegate`: they are per app, not per window.
 struct RootView: View {
   let environment: AppEnvironment
   let router: AppRouter
-  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     ThemedRoot(preferences: environment.preferences) {
       content
         .frame(minWidth: 900, minHeight: 560)
         .overlay(alignment: .bottomTrailing) { toasts }
-    }
-    .task { await environment.launch() }
-    .onChange(of: scenePhase, initial: true) { _, phase in
-      environment.setForeground(phase == .active)
     }
   }
 

@@ -14,6 +14,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
+    // Once per process: a second window must not restore an already live session.
+    Task { await environment.launch() }
+    updateForeground()
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(occlusionChanged),
+      name: NSApplication.didChangeOcclusionStateNotification,
+      object: nil
+    )
+  }
+
+  /// FR-003 counts "some window visible" as foreground, not "app focused": a
+  /// dashboard left on a second monitor keeps the 20 s cadence.
+  @objc private func occlusionChanged(_ notification: Notification) {
+    updateForeground()
+  }
+
+  private func updateForeground() {
+    environment.setForeground(NSApp.occlusionState.contains(.visible))
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
