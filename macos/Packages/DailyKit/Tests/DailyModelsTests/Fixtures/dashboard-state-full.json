@@ -1,0 +1,735 @@
+{
+  "updatedAt": "2026-11-04T12:40:00.000Z",
+  "modules": [
+    "email",
+    "agenda",
+    "jira",
+    "pulls",
+    "tasks",
+    "notes",
+    "slack"
+  ],
+  "mailboxes": [
+    {
+      "id": "conn-mail-1",
+      "label": "Trabalho"
+    },
+    {
+      "id": "conn-mail-2",
+      "label": "Pessoal"
+    }
+  ],
+  "agendaDays": 7,
+  "agendaCalendars": [
+    {
+      "id": "primary",
+      "label": "Agenda pessoal",
+      "account": "conn-cal-1",
+      "canWrite": true
+    },
+    {
+      "id": "feriados@example.com",
+      "label": "Feriados",
+      "account": "conn-cal-1",
+      "canWrite": false
+    }
+  ],
+  "tasksView": "board",
+  "homeView": "workspace",
+  "layout": [
+    {
+      "i": "email",
+      "x": 0,
+      "y": 0,
+      "w": 6,
+      "h": 8
+    },
+    {
+      "i": "tasks",
+      "x": 6,
+      "y": 0,
+      "w": 6,
+      "h": 8
+    }
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "height": 900,
+      "layout": [
+        {
+          "i": "email",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 8
+        }
+      ]
+    }
+  ],
+  "email": {
+    "data": [
+      {
+        "id": "4182",
+        "account": "conn-mail-1",
+        "accountLabel": "Trabalho",
+        "from": "Ana Exemplo <ana@example.com>",
+        "subject": "Revisão do relatório trimestral",
+        "unread": true,
+        "date": "2026-11-04T12:31:00.000Z",
+        "messageId": "<msg-4182@example.com>",
+        "references": [
+          "<msg-4100@example.com>"
+        ],
+        "labels": [
+          "Importante"
+        ],
+        "mailbox": "inbox",
+        "folder": "INBOX"
+      },
+      {
+        "id": "4183",
+        "account": "conn-mail-1",
+        "accountLabel": "Trabalho",
+        "from": "Ana Exemplo <ana@example.com>",
+        "subject": "Re: agenda da semana",
+        "unread": false,
+        "date": "2026-11-04T12:31:00.000Z",
+        "messageId": "<msg-4183@example.com>",
+        "references": [],
+        "labels": [],
+        "mailbox": "inbox",
+        "folder": "INBOX",
+        "actionError": "a pasta de destino não existe mais"
+      },
+      {
+        "id": "77",
+        "account": "conn-mail-1",
+        "accountLabel": "Trabalho",
+        "from": "Você <voce@example.com>",
+        "subject": "Revisão do relatório trimestral",
+        "unread": false,
+        "date": "2026-11-04T12:31:00.000Z",
+        "messageId": "<msg-77@example.com>",
+        "references": [
+          "<msg-4182@example.com>"
+        ],
+        "labels": [],
+        "mailbox": "sent",
+        "folder": "[Gmail]/Enviados"
+      }
+    ],
+    "error": null
+  },
+  "agenda": {
+    "data": [
+      {
+        "account": "conn-cal-1",
+        "accountLabel": "Agenda pessoal",
+        "date": "2026-11-04",
+        "time": "14:30",
+        "title": "Reunião de planejamento"
+      },
+      {
+        "account": "conn-cal-1",
+        "accountLabel": "Agenda pessoal",
+        "date": "2026-11-05",
+        "time": "",
+        "title": "Feriado municipal"
+      }
+    ],
+    "error": null
+  },
+  "pulls": {
+    "data": {
+      "items": [
+        {
+          "id": "PR_kwDOAbc123",
+          "repo": "acme/painel",
+          "number": 318,
+          "title": "DEMO-142 filtro de período",
+          "url": "https://github.com/acme/painel/pull/318",
+          "author": "dev-exemplo",
+          "draft": false,
+          "awaitingYou": true,
+          "mine": false,
+          "isPullRequest": true,
+          "updatedAt": "2026-11-04T10:00:00Z",
+          "createdAt": "2026-11-01T09:12:00Z",
+          "ci": "failing",
+          "failedChecks": [
+            {
+              "name": "test (node 22)",
+              "url": "https://github.com/acme/painel/actions/runs/1/job/2"
+            },
+            {
+              "name": "lint",
+              "url": null
+            }
+          ],
+          "review": "changes-requested",
+          "pendingReviewers": [
+            "outra-pessoa",
+            "team:frontend"
+          ],
+          "reviewers": [
+            {
+              "login": "revisora-exemplo",
+              "state": "changes-requested"
+            },
+            {
+              "login": "bot-exemplo",
+              "state": "commented"
+            }
+          ],
+          "reviewRequestedAt": null,
+          "merge": "blocked",
+          "size": {
+            "additions": 120,
+            "deletions": 34,
+            "files": 7
+          },
+          "headRef": "feat/periodo",
+          "baseRef": "main",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "jira": [
+            {
+              "key": "DEMO-142",
+              "url": "https://acme.atlassian.net/browse/DEMO-142",
+              "status": "Em andamento",
+              "statusCategory": "indeterminate"
+            }
+          ]
+        },
+        {
+          "id": "I_kwDOAbc999",
+          "repo": "acme/painel",
+          "number": 320,
+          "title": "Gráfico some no modo escuro",
+          "url": "https://github.com/acme/painel/issues/320",
+          "author": "dev-exemplo",
+          "draft": false,
+          "awaitingYou": false,
+          "mine": false,
+          "isPullRequest": false,
+          "updatedAt": "2026-11-04T10:00:00Z",
+          "createdAt": "2026-11-01T09:12:00Z",
+          "ci": "none",
+          "failedChecks": [],
+          "review": "none",
+          "pendingReviewers": [],
+          "reviewers": [],
+          "reviewRequestedAt": null,
+          "merge": "none",
+          "size": null,
+          "headRef": null,
+          "baseRef": null,
+          "headSha": null
+        }
+      ],
+      "errors": [
+        "acme/legado: repositório não encontrado"
+      ],
+      "defaultBranches": [
+        {
+          "repo": "acme/painel",
+          "branch": "main",
+          "ci": "passing"
+        }
+      ],
+      "truncated": [
+        {
+          "repo": "acme/painel",
+          "kind": "issues",
+          "shown": 50,
+          "total": 73
+        }
+      ]
+    },
+    "error": null
+  },
+  "reviewRequests": {
+    "data": {
+      "items": [
+        {
+          "id": "PR_kwDOXyz456",
+          "repo": "acme/api",
+          "number": 77,
+          "title": "Cache das consultas",
+          "url": "https://github.com/acme/api/pull/77",
+          "author": "dev-exemplo",
+          "draft": false,
+          "awaitingYou": true,
+          "mine": false,
+          "isPullRequest": true,
+          "updatedAt": "2026-11-04T10:00:00Z",
+          "createdAt": "2026-11-01T09:12:00Z",
+          "ci": "passing",
+          "failedChecks": [],
+          "review": "pending",
+          "pendingReviewers": [
+            "outra-pessoa",
+            "team:frontend"
+          ],
+          "reviewers": [],
+          "reviewRequestedAt": "2026-11-04T08:00:00Z",
+          "merge": "clean",
+          "size": {
+            "additions": 120,
+            "deletions": 34,
+            "files": 7
+          },
+          "headRef": "feat/periodo",
+          "baseRef": "main",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "jira": []
+        }
+      ],
+      "truncated": false,
+      "total": 1,
+      "scopeNote": null,
+      "errors": [
+        "campo reviewRequests recusado"
+      ]
+    },
+    "error": null
+  },
+  "myPulls": {
+    "data": {
+      "items": [
+        {
+          "id": "PR_kwDOMine01",
+          "repo": "acme/painel",
+          "number": 322,
+          "title": "Ajuste de layout",
+          "url": "https://github.com/acme/painel/pull/322",
+          "author": "dev-exemplo",
+          "draft": true,
+          "awaitingYou": false,
+          "mine": true,
+          "isPullRequest": true,
+          "updatedAt": "2026-11-04T10:00:00Z",
+          "createdAt": "2026-11-01T09:12:00Z",
+          "ci": "running",
+          "failedChecks": [],
+          "review": "approved",
+          "pendingReviewers": [],
+          "reviewers": [
+            {
+              "login": "revisora-exemplo",
+              "state": "approved"
+            }
+          ],
+          "reviewRequestedAt": null,
+          "merge": "unknown",
+          "size": {
+            "additions": 120,
+            "deletions": 34,
+            "files": 7
+          },
+          "headRef": "feat/periodo",
+          "baseRef": "main",
+          "headSha": "0123456789abcdef0123456789abcdef01234567",
+          "jira": [
+            {
+              "key": "DEMO-142",
+              "url": "https://acme.atlassian.net/browse/DEMO-142",
+              "status": "Em andamento",
+              "statusCategory": "indeterminate"
+            }
+          ]
+        }
+      ],
+      "truncated": true,
+      "total": 31
+    },
+    "error": null
+  },
+  "jira": {
+    "data": [
+      {
+        "key": "DEMO-142",
+        "summary": "Ajustar filtro de período no relatório",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-142",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none"
+      },
+      {
+        "key": "DEMO-150",
+        "summary": "Integração com o parceiro",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-150",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": true,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": null,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "impediment"
+      }
+    ],
+    "error": null
+  },
+  "jiraWatched": {
+    "data": [
+      {
+        "key": "OPS-12",
+        "summary": "Janela de manutenção",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "OPS",
+        "url": "https://acme.atlassian.net/browse/OPS-12",
+        "parent": null,
+        "role": "reporter",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none"
+      }
+    ],
+    "error": null
+  },
+  "jiraFollowedPeople": [
+    {
+      "accountId": "5b10ac8d82e05b22cc7d4ef5",
+      "displayName": "Pessoa Acompanhada"
+    }
+  ],
+  "jiraDelivered": {
+    "data": [
+      {
+        "key": "DEMO-139",
+        "summary": "Exportar CSV",
+        "status": "Concluído",
+        "statusCategory": "done",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-139",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "today": true
+      },
+      {
+        "key": "DEMO-131",
+        "summary": "Corrigir fuso do gráfico",
+        "status": "Concluído",
+        "statusCategory": "done",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-131",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "today": false
+      }
+    ],
+    "error": null
+  },
+  "jiraApproved": {
+    "data": [
+      {
+        "key": "DEMO-140",
+        "summary": "Exportar CSV",
+        "status": "Concluído",
+        "statusCategory": "done",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-140",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "today": true
+      }
+    ],
+    "error": null
+  },
+  "jiraProblems": {
+    "data": [
+      {
+        "key": "DEMO-145",
+        "summary": "Página de ajuda",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-145",
+        "parent": null,
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "problems": [
+          "story-in-progress-without-start",
+          "story-without-epic"
+        ]
+      },
+      {
+        "key": "DEMO-100",
+        "summary": "Relatórios 2.0",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-100",
+        "parent": {
+          "key": "DEMO-1",
+          "summary": "Objetivo: dados confiáveis"
+        },
+        "role": "reporter",
+        "awaitingApproval": false,
+        "kind": "Épico",
+        "subtask": false,
+        "hierarchyLevel": 1,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "",
+        "priority": null,
+        "flag": "none",
+        "problems": [
+          "epic-in-progress-without-active-story"
+        ]
+      }
+    ],
+    "error": null
+  },
+  "jiraAncestors": [
+    {
+      "key": "DEMO-100",
+      "summary": "Relatórios 2.0",
+      "status": "Em andamento",
+      "statusCategory": "indeterminate",
+      "project": "DEMO",
+      "url": "https://acme.atlassian.net/browse/DEMO-100",
+      "parent": {
+        "key": "DEMO-1",
+        "summary": "Objetivo: dados confiáveis"
+      },
+      "role": "reporter",
+      "awaitingApproval": false,
+      "kind": "Épico",
+      "subtask": false,
+      "hierarchyLevel": 1,
+      "updatedAt": "2026-11-03T18:02:11.000Z",
+      "dueDate": "",
+      "priority": null,
+      "flag": "none"
+    },
+    {
+      "key": "DEMO-1",
+      "summary": "Objetivo: dados confiáveis",
+      "status": "A fazer",
+      "statusCategory": "new",
+      "project": "DEMO",
+      "url": "https://acme.atlassian.net/browse/DEMO-1",
+      "parent": null,
+      "role": "both",
+      "awaitingApproval": false,
+      "kind": "Objetivo",
+      "subtask": false,
+      "hierarchyLevel": 3,
+      "updatedAt": "2026-11-03T18:02:11.000Z",
+      "dueDate": "",
+      "priority": {
+        "name": "Média",
+        "rank": null
+      },
+      "flag": "none"
+    }
+  ],
+  "tasks": {
+    "data": [
+      {
+        "id": "task-AAMkADEx",
+        "title": "Enviar proposta revisada",
+        "completed": false,
+        "due": "2026-11-05",
+        "priority": "high",
+        "time": "14:30",
+        "recur": "",
+        "notes": "Conferir valores com o financeiro.",
+        "subtasks": [
+          {
+            "id": "sub-1",
+            "title": "Escrever testes",
+            "completed": false
+          },
+          {
+            "id": "sub-2",
+            "title": "Revisar texto",
+            "completed": true
+          }
+        ],
+        "doing": true,
+        "paper": "pink",
+        "pin": "red",
+        "pinShape": "heart"
+      },
+      {
+        "id": "task-AAMkADEy",
+        "title": "Pagar conta de luz",
+        "completed": false,
+        "due": "",
+        "priority": "normal",
+        "time": "",
+        "recur": "monthly",
+        "notes": "",
+        "subtasks": [],
+        "doing": false,
+        "paper": null,
+        "pin": null,
+        "pinShape": null
+      }
+    ],
+    "error": null
+  },
+  "slack": {
+    "data": {
+      "mentions": [
+        {
+          "id": "C01ABC-1730720000.000100",
+          "channel": "#produto",
+          "author": "Pessoa Exemplo",
+          "text": "<@U000> pode revisar o texto?",
+          "date": "2026-11-04T11:00:00.000Z",
+          "url": "https://example.slack.com/archives/C01ABC/p1730720000000100"
+        }
+      ],
+      "directs": [
+        {
+          "id": "D01XYZ-1730721000.000200",
+          "channel": "Pessoa Exemplo",
+          "author": "Pessoa Exemplo",
+          "text": "bom dia!",
+          "date": "2026-11-04T11:00:00.000Z",
+          "url": "https://example.slack.com/archives/D01XYZ/p1730721000000200"
+        }
+      ],
+      "team": "Acme"
+    },
+    "error": null
+  },
+  "notifications": {
+    "data": [
+      {
+        "id": "jira_mention:10001",
+        "source": "jira_mention",
+        "title": "Ana Exemplo mencionou você em DEMO-142",
+        "url": "https://acme.atlassian.net/browse/DEMO-142?focusedCommentId=10001",
+        "read": false,
+        "date": "2026-11-04T09:30:00.000Z"
+      },
+      {
+        "id": "pull_request:acme/painel#318",
+        "source": "pull_request",
+        "title": "Revisão pedida em acme/painel#318",
+        "url": "https://github.com/acme/painel/pull/318",
+        "read": true,
+        "date": "2026-11-04T09:30:00.000Z"
+      },
+      {
+        "id": "email:conn-mail-1/4182",
+        "source": "email",
+        "title": "Revisão do relatório trimestral",
+        "url": "",
+        "read": false,
+        "date": "2026-11-04T09:30:00.000Z"
+      },
+      {
+        "id": "slack:C01ABC-1730720000.000100",
+        "source": "slack",
+        "title": "Menção em #produto",
+        "url": "https://example.slack.com/archives/C01ABC/p1730720000000100",
+        "read": false,
+        "date": "2026-11-04T09:30:00.000Z"
+      }
+    ],
+    "error": null
+  },
+  "pomodoro": {
+    "enabled": true,
+    "phase": "focus",
+    "running": true,
+    "remainingSeconds": 1342,
+    "focusMinutes": 25,
+    "restMinutes": 5,
+    "completedFocusCount": 3
+  },
+  "nextRefreshAt": "2026-11-04T12:45:00.000Z"
+}

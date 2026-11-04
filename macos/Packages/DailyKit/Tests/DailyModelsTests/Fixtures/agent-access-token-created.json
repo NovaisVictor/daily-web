@@ -1,0 +1,15 @@
+{
+  "credential": {
+    "id": "a3bb189e-8bf9-3888-9912-ace4e6543002",
+    "label": "Notebook",
+    "prefix": "dwp_EXAMPLE0",
+    "scopes": [
+      "agents:read",
+      "agents:write"
+    ],
+    "state": "active",
+    "createdAt": "2026-11-01T10:00:00.000Z",
+    "lastUsedAt": null
+  },
+  "secret": "dwp_EXAMPLE0-not-a-real-secret-only-for-tests-000"
+}

@@ -1,0 +1,11 @@
+{
+  "transition": {
+    "id": "31",
+    "name": "Em revisão",
+    "to": {
+      "name": "Em revisão",
+      "category": "indeterminate"
+    },
+    "requires": "nothing"
+  }
+}

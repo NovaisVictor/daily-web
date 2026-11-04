@@ -1,0 +1,20 @@
+{
+  "notes": [
+    {
+      "id": "note-2",
+      "title": "Rascunho",
+      "body": "",
+      "position": 1,
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "folderId": null
+    },
+    {
+      "id": "note-1",
+      "title": "Ideias",
+      "body": "# Ideias\n\n- [ ] testar o app\n",
+      "position": 0,
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "folderId": "folder-1"
+    }
+  ]
+}

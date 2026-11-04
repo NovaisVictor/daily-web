@@ -1,0 +1,15 @@
+{
+  "suggestions": [
+    {
+      "key": "DEMO-145",
+      "status": "suggested",
+      "date": "2026-10-30",
+      "basis": "created"
+    },
+    {
+      "key": "DEMO-146",
+      "status": "failed",
+      "error": "issue não encontrada"
+    }
+  ]
+}

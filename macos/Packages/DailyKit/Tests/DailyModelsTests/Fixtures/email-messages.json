@@ -1,0 +1,39 @@
+{
+  "messages": [
+    {
+      "id": "4182",
+      "account": "conn-mail-1",
+      "accountLabel": "Trabalho",
+      "from": "Ana Exemplo <ana@example.com>",
+      "subject": "Revisão do relatório trimestral",
+      "unread": true,
+      "date": "2026-11-04T12:31:00.000Z",
+      "messageId": "<msg-4182@example.com>",
+      "references": [
+        "<msg-4100@example.com>"
+      ],
+      "labels": [
+        "Importante"
+      ],
+      "mailbox": "inbox",
+      "folder": "INBOX"
+    },
+    {
+      "id": "4183",
+      "account": "conn-mail-1",
+      "accountLabel": "Trabalho",
+      "from": "Ana Exemplo <ana@example.com>",
+      "subject": "Re: agenda da semana",
+      "unread": false,
+      "date": "2026-11-04T12:31:00.000Z",
+      "messageId": "<msg-4183@example.com>",
+      "references": [],
+      "labels": [],
+      "mailbox": "inbox",
+      "folder": "INBOX",
+      "actionError": "a pasta de destino não existe mais"
+    }
+  ],
+  "uidvalidity": "1712345678",
+  "reindexed": false
+}

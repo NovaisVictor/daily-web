@@ -1,0 +1,33 @@
+{
+  "mailboxes": [
+    {
+      "path": "INBOX",
+      "name": "INBOX",
+      "delimiter": "/",
+      "parent": null,
+      "specialUse": null,
+      "total": 1200,
+      "unread": 4
+    },
+    {
+      "path": "[Gmail]",
+      "name": "[Gmail]",
+      "delimiter": "/",
+      "parent": null,
+      "specialUse": null,
+      "total": 0,
+      "unread": 0
+    },
+    {
+      "path": "[Gmail]/Enviados",
+      "name": "Enviados",
+      "delimiter": "/",
+      "parent": "[Gmail]",
+      "specialUse": "\\Sent",
+      "total": 310,
+      "unread": 0
+    }
+  ],
+  "syncedAt": null,
+  "cached": true
+}

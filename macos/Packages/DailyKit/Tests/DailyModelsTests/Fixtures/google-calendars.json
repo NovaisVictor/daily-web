@@ -1,0 +1,17 @@
+{
+  "calendars": [
+    {
+      "id": "primary",
+      "label": "voce@example.com",
+      "primary": true
+    },
+    {
+      "id": "feriados@example.com",
+      "label": "Feriados",
+      "primary": false
+    }
+  ],
+  "selected": [
+    "primary"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+      "username": "ana",
+      "isAdmin": true,
+      "createdAt": "2026-01-10T12:00:00.000Z"
+    },
+    {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "username": "bruno",
+      "isAdmin": false,
+      "createdAt": "2026-01-10T12:00:00.000Z"
+    }
+  ]
+}

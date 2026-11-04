@@ -1,0 +1,79 @@
+{
+  "modules": [
+    {
+      "module": "email",
+      "label": "E-mail",
+      "summary": "Caixa de entrada, responder, etiquetar e arquivar.",
+      "multi": true,
+      "enabled": true,
+      "configured": true,
+      "connections": [
+        {
+          "id": "conn-mail-1",
+          "module": "email",
+          "label": "Trabalho",
+          "visible": {
+            "preset": "gmail",
+            "user": "voce@example.com"
+          },
+          "secretsSet": [
+            "password"
+          ],
+          "updatedAt": "2026-10-01T10:00:00.000Z",
+          "unreadable": false
+        },
+        {
+          "id": "conn-mail-2",
+          "module": "email",
+          "label": "Antiga",
+          "visible": {},
+          "secretsSet": [],
+          "updatedAt": "2026-10-01T10:00:00.000Z",
+          "unreadable": true
+        }
+      ]
+    },
+    {
+      "module": "agenda",
+      "label": "Agenda",
+      "summary": "Compromissos no período que você escolher.",
+      "multi": true,
+      "enabled": false,
+      "configured": false,
+      "connections": []
+    },
+    {
+      "module": "tasks",
+      "label": "Tarefas",
+      "summary": "Lista de tarefas com subtarefas, prazo e prioridade.",
+      "multi": false,
+      "enabled": true,
+      "configured": false,
+      "connections": []
+    },
+    {
+      "module": "notes",
+      "label": "Notas rápidas",
+      "summary": "Bloco de notas com abas em Markdown.",
+      "multi": false,
+      "enabled": true,
+      "configured": true,
+      "connections": [
+        {
+          "id": "conn-notes-1",
+          "module": "notes",
+          "label": "Google Drive",
+          "visible": {
+            "provider": "google",
+            "account": "voce@example.com"
+          },
+          "secretsSet": [
+            "refreshToken"
+          ],
+          "updatedAt": "2026-10-02T10:00:00.000Z",
+          "unreadable": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "id": "a3bb189e-8bf9-3888-9912-ace4e6543002",
+      "label": "Notebook",
+      "prefix": "dwp_EXAMPLE0",
+      "scopes": [
+        "agents:read",
+        "agents:write"
+      ],
+      "state": "active",
+      "createdAt": "2026-11-01T10:00:00.000Z",
+      "lastUsedAt": null
+    },
+    {
+      "id": "b4cc290f-9cf0-4999-aa23-bdf5f7654113",
+      "label": "Servidor de CI",
+      "prefix": "dwp_EXAMPLE1",
+      "scopes": [
+        "agents:read"
+      ],
+      "state": "revoked",
+      "createdAt": "2026-11-01T10:00:00.000Z",
+      "lastUsedAt": "2026-11-02T08:00:00.000Z"
+    }
+  ]
+}

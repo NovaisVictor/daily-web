@@ -1,0 +1,139 @@
+{
+  "tasks": {
+    "items": [
+      {
+        "id": "atask-1",
+        "parentTaskId": null,
+        "externalId": "ext-1",
+        "title": "Migrar testes para Swift Testing",
+        "description": "Converter os testes XCTest restantes.",
+        "status": "waiting",
+        "hold": {
+          "reason": "pull_request",
+          "note": "aguardando revisão"
+        },
+        "assignment": {
+          "sessionId": "session-1",
+          "agentId": "agent-1",
+          "provider": "claude",
+          "displayName": "Claude no notebook",
+          "freshness": "fresh",
+          "attention": null,
+          "live": {
+            "state": "working",
+            "since": "2026-11-04T12:30:00.000Z"
+          }
+        },
+        "source": {
+          "provider": "github",
+          "connectionId": "conn-gh-1",
+          "resource": "acme/painel#318"
+        },
+        "version": 3,
+        "createdAt": "2026-11-03T10:00:00.000Z",
+        "lastActivityAt": "2026-11-04T12:00:00.000Z"
+      },
+      {
+        "id": "atask-3",
+        "parentTaskId": null,
+        "externalId": "ext-3",
+        "title": "Investigar lentidão",
+        "description": "Converter os testes XCTest restantes.",
+        "status": "blocked",
+        "hold": {
+          "reason": "access",
+          "note": null
+        },
+        "assignment": {
+          "sessionId": "session-1",
+          "agentId": "agent-1",
+          "provider": "claude",
+          "displayName": "Claude no notebook",
+          "freshness": "fresh",
+          "attention": null,
+          "live": null
+        },
+        "source": {
+          "provider": "jira",
+          "resource": "DEMO-142"
+        },
+        "version": 3,
+        "createdAt": "2026-11-03T10:00:00.000Z",
+        "lastActivityAt": "2026-11-04T12:00:00.000Z"
+      }
+    ],
+    "nextCursor": "eyJhdCI6IjIwMjYtMTEtMDQiLCJpZCI6ImF0YXNrLTMifQ",
+    "complete": true
+  },
+  "sessions": {
+    "items": [
+      {
+        "id": "session-1",
+        "agentId": "agent-1",
+        "externalId": "deck-abc123",
+        "version": 4,
+        "startedAt": "2026-11-04T09:00:00.000Z",
+        "lastActivityAt": "2026-11-04T12:39:00.000Z",
+        "agent": {
+          "id": "agent-1",
+          "externalId": "macbook:claude",
+          "provider": "claude",
+          "displayName": "Claude no notebook",
+          "createdAt": "2026-11-01T08:00:00.000Z",
+          "lastActivityAt": "2026-11-04T12:39:00.000Z"
+        },
+        "freshness": "fresh",
+        "attention": {
+          "kind": "permission",
+          "since": "2026-11-04T12:38:00.000Z"
+        },
+        "live": {
+          "state": "working",
+          "since": "2026-11-04T12:30:00.000Z"
+        }
+      },
+      {
+        "id": "session-2",
+        "agentId": "agent-2",
+        "externalId": "deck-def456",
+        "version": 4,
+        "startedAt": "2026-11-04T09:00:00.000Z",
+        "lastActivityAt": "2026-11-04T12:39:00.000Z",
+        "agent": {
+          "id": "agent-2",
+          "externalId": "desktop:codex",
+          "provider": "codex",
+          "displayName": "Codex",
+          "createdAt": "2026-11-01T08:00:00.000Z",
+          "lastActivityAt": "2026-11-04T12:39:00.000Z"
+        },
+        "freshness": "disconnected",
+        "attention": null
+      }
+    ],
+    "nextCursor": null,
+    "complete": true
+  },
+  "subtaskProgress": {
+    "atask-1": {
+      "total": 3,
+      "completed": 1,
+      "active": [
+        {
+          "id": "atask-2",
+          "title": "Converter módulo de datas",
+          "status": "working"
+        }
+      ]
+    }
+  },
+  "statusCounts": {
+    "queued": 0,
+    "working": 1,
+    "waiting": 1,
+    "blocked": 1,
+    "completed": 4,
+    "failed": 0,
+    "cancelled": 0
+  }
+}

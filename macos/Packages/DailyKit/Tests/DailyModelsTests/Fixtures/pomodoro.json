@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "phase": "focus",
+  "running": true,
+  "remainingSeconds": 1342,
+  "focusMinutes": 25,
+  "restMinutes": 5,
+  "completedFocusCount": 3
+}

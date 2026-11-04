@@ -1,0 +1,9 @@
+{
+  "sync": {
+    "connected": false,
+    "account": "",
+    "pending": 0,
+    "lastError": "invalid_grant",
+    "lastSyncedAt": null
+  }
+}

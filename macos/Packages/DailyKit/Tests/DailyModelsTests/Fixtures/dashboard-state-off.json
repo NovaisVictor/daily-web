@@ -1,0 +1,78 @@
+{
+  "updatedAt": "2026-11-04T12:40:00.000Z",
+  "modules": [
+    "tasks",
+    "notes"
+  ],
+  "mailboxes": [],
+  "agendaDays": 2,
+  "agendaCalendars": [],
+  "tasksView": "list",
+  "homeView": "grid",
+  "layout": [],
+  "layouts": [],
+  "email": {
+    "data": null,
+    "error": null
+  },
+  "agenda": {
+    "data": null,
+    "error": null
+  },
+  "pulls": {
+    "data": null,
+    "error": null
+  },
+  "reviewRequests": {
+    "data": null,
+    "error": null
+  },
+  "myPulls": {
+    "data": null,
+    "error": null
+  },
+  "jira": {
+    "data": null,
+    "error": null
+  },
+  "jiraWatched": {
+    "data": null,
+    "error": null
+  },
+  "jiraFollowedPeople": [],
+  "jiraDelivered": {
+    "data": null,
+    "error": null
+  },
+  "jiraApproved": {
+    "data": null,
+    "error": null
+  },
+  "jiraProblems": {
+    "data": null,
+    "error": null
+  },
+  "jiraAncestors": [],
+  "tasks": {
+    "data": null,
+    "error": "mstodo: comando não encontrado"
+  },
+  "slack": {
+    "data": null,
+    "error": null
+  },
+  "notifications": {
+    "data": [],
+    "error": null
+  },
+  "pomodoro": {
+    "enabled": false,
+    "phase": "rest",
+    "running": false,
+    "remainingSeconds": 300,
+    "focusMinutes": 25,
+    "restMinutes": 5,
+    "completedFocusCount": 0
+  },
+  "nextRefreshAt": null
+}

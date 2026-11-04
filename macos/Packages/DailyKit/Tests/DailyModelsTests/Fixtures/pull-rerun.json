@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "rerun": 1,
+  "failed": [
+    {
+      "id": 555,
+      "error": "Não foi possível confirmar a reexecução no GitHub"
+    }
+  ]
+}

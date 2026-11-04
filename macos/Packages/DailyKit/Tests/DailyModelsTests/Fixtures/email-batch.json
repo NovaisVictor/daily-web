@@ -1,0 +1,15 @@
+{
+  "results": [
+    {
+      "account": "conn-mail-1",
+      "id": "4182",
+      "ok": true
+    },
+    {
+      "account": "conn-mail-1",
+      "id": "4183",
+      "ok": false,
+      "error": "a mensagem já está nessa pasta"
+    }
+  ]
+}

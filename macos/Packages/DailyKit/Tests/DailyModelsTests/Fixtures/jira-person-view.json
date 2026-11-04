@@ -1,0 +1,118 @@
+{
+  "jira": {
+    "data": [
+      {
+        "key": "DEMO-142",
+        "summary": "Ajustar filtro de período no relatório",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-142",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none"
+      }
+    ],
+    "error": null
+  },
+  "delivered": {
+    "data": [
+      {
+        "key": "DEMO-139",
+        "summary": "Exportar CSV",
+        "status": "Concluído",
+        "statusCategory": "done",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-139",
+        "parent": {
+          "key": "DEMO-100",
+          "summary": "Relatórios 2.0"
+        },
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "today": true
+      }
+    ],
+    "error": null
+  },
+  "approved": {
+    "data": null,
+    "error": "Jira respondeu 503"
+  },
+  "problems": {
+    "data": [
+      {
+        "key": "DEMO-145",
+        "summary": "Página de ajuda",
+        "status": "Em andamento",
+        "statusCategory": "indeterminate",
+        "project": "DEMO",
+        "url": "https://acme.atlassian.net/browse/DEMO-145",
+        "parent": null,
+        "role": "assignee",
+        "awaitingApproval": false,
+        "kind": "História",
+        "subtask": false,
+        "hierarchyLevel": 0,
+        "updatedAt": "2026-11-03T18:02:11.000Z",
+        "dueDate": "2026-11-10",
+        "priority": {
+          "name": "Alta",
+          "rank": 1
+        },
+        "flag": "none",
+        "problems": [
+          "story-in-progress-without-start",
+          "story-without-epic"
+        ]
+      }
+    ],
+    "error": null
+  },
+  "ancestors": [
+    {
+      "key": "DEMO-100",
+      "summary": "Relatórios 2.0",
+      "status": "Em andamento",
+      "statusCategory": "indeterminate",
+      "project": "DEMO",
+      "url": "https://acme.atlassian.net/browse/DEMO-100",
+      "parent": {
+        "key": "DEMO-1",
+        "summary": "Objetivo: dados confiáveis"
+      },
+      "role": "reporter",
+      "awaitingApproval": false,
+      "kind": "Épico",
+      "subtask": false,
+      "hierarchyLevel": 1,
+      "updatedAt": "2026-11-03T18:02:11.000Z",
+      "dueDate": "",
+      "priority": null,
+      "flag": "none"
+    }
+  ]
+}

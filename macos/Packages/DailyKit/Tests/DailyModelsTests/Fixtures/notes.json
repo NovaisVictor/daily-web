@@ -1,0 +1,43 @@
+{
+  "notes": [
+    {
+      "id": "note-1",
+      "title": "Ideias",
+      "body": "# Ideias\n\n- [ ] testar o app\n",
+      "position": 0,
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "folderId": "folder-1"
+    },
+    {
+      "id": "note-2",
+      "title": "Rascunho",
+      "body": "",
+      "position": 1,
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "folderId": null
+    }
+  ],
+  "folders": [
+    {
+      "id": "folder-1",
+      "name": "Projetos",
+      "parentId": null,
+      "position": 0,
+      "updatedAt": "2026-11-01T10:00:00.000Z"
+    },
+    {
+      "id": "folder-2",
+      "name": "Painel",
+      "parentId": "folder-1",
+      "position": 0,
+      "updatedAt": "2026-11-01T10:00:00.000Z"
+    }
+  ],
+  "sync": {
+    "connected": true,
+    "account": "ana@example.com",
+    "pending": 1,
+    "lastError": null,
+    "lastSyncedAt": "2026-11-04T10:00:05.000Z"
+  }
+}

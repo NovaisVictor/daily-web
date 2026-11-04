@@ -1,0 +1,8 @@
+{
+  "appearance": {
+    "theme": "dark",
+    "density": "compact",
+    "backdrop": "dracula",
+    "width": "limited"
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "vaultReady": true,
+  "mstodoAvailable": false,
+  "googleConfigured": true,
+  "googleRedirectUri": "https://daily.example.com/api/integrations/agenda/google/callback",
+  "slackConfigured": false,
+  "slackRedirectUri": "https://daily.example.com/api/integrations/slack/callback",
+  "catalog": {
+    "email": {
+      "id": "email",
+      "label": "E-mail",
+      "summary": "Caixa de entrada, responder, etiquetar e arquivar.",
+      "multi": true,
+      "instructions": [
+        "Conecta por IMAP com senha de app — nenhum OAuth, nenhum cadastro de aplicativo."
+      ],
+      "fields": [
+        {
+          "name": "preset",
+          "label": "Provedor",
+          "type": "select",
+          "required": true,
+          "defaultValue": "gmail",
+          "options": [
+            {
+              "value": "gmail",
+              "label": "Gmail"
+            },
+            {
+              "value": "custom",
+              "label": "Outro (IMAP manual)"
+            }
+          ]
+        },
+        {
+          "name": "password",
+          "label": "Senha de app",
+          "type": "password",
+          "secret": true,
+          "required": true,
+          "help": "A senha de app, não a senha da sua conta."
+        },
+        {
+          "name": "imapHost",
+          "label": "Servidor IMAP",
+          "type": "text",
+          "required": true,
+          "showWhen": {
+            "field": "preset",
+            "equals": [
+              "custom"
+            ]
+          }
+        },
+        {
+          "name": "imapPort",
+          "label": "Porta IMAP",
+          "type": "number",
+          "defaultValue": "993",
+          "placeholder": "993"
+        }
+      ]
+    },
+    "agenda": {
+      "id": "agenda",
+      "label": "Agenda",
+      "summary": "Compromissos no período que você escolher.",
+      "multi": true,
+      "instructions": [
+        "O link iCal serve para os demais provedores."
+      ],
+      "fields": [
+        {
+          "name": "icsUrl",
+          "label": "URL do iCal (.ics)",
+          "type": "url",
+          "secret": true,
+          "required": true,
+          "showWhen": {
+            "field": "provider",
+            "equals": [
+              "ics"
+            ]
+          }
+        }
+      ]
+    },
+    "tasks": {
+      "id": "tasks",
+      "label": "Tarefas",
+      "summary": "Lista de tarefas com subtarefas, prazo e prioridade.",
+      "multi": false,
+      "alwaysAvailable": true,
+      "instructions": [
+        "O padrão guarda as tarefas no próprio banco da app."
+      ],
+      "fields": [
+        {
+          "name": "provider",
+          "label": "Onde guardar",
+          "type": "select",
+          "required": true,
+          "defaultValue": "local",
+          "options": [
+            {
+              "value": "local",
+              "label": "Neste servidor (padrão)"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": {
+      "id": "notes",
+      "label": "Notas rápidas",
+      "summary": "Bloco de notas com abas em Markdown.",
+      "multi": false,
+      "alwaysAvailable": true,
+      "instructions": [
+        "Funciona sem credencial nenhuma."
+      ],
+      "fields": [
+        {
+          "name": "refreshToken",
+          "label": "Token do Google",
+          "type": "password",
+          "secret": true,
+          "hidden": true
+        }
+      ]
+    }
+  },
+  "modules": [
+    {
+      "module": "email",
+      "label": "E-mail",
+      "summary": "Caixa de entrada, responder, etiquetar e arquivar.",
+      "multi": true,
+      "enabled": true,
+      "configured": true,
+      "connections": [
+        {
+          "id": "conn-mail-1",
+          "module": "email",
+          "label": "Trabalho",
+          "visible": {
+            "preset": "gmail",
+            "user": "voce@example.com"
+          },
+          "secretsSet": [
+            "password"
+          ],
+          "updatedAt": "2026-10-01T10:00:00.000Z",
+          "unreadable": false
+        },
+        {
+          "id": "conn-mail-2",
+          "module": "email",
+          "label": "Antiga",
+          "visible": {},
+          "secretsSet": [],
+          "updatedAt": "2026-10-01T10:00:00.000Z",
+          "unreadable": true
+        }
+      ]
+    },
+    {
+      "module": "agenda",
+      "label": "Agenda",
+      "summary": "Compromissos no período que você escolher.",
+      "multi": true,
+      "enabled": false,
+      "configured": false,
+      "connections": []
+    },
+    {
+      "module": "tasks",
+      "label": "Tarefas",
+      "summary": "Lista de tarefas com subtarefas, prazo e prioridade.",
+      "multi": false,
+      "enabled": true,
+      "configured": false,
+      "connections": []
+    },
+    {
+      "module": "notes",
+      "label": "Notas rápidas",
+      "summary": "Bloco de notas com abas em Markdown.",
+      "multi": false,
+      "enabled": true,
+      "configured": true,
+      "connections": [
+        {
+          "id": "conn-notes-1",
+          "module": "notes",
+          "label": "Google Drive",
+          "visible": {
+            "provider": "google",
+            "account": "voce@example.com"
+          },
+          "secretsSet": [
+            "refreshToken"
+          ],
+          "updatedAt": "2026-10-02T10:00:00.000Z",
+          "unreadable": false
+        }
+      ]
+    }
+  ]
+}

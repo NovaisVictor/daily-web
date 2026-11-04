@@ -1,0 +1,32 @@
+{
+  "id": "atask-1",
+  "parentTaskId": null,
+  "externalId": "ext-1",
+  "title": "Migrar testes para Swift Testing",
+  "description": "Converter os testes XCTest restantes.",
+  "status": "waiting",
+  "hold": {
+    "reason": "pull_request",
+    "note": "aguardando revisão"
+  },
+  "assignment": {
+    "sessionId": "session-1",
+    "agentId": "agent-1",
+    "provider": "claude",
+    "displayName": "Claude no notebook",
+    "freshness": "fresh",
+    "attention": null,
+    "live": {
+      "state": "working",
+      "since": "2026-11-04T12:30:00.000Z"
+    }
+  },
+  "source": {
+    "provider": "github",
+    "connectionId": "conn-gh-1",
+    "resource": "acme/painel#318"
+  },
+  "version": 3,
+  "createdAt": "2026-11-03T10:00:00.000Z",
+  "lastActivityAt": "2026-11-04T12:00:00.000Z"
+}

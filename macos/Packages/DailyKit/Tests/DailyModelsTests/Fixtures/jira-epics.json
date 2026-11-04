@@ -1,0 +1,12 @@
+{
+  "epics": [
+    {
+      "key": "DEMO-100",
+      "summary": "Relatórios 2.0"
+    },
+    {
+      "key": "DEMO-120",
+      "summary": "Onboarding"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "available": true,
+  "live": {
+    "state": "prompt",
+    "since": null
+  },
+  "pane": "$ swift test\nAll tests passed\n> ",
+  "response": {
+    "content": "Pronto: os testes passam.",
+    "at": "2026-11-04T12:38:00.000Z"
+  },
+  "capturedAt": "2026-11-04T12:40:00.000Z"
+}

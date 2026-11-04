@@ -1,0 +1,12 @@
+{
+  "repos": [
+    "acme/painel",
+    "acme/api"
+  ],
+  "authors": {
+    "acme/painel": [
+      "dev-exemplo",
+      "outra-pessoa"
+    ]
+  }
+}

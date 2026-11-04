@@ -1,0 +1,22 @@
+{
+  "transitions": [
+    {
+      "id": "31",
+      "name": "Em revisão",
+      "to": {
+        "name": "Em revisão",
+        "category": "indeterminate"
+      },
+      "requires": "nothing"
+    },
+    {
+      "id": "41",
+      "name": "Concluir",
+      "to": {
+        "name": "Concluído",
+        "category": "done"
+      },
+      "requires": "screen"
+    }
+  ]
+}
