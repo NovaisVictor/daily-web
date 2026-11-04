@@ -50,7 +50,11 @@ final class NotesStore {
   @ObservationIgnored private let client: any APIClient
   @ObservationIgnored private let poller: Poller
   @ObservationIgnored private let sleep: Sleeper
-  @ObservationIgnored private var pending: (id: String, body: String)?
+  /// Text the server has not confirmed yet, per note. It stays here until a save
+  /// of exactly this text succeeds, so a failed save is resent by the next flush.
+  @ObservationIgnored private var unsent: [String: String] = [:]
+  /// The one save in flight per note; it clears its own slot when it ends.
+  @ObservationIgnored private var saving: [String: Task<Bool, Never>] = [:]
   @ObservationIgnored private var autosaveTask: Task<Void, Never>?
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var isVisible = false
@@ -121,7 +125,9 @@ final class NotesStore {
   /// Reads the list. `activate` leaves that note open at the end; the draft only
   /// changes when the open note does.
   func load(activate: String? = nil) async {
-    if activate != nil { await flushPending() }
+    var activate = activate
+    // Unsaved text is never dropped to show another note: the open one stays.
+    if activate != nil, !(await flushPending()) { activate = nil }
     defer { isLoading = false }
     let response: NotesResponse
     do {
@@ -157,7 +163,8 @@ final class NotesStore {
 
   func open(_ id: String) async {
     guard id != activeID else { return }
-    await flushPending()
+    // A failed save keeps the current note open with its error, so the text is not lost.
+    guard await flushPending() else { return }
     guard let note = notes.first(where: { $0.id == id }) else { return }
     activeID = id
     draft = note.body
@@ -168,7 +175,7 @@ final class NotesStore {
     guard let activeID else { return }
     draft = text
     saveState = .saving
-    pending = (activeID, text)
+    unsent[activeID] = text
     autosaveTask?.cancel()
     let sleep = self.sleep
     autosaveTask = Task { [weak self] in
@@ -178,29 +185,60 @@ final class NotesStore {
         // Cancelled by the next keystroke or by a flush, which takes over the save.
         return
       }
-      await self?.flushPending()
+      await self?.sendUnsent()
     }
   }
 
-  /// Sends whatever is waiting now, cancelling the wait.
-  func flushPending() async {
+  /// Sends whatever is waiting now, cancelling the wait. Returns whether every
+  /// note's text reached the server.
+  @discardableResult
+  func flushPending() async -> Bool {
     autosaveTask?.cancel()
     autosaveTask = nil
-    guard let target = pending else { return }
-    pending = nil
-    await save(target.id, body: target.body)
+    return await sendUnsent()
   }
 
-  private func save(_ id: String, title: String? = nil, body: String? = nil) async {
+  @discardableResult
+  private func sendUnsent() async -> Bool {
+    var allSent = true
+    for id in Array(unsent.keys) {
+      if !(await send(id)) { allSent = false }
+    }
+    return allSent
+  }
+
+  /// One save per note at a time: a newer text waits for the one in flight and
+  /// goes next, so two PATCHes never race and land out of order.
+  private func send(_ id: String) async -> Bool {
+    while true {
+      if let running = saving[id] {
+        guard await running.value else { return false }
+        continue
+      }
+      guard let body = unsent[id] else { return true }
+      let task = Task { await self.saveBody(id, body) }
+      saving[id] = task
+      guard await task.value else { return false }
+    }
+  }
+
+  private func saveBody(_ id: String, _ body: String) async -> Bool {
+    defer { saving[id] = nil }
     saveState = .saving
     do {
-      let response = try await client.send(NotesEndpoints.update(id: id, title: title, body: body))
+      let response = try await client.send(NotesEndpoints.update(id: id, body: body))
       error = nil
-      saveState = .saved
-      replace(response.note)
+      // Keystrokes typed meanwhile win: the answer only lands when it is the latest text.
+      if unsent[id] == body {
+        unsent[id] = nil
+        replace(response.note)
+      }
+      saveState = unsent.isEmpty ? .saved : .saving
+      return true
     } catch {
       fail("Save note", error)
       saveState = .failed
+      return false
     }
   }
 
@@ -210,12 +248,14 @@ final class NotesStore {
     guard let index = notes.firstIndex(where: { $0.id == id }), !clean.isEmpty, clean != notes[index].title
     else { return }
     let previous = notes[index].title
+    let previousState = saveState
     notes[index].title = clean
     saveState = .saving
     do {
       let response = try await client.send(NotesEndpoints.update(id: id, title: clean))
       error = nil
-      saveState = .saved
+      // "salvo" only when no text is waiting; a failed body save stays visible.
+      saveState = unsent.isEmpty ? .saved : (previousState == .failed ? .failed : .saving)
       replace(response.note)
     } catch {
       if let index = notes.firstIndex(where: { $0.id == id }), notes[index].title == clean {
@@ -229,7 +269,7 @@ final class NotesStore {
   // MARK: - Notes
 
   func createNote() async {
-    await flushPending()
+    guard await flushPending() else { return }
     let endpoint = NotesEndpoints.create(title: "Nota \(notes.count + 1)", folderId: scope.folderID)
     let note: Note
     do {
@@ -248,8 +288,7 @@ final class NotesStore {
 
   /// Called after the confirmation.
   func deleteNote(_ id: String) async {
-    if pending?.id == id {
-      pending = nil
+    if unsent[id] != nil {
       autosaveTask?.cancel()
       autosaveTask = nil
     }
@@ -262,11 +301,13 @@ final class NotesStore {
       return
     }
     error = nil
+    // The note is gone: its unsent text has nowhere to go.
+    unsent[id] = nil
+    if unsent.isEmpty { saveState = .saved }
     notes.removeAll { $0.id == id }
     if activeID == id {
       activeID = notes.first?.id
       draft = notes.first?.body ?? ""
-      if activeID == nil { saveState = .saved }
     }
   }
 

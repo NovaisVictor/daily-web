@@ -172,6 +172,100 @@ import Testing
     #expect(store.statusText == "não salvo")
   }
 
+  @Test func failedAutosaveKeepsTheTextForTheNextFlush() async {
+    let store = await loaded()
+    client.respond(Self.server(failing: { $0.method == "PATCH" ? serverError("Falha ao salvar", status: 500) : nil }))
+    store.edit("um!")
+    await clock.advance(by: NotesStore.autosaveDelay)
+    #expect(store.saveState == .failed)
+
+    client.respond(Self.server())
+    #expect(await store.flushPending())
+    #expect(
+      client.writes.map(\.description) == [
+        #"PATCH /api/notes/n1 {"body":"um!"}"#,
+        #"PATCH /api/notes/n1 {"body":"um!"}"#,
+      ])
+    #expect(store.saveState == .saved)
+    #expect(store.notes.first?.body == "um!")
+  }
+
+  @Test func failedFlushKeepsTheCurrentNoteOpen() async {
+    let store = await loaded()
+    client.respond(Self.server(failing: { $0.method == "PATCH" ? serverError("Falha ao salvar", status: 500) : nil }))
+    store.edit("um!")
+    await store.open("n3")
+    #expect(store.activeID == "n1")
+    #expect(store.draft == "um!")
+    #expect(store.saveState == .failed)
+    #expect(store.error == "Falha ao salvar")
+
+    await store.createNote()
+    await store.load(activate: "n2")
+    #expect(store.activeID == "n1")
+    #expect(store.draft == "um!")
+    #expect(!client.writes.contains { $0.method == "POST" })
+
+    client.respond(Self.server())
+    await store.open("n3")
+    #expect(store.activeID == "n3")
+    #expect(client.writes.last?.description == #"PATCH /api/notes/n1 {"body":"um!"}"#)
+  }
+
+  @Test func savesGoOneAtATimeAndTheLatestTextWins() async {
+    let store = await loaded()
+    let gate = Gate()
+    client.respond { call throws(APIError) in
+      if call.method == "PATCH" { await gate.wait() }
+      return try await Self.server()(call)
+    }
+    store.edit("a")
+    await clock.advance(by: NotesStore.autosaveDelay)
+    #expect(gate.waiting == 1)
+    store.edit("ab")
+    await clock.advance(by: NotesStore.autosaveDelay)
+    // The second save waits for the first instead of racing it.
+    #expect(client.writes.count == 1)
+
+    gate.releaseOne()
+    await settle()
+    #expect(store.saveState == .saving)
+    #expect(store.draft == "ab")
+    #expect(store.notes.first?.body == "um")
+    #expect(gate.waiting == 1)
+
+    gate.releaseOne()
+    await settle()
+    #expect(
+      client.writes.map(\.description) == [
+        #"PATCH /api/notes/n1 {"body":"a"}"#,
+        #"PATCH /api/notes/n1 {"body":"ab"}"#,
+      ])
+    #expect(store.saveState == .saved)
+    #expect(store.notes.first?.body == "ab")
+  }
+
+  @Test func savedOnlyWhenNothingIsWaiting() async {
+    let store = await loaded()
+    let gate = Gate()
+    client.respond { call throws(APIError) in
+      if call.method == "PATCH" { await gate.wait() }
+      return try await Self.server()(call)
+    }
+    store.edit("a")
+    await clock.advance(by: NotesStore.autosaveDelay)
+    store.edit("ab")
+    gate.releaseOne()
+    await settle()
+    // The answer for "a" arrived, but "ab" is still waiting for its turn.
+    #expect(store.saveState == .saving)
+    #expect(store.statusText == "salvando…")
+    await clock.advance(by: NotesStore.autosaveDelay)
+    gate.releaseOne()
+    await settle()
+    #expect(store.saveState == .saved)
+  }
+
   // MARK: - Notes
 
   @Test func createsANoteInTheScopeFolder() async {

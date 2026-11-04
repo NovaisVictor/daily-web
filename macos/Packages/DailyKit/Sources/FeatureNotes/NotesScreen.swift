@@ -28,6 +28,15 @@ public struct NotesScreen: View {
   }
 
   private static let shutdownID = "notes"
+  private static let route = AppRoute.module(.notes)
+
+  /// Reads the list opening the note another screen asked for. The request is
+  /// finished only once a list arrived: with it the note opened or is gone.
+  private func loadRevealingPending() async {
+    let id = navigator.pendingItem(for: Self.route)
+    await store.load(activate: id)
+    if let id, store.hasLoaded { navigator.finishPendingItem(id, for: Self.route) }
+  }
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -40,10 +49,10 @@ public struct NotesScreen: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .confirmDialog($confirmation)
     // A note another screen asked to show ("Abrir a nota", a notification).
-    .task { await store.load(activate: navigator.consumePendingItem()) }
-    .onChange(of: navigator.pendingItemID) {
-      guard let id = navigator.consumePendingItem() else { return }
-      Task { await store.load(activate: id) }
+    .task { await loadRevealingPending() }
+    .onChange(of: navigator.pending) {
+      guard navigator.pendingItem(for: Self.route) != nil else { return }
+      Task { await loadRevealingPending() }
     }
     .onAppear {
       store.setVisible(true)
@@ -70,7 +79,7 @@ public struct NotesScreen: View {
       LoadingState()
     } else if !store.hasLoaded {
       ErrorState("Falha ao carregar as notas", description: store.error) {
-        Task { await store.load() }
+        Task { await loadRevealingPending() }
       }
     } else {
       if let error = store.error { PanelError(error) }

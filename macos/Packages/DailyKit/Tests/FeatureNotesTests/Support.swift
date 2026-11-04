@@ -113,6 +113,23 @@ final class VirtualClock {
   }
 }
 
+/// Holds requests until the test lets them through, one at a time.
+@MainActor
+final class Gate {
+  private var continuations: [CheckedContinuation<Void, Never>] = []
+
+  var waiting: Int { continuations.count }
+
+  func wait() async {
+    await withCheckedContinuation { continuations.append($0) }
+  }
+
+  func releaseOne() {
+    guard !continuations.isEmpty else { return }
+    continuations.removeFirst().resume()
+  }
+}
+
 /// Lets every ready main-actor task run.
 @MainActor
 func settle() async {
