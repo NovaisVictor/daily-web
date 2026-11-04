@@ -1,6 +1,7 @@
 import DailyCore
 import DailyDesign
 import DailyModels
+import FeatureNotifications
 import FeatureShell
 import SwiftUI
 
@@ -24,8 +25,7 @@ struct MainWindow: View {
       onRefresh: { Task { await environment.dashboard.refresh() } },
       paletteCommands: paletteCommands(sidebar: SidebarModel(registry: registry, enabled: enabled))
     ) {
-      // The notifications bell (T403) goes here.
-      EmptyView()
+      NotificationsBell(environment: environment)
     }
   }
 

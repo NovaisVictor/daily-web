@@ -23,8 +23,11 @@ citadas são dessa data.
   `PUBLIC_ORIGIN` e recusam o header `Authorization` (400 `ambiguous_auth`). São
   as escritas de pulls, de agentes por sessão, de agent-access e de push. **O app
   envia `Origin` em toda escrita.**
-- **Idempotência**: as escritas de pulls e as mensagens para agentes leem
-  `Idempotency-Key` (8–160 caracteres) e `X-Request-Timestamp`.
+- **Idempotência**: as escritas de pulls e **todas** as escritas de agentes por
+  sessão (PATCH/DELETE de tarefa, transições e mensagens) exigem
+  `Idempotency-Key` (8–160 caracteres) e `X-Request-Timestamp`; sem eles o
+  servidor responde 400 (`validateMutation` em `lib/access/receipts.ts`). Uma
+  nova tentativa da mesma ação deve reusar a chave (`Endpoint.idempotencyKey`).
 - **Paginação** (agentes e v1): `{items, nextCursor, complete}`, cursor opaco.
 - **JSON malformado** em `/api/tasks*` causa 500 (falta `catch` no servidor). O
   app nunca deve mandar corpo inválido.

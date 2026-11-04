@@ -1,15 +1,19 @@
 import DailyCore
 import DailyModels
+import FeatureAccess
 import FeatureAgenda
+import FeatureAgents
 import FeatureEmail
 import FeatureHome
+import FeatureJira
 import FeatureNotes
+import FeaturePulls
+import FeatureSlack
 import FeatureTasks
 import SwiftUI
 
 extension ModuleRegistry {
   /// Every sidebar entry; titles come from `lib/modules.ts` and `nav-items.ts`.
-  /// Entries still on `placeholder` land in wave 4 (T4xx).
   static func app(environment: AppEnvironment) -> ModuleRegistry {
     ModuleRegistry(entries: [
       entry(.today, "Hoje", "sun.max", nil) { HomeScreen(environment: environment) },
@@ -17,11 +21,11 @@ extension ModuleRegistry {
       entry(.module(.tasks), "Tarefas", "checklist", .tasks) { TasksScreen(environment: environment) },
       entry(.module(.notes), "Notas rápidas", "note.text", .notes) { NotesScreen(environment: environment) },
       entry(.module(.agenda), "Agenda", "calendar", .agenda) { AgendaScreen(environment: environment) },
-      entry(.module(.jira), "Jira", "list.bullet.rectangle", .jira),
-      entry(.module(.pulls), "Pull requests", "arrow.triangle.pull", .pulls),
-      entry(.module(.slack), "Slack", "bubble.left.and.bubble.right", .slack),
-      entry(.agents, "Agentes", "cpu", nil),
-      entry(.access, "Acesso dos agentes", "key", nil),
+      entry(.module(.jira), "Jira", "list.bullet.rectangle", .jira) { JiraScreen(environment: environment) },
+      entry(.module(.pulls), "Pull requests", "arrow.triangle.pull", .pulls) { PullsScreen(environment: environment) },
+      entry(.module(.slack), "Slack", "bubble.left.and.bubble.right", .slack) { SlackScreen(environment: environment) },
+      entry(.agents, "Agentes", "cpu", nil) { AgentsScreen(environment: environment) },
+      entry(.access, "Acesso dos agentes", "key", nil) { AccessScreen(environment: environment) },
     ])
   }
 

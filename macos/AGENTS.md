@@ -38,6 +38,10 @@ swift format lint --strict --recursive Packages/DailyKit/Sources/<Target> Packag
 
 `make check` (lint, todos os testes e build do app no Xcode) é o gate de onda do orquestrador.
 
+Se os testes caírem com sinal 10 ou 11 logo depois de um campo novo num tipo
+público do núcleo, o build incremental ficou com layout antigo: rode
+`make clean` (ou apague o seu `--scratch-path`) e compile de novo.
+
 ## Arquitetura
 
 - Dependências permitidas: `Feature*` → `DailyCore`, `DailyDesign`, `DailyAPI`,
