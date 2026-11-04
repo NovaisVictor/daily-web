@@ -51,13 +51,11 @@ public struct PullsScreen: View {
         source: request.source, calendars: store.calendars, serverURL: environment.session.serverURL, store: store)
     }
     .task {
-      if let id = environment.navigator.consumePendingItem() { store.reveal(id) }
+      store.revealPending(from: environment.navigator)
       await store.loadRepos()
     }
-    .onChange(of: environment.navigator.pendingItemID) {
-      guard let id = environment.navigator.consumePendingItem() else { return }
-      store.reveal(id)
-    }
+    .onChange(of: environment.navigator.pending) { store.revealPending(from: environment.navigator) }
+    .onChange(of: environment.dashboard.lastUpdated) { store.revealPending(from: environment.navigator) }
   }
 
   // MARK: - Lists

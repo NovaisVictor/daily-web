@@ -124,8 +124,11 @@ final class AgentsStore {
 
   /// The alert engine forgets keys it is not given again, so only the full,
   /// unfiltered board reports; a filtered one would re-alert on its way back.
+  /// The activity window counts as a filter: a narrower one hides waiting
+  /// tasks, a wider one shows tasks the default board would not alert on.
   private func reportAttention(for request: AgentsEndpoints.BoardQuery) async {
     guard request.tab == .tasks, request.status == nil, request.sessionID == nil, request.cursor == nil,
+      request.days == AgentsLogic.defaultActivityWindow,
       request.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else { return }
     let waiting = waitingOnYou.compactMap { task in
@@ -191,6 +194,14 @@ final class AgentsStore {
     store.isVisible = isVisible
     detail = store
     Task { await store.load() }
+  }
+
+  /// A notification about a task waiting on the user opens that task. The
+  /// detail loads by id on its own, so the item is finished at once.
+  func openPendingTask(from navigator: AppNavigator) {
+    guard let id = navigator.pendingItem(for: .agents) else { return }
+    openTask(id)
+    navigator.finishPendingItem(id, for: .agents)
   }
 
   func closeTask() {

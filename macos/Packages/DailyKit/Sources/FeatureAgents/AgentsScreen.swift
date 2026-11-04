@@ -46,16 +46,10 @@ public struct AgentsScreen: View {
     }
     .onAppear {
       store.setVisible(true)
-      revealPendingTask()
+      store.openPendingTask(from: navigator)
     }
     .onDisappear { store.setVisible(false) }
-    .onChange(of: navigator.pendingItemID) { revealPendingTask() }
-  }
-
-  /// A notification about a task waiting on the user opens that task.
-  private func revealPendingTask() {
-    guard navigator.route == .agents, let id = navigator.consumePendingItem() else { return }
-    store.openTask(id)
+    .onChange(of: navigator.pending) { store.openPendingTask(from: navigator) }
   }
 
   // MARK: - Header

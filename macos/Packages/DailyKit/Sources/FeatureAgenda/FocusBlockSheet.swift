@@ -25,7 +25,7 @@ struct FocusBlockSheet: View {
         guard store.reconnectURL(server: server, connectionId: connectionId) != nil,
           let account = store.reconnectAccount(for: connectionId)
         else { return nil }
-        return account.account.isEmpty ? account.label : account.account
+        return FocusReconnect.accountName(account)
       },
       onSubmit: { start, minutes, connectionId in
         var current = draft

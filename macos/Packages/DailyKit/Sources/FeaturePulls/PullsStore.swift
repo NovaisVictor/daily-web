@@ -175,18 +175,41 @@ final class PullsStore {
 
   // MARK: - Reveal
 
+  /// What `reveal` could do with an item.
+  enum RevealOutcome: Equatable {
+    case found
+    /// The server's lists are on screen and the item is in none of them.
+    case absent
+    /// No state from the server yet; a cached one may predate the pull request.
+    case notLoaded
+  }
+
+  /// The pull request a notification pointed at, revealed once the lists can
+  /// tell whether it is there; the navigator keeps it until then.
+  func revealPending(from navigator: AppNavigator) {
+    let route = AppRoute.module(.pulls)
+    guard let itemID = navigator.pendingItem(for: route) else { return }
+    switch reveal(itemID) {
+    case .found, .absent: navigator.finishPendingItem(itemID, for: route)
+    case .notLoaded: break
+    }
+  }
+
   /// A notification's `repo#number`: opens the list that has it, clearing the
   /// filters if they hide it.
-  func reveal(_ itemID: String) {
+  @discardableResult
+  func reveal(_ itemID: String) -> RevealOutcome {
     let ref: (PullRequestItem) -> Bool = { PullActionRules.ref($0) == itemID }
     let lists: [(PullsTab, [PullRequestItem])] = [(.tracked, allTracked), (.reviews, allReviews), (.mine, allMine)]
     guard let (tab, items) = lists.first(where: { $0.1.contains(where: ref) }) else {
+      guard dashboard.lastUpdated != nil else { return .notLoaded }
       logger.info("Pull request to reveal is not in any list")
-      return
+      return .absent
     }
     self.tab = tab
     if let item = items.first(where: ref), !PullFiltering.matches(item, filters, now: now()) { clearFilters() }
     highlighted = itemID
+    return .found
   }
 
   // MARK: - Tracked repositories

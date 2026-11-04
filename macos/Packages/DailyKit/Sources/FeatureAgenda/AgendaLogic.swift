@@ -78,9 +78,19 @@ enum AgendaLogic {
     Set(items.map(\.account)).count > 1
   }
 
+  /// Gregorian in `timeZone`, like JavaScript's `Date`: the server's
+  /// `YYYY-MM-DD` and the name tables assume it, and a Buddhist or Japanese
+  /// system calendar would number the years and eras differently.
+  static func gregorian(in timeZone: TimeZone) -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    return calendar
+  }
+
   /// `relativeDayLabel` (`AgendaPanel.tsx:56-67`): "hoje", "amanhã", or the
-  /// weekday with the date spelled out.
+  /// weekday with the date spelled out. Only `calendar`'s time zone counts.
   static func relativeDayLabel(_ iso: String, today: Date, calendar: Calendar) -> String {
+    let calendar = gregorian(in: calendar.timeZone)
     if iso == localDateString(today, calendar: calendar) { return "hoje" }
     if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
       iso == localDateString(tomorrow, calendar: calendar)
@@ -96,8 +106,9 @@ enum AgendaLogic {
     return "\(weekdays[weekday - 1]), \(day) de \(months[month - 1])"
   }
 
+  /// `YYYY-MM-DD` in `calendar`'s time zone, always Gregorian.
   static func localDateString(_ date: Date, calendar: Calendar) -> String {
-    let parts = calendar.dateComponents([.year, .month, .day], from: date)
+    let parts = gregorian(in: calendar.timeZone).dateComponents([.year, .month, .day], from: date)
     return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
   }
 
@@ -117,14 +128,5 @@ enum AgendaLogic {
       return FocusSource(kind: item.kind, ref: ref, title: title, url: item.url)
     }
     return nil
-  }
-
-  /// `/api/integrations/agenda/google/start?login_hint=…` on the server: the
-  /// Google flow runs in the browser, whose own session finishes it.
-  static func reconnectURL(server: URL?, loginHint: String) -> URL? {
-    guard let server, var components = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return nil }
-    components.path = "/api/integrations/agenda/google/start"
-    components.queryItems = loginHint.isEmpty ? nil : [URLQueryItem(name: "login_hint", value: loginHint)]
-    return components.url
   }
 }

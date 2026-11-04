@@ -71,14 +71,15 @@ final class Harness {
   let toasts: ToastCenter
   let store: PullsStore
 
-  init(_ state: DashboardState = makeState()) {
+  /// `loaded: false` leaves the dashboard without a server state, as at launch.
+  init(_ state: DashboardState = makeState(), loaded: Bool = true) {
     let client = FakeAPIClient()
     self.client = client
     let toasts = ToastCenter(sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
     self.toasts = toasts
     dashboard = DashboardStore(client: client, cache: nil, toasts: toasts)
     store = PullsStore(client: client, dashboard: dashboard, now: { testNow })
-    dashboard.apply(state)
+    if loaded { dashboard.apply(state) }
     serve(state: state)
   }
 

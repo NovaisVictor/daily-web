@@ -104,20 +104,21 @@ nonisolated func event(_ date: String, _ time: String, _ title: String, account:
     #expect(AgendaLogic.acceptedSource([source]) == nil)
   }
 
+  @Test func aNonGregorianSystemCalendarStillMatchesTheServersDates() throws {
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = saoPaulo.timeZone
+    let today = localDate(2026, 8, 25, 15)
+    #expect(AgendaLogic.localDateString(today, calendar: buddhist) == "2026-08-25")
+    #expect(AgendaLogic.relativeDayLabel("2026-08-25", today: today, calendar: buddhist) == "hoje")
+    #expect(AgendaLogic.relativeDayLabel("2026-08-26", today: today, calendar: buddhist) == "amanhã")
+    var japanese = Calendar(identifier: .japanese)
+    japanese.timeZone = saoPaulo.timeZone
+    #expect(AgendaLogic.relativeDayLabel("2026-08-28", today: today, calendar: japanese) == "sexta, 28 de agosto")
+  }
+
   @Test func takesTheFirstValidOfSeveral() {
     let bad = FocusSource(kind: .task, ref: "1", title: "")
     let good = FocusSource(kind: .task, ref: "2", title: "Escrever relatório")
     #expect(AgendaLogic.acceptedSource([bad, good]) == good)
-  }
-
-  @Test func buildsTheReconnectURLOnTheServer() throws {
-    let server = try #require(URL(string: "https://daily.example.com"))
-    #expect(
-      AgendaLogic.reconnectURL(server: server, loginHint: "voce@example.com")?.absoluteString
-        == "https://daily.example.com/api/integrations/agenda/google/start?login_hint=voce@example.com")
-    #expect(
-      AgendaLogic.reconnectURL(server: server, loginHint: "")?.absoluteString
-        == "https://daily.example.com/api/integrations/agenda/google/start")
-    #expect(AgendaLogic.reconnectURL(server: nil, loginHint: "x") == nil)
   }
 }

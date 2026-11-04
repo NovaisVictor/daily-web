@@ -81,6 +81,13 @@ final class Reports {
     #expect(reported.items.isEmpty)
   }
 
+  @Test func anotherActivityWindowDoesNotReport() async {
+    store.setDays(7)
+    await settle()
+    #expect(boardCalls.last?.query.contains("days=7") == true)
+    #expect(reported.items.isEmpty)
+  }
+
   @Test func serverErrorKeepsTheLastBoard() async {
     await store.loadBoard()
     server.route { call throws(APIError) in
@@ -243,10 +250,21 @@ final class Reports {
   }
 
   @Test func revealsAPendingTaskByID() async {
-    store.openTask("p")
+    let navigator = AppNavigator()
+    navigator.open(.agents, itemID: "p")
+    store.openPendingTask(from: navigator)
     await settle()
     #expect(store.detail?.taskID == "p")
     #expect(client.calls.contains { $0.path == "/api/agents/tasks/p" })
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func leavesAnotherScreensPendingItemAlone() {
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "A-1")
+    store.openPendingTask(from: navigator)
+    #expect(store.detail == nil)
+    #expect(navigator.pendingItem(for: .module(.jira)) == "A-1")
   }
 }
 

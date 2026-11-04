@@ -72,14 +72,17 @@ final class Harness {
   let toasts: ToastCenter
   let store: JiraStore
 
-  init(_ state: DashboardState = makeState(), now: Date = Date(timeIntervalSince1970: 1_790_000_000)) {
+  /// `loaded: false` leaves the dashboard without a server state, as at launch.
+  init(
+    _ state: DashboardState = makeState(), loaded: Bool = true, now: Date = Date(timeIntervalSince1970: 1_790_000_000)
+  ) {
     let client = FakeAPIClient()
     self.client = client
     let toasts = ToastCenter(sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
     self.toasts = toasts
     dashboard = DashboardStore(client: client, cache: nil, toasts: toasts)
     store = JiraStore(client: client, dashboard: dashboard, now: { now })
-    dashboard.apply(state)
+    if loaded { dashboard.apply(state) }
     serve(state: state)
   }
 

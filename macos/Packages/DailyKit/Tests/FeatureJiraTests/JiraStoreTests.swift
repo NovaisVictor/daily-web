@@ -178,6 +178,47 @@ import Testing
     #expect(harness.store.revealed == "A-1")
   }
 
+  @Test func aPendingKeyWaitsForTheStateAndIsFinishedOnceRevealed() {
+    let state = makeState(jira: [makeIssue("A-1")])
+    let harness = Harness(state, loaded: false)
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "A-1")
+    harness.store.revealPending(from: navigator)
+    #expect(navigator.pendingItem(for: .module(.jira)) == "A-1")
+    #expect(harness.store.revealed == nil)
+    harness.dashboard.apply(state)
+    harness.store.revealPending(from: navigator)
+    #expect(harness.store.revealed == "A-1")
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func aPendingKeyAbsentFromTheLoadedListsIsFinished() {
+    let harness = Harness(makeState(jira: [makeIssue("A-1")]))
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "Z-9")
+    harness.store.revealPending(from: navigator)
+    #expect(harness.store.revealed == nil)
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func revealLeavesAFollowedPersonsViewForTheUsersLists() async {
+    let harness = Harness(makeState(jira: [makeIssue("ME-1")], people: [Self.person]))
+    let view = JiraPersonView(
+      jira: PanelResult(data: [makeIssue("P-1")], error: nil), delivered: PanelResult(data: [], error: nil),
+      approved: PanelResult(data: [], error: nil), problems: PanelResult(data: [], error: nil), ancestors: [])
+    let viewData = FakeAPIClient.json(view)
+    harness.serve(state: makeState(jira: [makeIssue("ME-1")], people: [Self.person])) { _ in viewData }
+    harness.store.selectPerson("acc-1")
+    await harness.store.loadPersonView()
+    #expect(harness.store.all.map(\.key) == ["P-1"])
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "ME-1")
+    harness.store.revealPending(from: navigator)
+    #expect(harness.store.activePerson == nil)
+    #expect(harness.store.revealed == "ME-1")
+    #expect(navigator.pending == nil)
+  }
+
   // MARK: Issue writes
 
   @Test func aTransitionPostsAndReloads() async {

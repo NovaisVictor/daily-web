@@ -305,9 +305,32 @@ final class JiraStore {
 
   // MARK: - Reveal
 
+  /// What `reveal` could do with a key.
+  enum RevealOutcome: Equatable {
+    case found
+    /// The server's lists are on screen and the key is in none of them.
+    case absent
+    /// No state from the server yet; a cached one may predate the issue.
+    case notLoaded
+  }
+
+  /// The issue a notification pointed at, revealed once the lists can tell
+  /// whether it is there; the navigator keeps it until then.
+  func revealPending(from navigator: AppNavigator) {
+    let route = AppRoute.module(.jira)
+    guard let key = navigator.pendingItem(for: route) else { return }
+    switch reveal(key) {
+    case .found, .absent: navigator.finishPendingItem(key, for: route)
+    case .notLoaded: break
+    }
+  }
+
   /// Shows the issue a notification pointed at: its tab, with the filters
   /// that would hide it cleared and its branch path opened.
-  func reveal(_ key: String) {
+  @discardableResult
+  func reveal(_ key: String) -> RevealOutcome {
+    // Notifications are about the user's own lists, never a followed person's.
+    if activePerson != nil { selectPerson(nil) }
     let source = self.source
     let tabs: [(JiraTab, [JiraItem])] = [
       (.open, source.jira.data ?? []),
@@ -315,7 +338,9 @@ final class JiraStore {
       (.delivered, (source.delivered.data ?? []).map(\.item)),
       (.approved, (source.approved.data ?? []).map(\.item)),
     ]
-    guard let found = tabs.first(where: { $0.1.contains { $0.key == key } })?.0 else { return }
+    guard let found = tabs.first(where: { $0.1.contains { $0.key == key } })?.0 else {
+      return dashboard.lastUpdated == nil ? .notLoaded : .absent
+    }
     tab = found
     let inPeriod = (found == .delivered ? deliveredInPeriod : found == .approved ? approvedInPeriod : [])
     if found == .delivered || found == .approved, !inPeriod.contains(where: { $0.key == key }) {
@@ -327,6 +352,7 @@ final class JiraStore {
       for ancestor in JiraFilters.lineage(of: item, in: known) { branches[ancestor.key] = true }
     }
     revealed = key
+    return .found
   }
 
   // MARK: - Person

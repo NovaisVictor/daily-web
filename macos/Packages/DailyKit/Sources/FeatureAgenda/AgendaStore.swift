@@ -42,7 +42,8 @@ final class AgendaStore {
     self.preferences = preferences
     self.focus = focus
     self.now = now
-    self.calendar = calendar
+    // The server's dates are Gregorian whatever the system calendar is.
+    self.calendar = AgendaLogic.gregorian(in: calendar.timeZone)
   }
 
   var state: DashboardState? { dashboard.state }
@@ -118,11 +119,11 @@ final class AgendaStore {
 
   /// The account to reconnect: the chosen calendar's, else the first one's.
   func reconnectAccount(for connectionId: String) -> AgendaCalendarRef? {
-    calendars.first { $0.id == connectionId } ?? calendars.first
+    FocusReconnect.calendar(for: connectionId, in: calendars)
   }
 
   func reconnectURL(server: URL?, connectionId: String) -> URL? {
-    guard let account = reconnectAccount(for: connectionId) else { return nil }
-    return AgendaLogic.reconnectURL(server: server, loginHint: account.account)
+    guard let server, let calendar = reconnectAccount(for: connectionId) else { return nil }
+    return FocusReconnect.url(server: server, account: calendar.account)
   }
 }

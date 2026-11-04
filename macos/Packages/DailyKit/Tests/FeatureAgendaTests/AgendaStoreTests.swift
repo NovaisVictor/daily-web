@@ -110,6 +110,16 @@ import Testing
     #expect(store.items == [created])
   }
 
+  @Test func dayLabelsIgnoreANonGregorianSystemCalendar() {
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = saoPaulo.timeZone
+    let now = self.now
+    let store = AgendaStore(
+      dashboard: dashboard, preferences: preferences, focus: focus, now: { now }, calendar: buddhist)
+    #expect(store.dayLabel("2026-09-21") == "hoje")
+    #expect(store.dayLabel("2026-09-22") == "amanhã")
+  }
+
   @Test func a409ShowsTheReconnectText() async throws {
     dashboard.apply(state(calendars: [writable]))
     store.receiveDrop([source])

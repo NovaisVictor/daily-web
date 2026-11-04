@@ -73,17 +73,11 @@ public struct JiraScreen: View {
     ) {
       await store.loadPersonView()
     }
-    .onAppear { revealPending() }
-    .onChange(of: environment.navigator.pendingItemID) { _, _ in revealPending() }
+    .onAppear { store.revealPending(from: environment.navigator) }
+    .onChange(of: environment.navigator.pending) { store.revealPending(from: environment.navigator) }
+    .onChange(of: environment.dashboard.lastUpdated) { store.revealPending(from: environment.navigator) }
     .sheet(item: $dialog) { dialog in sheet(dialog) }
     .sheet(isPresented: $standupOpen) { StandupSheet(source: store.standupSource, now: store.now()) }
-  }
-
-  private func revealPending() {
-    guard environment.navigator.route == .module(.jira),
-      let key = environment.navigator.consumePendingItem()
-    else { return }
-    store.reveal(key)
   }
 
   // MARK: - Header

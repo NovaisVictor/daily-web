@@ -48,6 +48,30 @@ import Testing
     #expect(!harness.store.filters.isActive)
   }
 
+  @Test func aPendingPullWaitsForTheStateAndIsFinishedOnceRevealed() {
+    let state = makeState(reviews: [pull(repo: "acme/web", number: 9)])
+    let harness = Harness(state, loaded: false)
+    let navigator = AppNavigator()
+    navigator.open(.module(.pulls), itemID: "acme/web#9")
+    harness.store.revealPending(from: navigator)
+    #expect(navigator.pendingItem(for: .module(.pulls)) == "acme/web#9")
+    #expect(harness.store.highlighted == nil)
+    harness.dashboard.apply(state)
+    harness.store.revealPending(from: navigator)
+    #expect(harness.store.tab == .reviews)
+    #expect(harness.store.highlighted == "acme/web#9")
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func aPendingPullAbsentFromTheLoadedListsIsFinished() {
+    let harness = Harness(makeState(tracked: [pull(number: 1)]))
+    let navigator = AppNavigator()
+    navigator.open(.module(.pulls), itemID: "acme/web#404")
+    harness.store.revealPending(from: navigator)
+    #expect(harness.store.highlighted == nil)
+    #expect(navigator.pending == nil)
+  }
+
   // MARK: Tracked repositories
 
   @Test func loadsTheTrackedRepos() async {
