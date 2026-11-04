@@ -137,16 +137,16 @@ O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
 
 ## Onda 5: integração e acabamento (2 agentes em paralelo + Orq.)
 
-- [ ] **T501 [P] Mac-isms**: dono `App/` (cedido pelo Orq. nesta onda) e `FeatureShell`.
+- [x] **T501 [P] Mac-isms**: dono `App/` (cedido pelo Orq. nesta onda) e `FeatureShell`.
   - `MenuBarExtra` (pomodoro, próximas tarefas e eventos, não lidas) e atalho global.
   - "Abrir ao iniciar" e janelas extras por módulo.
   - Menus com os atalhos de cada feature e ações nas notificações (abrir item, marcar lida).
-- [ ] **T502 [P] Paridade e qualidade**: só leitura do código, escrita em `docs/validation.md`.
+- [x] **T502 [P] Paridade e qualidade**: só leitura do código, escrita em `docs/validation.md`.
   - Roteiro manual por linha do spec, auditoria de VoiceOver e teclado, medições do NFR-001.
   - Teste de contrato contra `npm run dev` local, com usuário de teste e sem
     credencial real.
   - Os problemas encontrados viram tarefas `T5xx` para o dono da feature.
-- [ ] **T503** Correções do T502 (agentes por feature) + gate.
+- [x] **T503** Correções do T502 (agentes por feature) + gate.
 
 ## Onda 6: distribuição (Orq.)
 

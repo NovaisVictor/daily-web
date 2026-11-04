@@ -164,3 +164,50 @@ e de testes com cliente falso.
 **Incidente de build:** um campo novo em `Endpoint` deixou binários com layout
 antigo no build incremental do SwiftPM, e os testes caíram com sinal 10/11.
 Foi resolvido com build limpo. Criado o `make clean`, com nota no `AGENTS.md`.
+
+## Onda 5: T501–T503 (2026-11-04)
+
+Em `macos/`, `make clean && make check` termina com exit 0: **824 testes em 87
+suítes**, lint limpo e o app compilando. Nada mudou fora de `macos/`.
+
+- **T501:**
+  - item da barra de menus;
+  - atalho global (padrão ⌃⌥⌘D);
+  - abrir ao iniciar (`SMAppService`);
+  - janela principal única e janelas por módulo;
+  - menus "Ir" com ⌘1…⌘9 e ⌘K, e ⌘R;
+  - ações nos avisos do sistema ("Abrir", "Marcar como lida").
+- **T502:** auditoria em [audit.md](audit.md).
+  - Contrato contra o servidor local: 13 de 13 GETs decodificam.
+  - Release: 119,5 MB de RSS no Hoje e 0,17% de CPU oculto (amostra curta).
+- **T503:** todos os P1 e os P2 da auditoria corrigidos.
+  - Release sem símbolos de debug: o `.app` foi de 32 MB para **16 MB**.
+  - Teclado nas ações de Notas, E-mail, Jira, subtarefas e Agentes.
+  - Configurações abrindo na aba pedida.
+  - Aviso de agente aguardando com o título do web, também sem a tela aberta.
+  - Prévia da data em linguagem natural (parser portado com os testes do web).
+
+**App reaparecendo sozinho (G-14):** causa provável é o atalho padrão antigo,
+⌥⌘D, que coincide com o atalho do macOS "Ocultar/mostrar o Dock", ativo nesta
+máquina. O padrão mudou e as reaberturas da janela são registradas com o motivo.
+Não foi reproduzido.
+
+**Ainda não verificado:**
+
+- Item da barra de menus e menu "Ir" vistos na tela. Pela acessibilidade eles não
+  apareceram durante a T501; a suspeita é que o app não ficou em primeiro plano.
+- CPU com o app oculto por 10 minutos (SC-005).
+
+**Divergências intencionais em relação ao web:**
+
+- "Novidades" ausente: não há rota no servidor, e copiar `lib/changelog.ts`
+  deixaria os dois divergindo.
+- ⌘K no editor de notas insere link e não abre a paleta. O web faz as duas coisas.
+- Campo de data em texto sempre visível no formulário de tarefa, e data inválida
+  recusada pelo servidor.
+- Quadro de tarefas estreito sem abas de coluna.
+- Aviso de agente também para retenções de decisão, acesso e credencial, e com
+  checagem em segundo plano a cada 60 s; o web depende de Web Push.
+- Tela cheia do e-mail e "Maximizar" das notas substituídos pela tela cheia nativa.
+- Dependências transitivas do Textual (`swiftui-math`, cerca de 7 MB de fontes)
+  dentro do pacote: aceitas, porque o `.app` está em 16 MB.
