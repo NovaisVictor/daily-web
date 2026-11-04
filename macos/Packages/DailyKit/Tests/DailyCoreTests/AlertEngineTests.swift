@@ -249,15 +249,64 @@ import Testing
 
   @Test func agentsAlertWhenANewWaitStarts() async {
     let engine = makeEngine()
-    await engine.updateAgents([AgentAttention(taskID: "t1", title: "Migrar banco", since: "a")])
+    let first = AgentAttention(taskID: "t1", title: "Migrar banco", since: "a", kind: "input", agent: "Claude")
+    await engine.updateAgents([first])
     #expect(poster.posted.isEmpty)
     await engine.updateAgents([
-      AgentAttention(taskID: "t1", title: "Migrar banco", since: "a"),
-      AgentAttention(taskID: "t2", title: "Revisar PR", since: "b"),
+      first,
+      AgentAttention(taskID: "t2", title: "Revisar PR", since: "b", kind: "input", agent: "Claude"),
+      AgentAttention(taskID: "t3", title: "Rodar migração", since: "c", kind: "permission", agent: "Codex"),
     ])
-    #expect(poster.posted.map(\.title) == ["Aguardando você"])
-    #expect(poster.posted.first?.body == "Revisar PR")
+    // `attentionPayload`, `lib/push/dispatch.ts:53-54`.
+    #expect(poster.posted.map(\.title) == ["Aguardando sua resposta: Revisar PR", "Pedindo permissão: Rodar migração"])
+    #expect(
+      poster.posted.map(\.body) == [
+        "Claude parou e está esperando você.", "Codex está esperando você aprovar uma ação.",
+      ])
     #expect(poster.posted.first?.target == AlertTarget(route: .agents, itemID: "t2"))
+  }
+
+  @Test func agentAlertTitlesAreCutAt120() {
+    let long = String(repeating: "x", count: 200)
+    let alerts = AlertRules.agentAlerts([
+      AgentAttention(taskID: "t", title: long, since: "a", kind: "decision", agent: "")
+    ])
+    #expect(alerts.first?.alert.title.count == 120)
+    #expect(alerts.first?.alert.body == "O agente parou e está esperando você.")
+  }
+
+  @Test func alertsCarryTheMatchingNoticeID() {
+    let target = AlertTarget(route: .today)
+    func alert(_ key: String) -> (key: String, alert: DesktopAlert) {
+      (key, DesktopAlert(tag: key, title: "", body: "", target: target))
+    }
+    let current: AlertRules.Current = [
+      .email: [alert("email:<m@x>")],
+      .jira: [alert("jira:ABC-1"), alert("jira:ABC-2")],
+      .pull: [alert("pr:o/r#1")],
+      .review: [alert("review:o/r#1")],
+      .slack: [alert("slack:C1-1")],
+    ]
+    let notices = ["email:<m@x>", "jira_mention:ABC-1", "pull_request:o/r#1", "slack:C1-1"].map {
+      NotificationItem(id: $0, source: .email, title: "", url: "", read: false, date: "")
+    }
+    let linked = AlertRules.linkNotifications(current, notifications: notices)
+    func ids(_ source: AlertSource) -> [String?] { (linked[source] ?? nil)?.map(\.alert.notificationID) ?? [] }
+    #expect(ids(.email) == ["email:<m@x>"])
+    #expect(ids(.jira) == ["jira_mention:ABC-1", nil])
+    #expect(ids(.pull) == ["pull_request:o/r#1"])
+    #expect(ids(.review) == [nil])
+    #expect(ids(.slack) == ["slack:C1-1"])
+  }
+
+  @Test func userInfoCarriesTheNoticeID() {
+    let alert = DesktopAlert(
+      tag: "t", title: "", body: "", target: AlertTarget(route: .module(.slack), itemID: "C1-1"),
+      notificationID: "slack:C1-1")
+    #expect(alert.userInfo[DesktopAlert.notificationIDKey] == "slack:C1-1")
+    #expect(alert.userInfo["route"] == "module:slack")
+    let plain = DesktopAlert(tag: "t", title: "", body: "", target: AlertTarget(route: .today))
+    #expect(plain.userInfo[DesktopAlert.notificationIDKey] == nil)
   }
 
   @Test func pomodoroPhaseTextsFollowTheWeb() async {

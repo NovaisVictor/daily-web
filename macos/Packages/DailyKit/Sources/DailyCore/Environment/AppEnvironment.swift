@@ -91,6 +91,12 @@ public final class AppEnvironment {
       foreground: Poller.Cadence.reminders,
       background: Poller.Cadence.reminders
     ) { await alerts.checkReminders() }
+    let agentCheck = AgentAttentionCheck(client: client, poller: poller, alerts: alerts, now: now)
+    poller.register(
+      Poller.ScopeID.agentAttention,
+      foreground: Poller.Cadence.agentAttention,
+      background: Poller.Cadence.agentAttention
+    ) { await agentCheck.run() }
 
     session.onSignedIn = { user in
       if let server = settings.serverURL {

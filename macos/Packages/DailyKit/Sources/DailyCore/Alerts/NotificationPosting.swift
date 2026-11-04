@@ -38,7 +38,9 @@ public final class UserNotificationPoster: NotificationPosting {
     let content = UNMutableNotificationContent()
     content.title = alert.title
     content.body = alert.body
-    content.userInfo = alert.target.userInfo
+    content.userInfo = alert.userInfo
+    // The category adds "Marcar como lida", which needs the notice's id.
+    if alert.notificationID != nil { content.categoryIdentifier = DesktopAlert.dashboardCategory }
     // Same tag, same notification: a repeat replaces instead of stacking, as
     // the web's `tag` option does.
     let request = UNNotificationRequest(identifier: alert.tag, content: content, trigger: nil)

@@ -33,3 +33,20 @@ import Testing
     #expect(navigator.pending == nil)
   }
 }
+
+@Suite struct AppNavigatorRequestTests {
+  @Test func settingsTabIsTakenOnce() {
+    let navigator = AppNavigator()
+    navigator.requestSettings(.profile)
+    #expect(navigator.takeRequestedSettingsTab() == .profile)
+    #expect(navigator.takeRequestedSettingsTab() == nil)
+  }
+
+  @Test func notificationsRequestIsTakenOnce() {
+    let navigator = AppNavigator()
+    #expect(!navigator.takeNotificationsRequest())
+    navigator.requestNotifications()
+    #expect(navigator.takeNotificationsRequest())
+    #expect(!navigator.isNotificationsRequested)
+  }
+}

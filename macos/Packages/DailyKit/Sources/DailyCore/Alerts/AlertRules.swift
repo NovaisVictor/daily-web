@@ -64,12 +64,28 @@ public struct DesktopAlert: Equatable, Sendable {
   public var title: String
   public var body: String
   public var target: AlertTarget
+  /// The bell's notice for the same item (`NotificationItem.id`), when there is
+  /// one: the system notification then offers "Marcar como lida".
+  public var notificationID: String?
 
-  public init(tag: String, title: String, body: String, target: AlertTarget) {
+  /// `UNNotificationCategory` id of alerts that carry a `notificationID`.
+  public static let dashboardCategory = "dashboard-notification"
+  /// `userInfo` key of the `notificationID`.
+  public static let notificationIDKey = "notificationID"
+
+  public init(tag: String, title: String, body: String, target: AlertTarget, notificationID: String? = nil) {
     self.tag = tag
     self.title = title
     self.body = body
     self.target = target
+    self.notificationID = notificationID
+  }
+
+  /// `target.userInfo` plus the notice id.
+  public var userInfo: [String: String] {
+    var info = target.userInfo
+    if let notificationID { info[Self.notificationIDKey] = notificationID }
+    return info
   }
 }
 
@@ -102,17 +118,23 @@ public nonisolated struct SeenState: Codable, Sendable, Equatable {
 }
 
 /// An agent task waiting on the user, as `needsYou` in
-/// `components/agents/contracts.ts:34` decides; FeatureAgents reports them.
+/// `components/agents/contracts.ts:34` decides (`AgentAttentionRules.waiting`).
 public nonisolated struct AgentAttention: Equatable, Sendable {
   public var taskID: String
   public var title: String
   /// When it started waiting; a new wait on the same task alerts again.
   public var since: String
+  /// `AgentNeedsYou.kind`: `permission` picks the permission wording.
+  public var kind: String
+  /// The assigned agent's display name; empty when the task has none.
+  public var agent: String
 
-  public init(taskID: String, title: String, since: String) {
+  public init(taskID: String, title: String, since: String, kind: String, agent: String) {
     self.taskID = taskID
     self.title = title
     self.since = since
+    self.kind = kind
+    self.agent = agent
   }
 }
 
@@ -217,7 +239,35 @@ public enum AlertRules {
       return mentions + directs
     }
 
-    return result
+    return linkNotifications(result, notifications: state.notifications.data ?? [])
+  }
+
+  /// Ties each alert to the bell's notice for the same item. The notice ids are
+  /// `source:externalId` (`notificationId`, `lib/notifications.ts`), with the
+  /// same external ids the alert keys use. Review requests have no plain
+  /// notice (only the stale-review one, a different item), so they get none.
+  static func linkNotifications(_ current: Current, notifications: [NotificationItem]) -> Current {
+    let known = Set(notifications.map(\.id))
+    guard !known.isEmpty else { return current }
+    let prefixes: [AlertSource: (alert: String, notice: String)] = [
+      .email: ("email:", "email:"),
+      .jira: ("jira:", "jira_mention:"),
+      .pull: ("pr:", "pull_request:"),
+      .slack: ("slack:", "slack:"),
+    ]
+    var linked = current
+    for (source, prefix) in prefixes {
+      guard let entry = current[source], let items = entry else { continue }
+      linked[source] = items.map { item in
+        guard item.key.hasPrefix(prefix.alert) else { return item }
+        let candidate = prefix.notice + item.key.dropFirst(prefix.alert.count)
+        guard known.contains(candidate) else { return item }
+        var alert = item.alert
+        alert.notificationID = candidate
+        return (item.key, alert)
+      }
+    }
+    return linked
   }
 
   private static func slackAlert(_ item: SlackMessage, title: String) -> (key: String, alert: DesktopAlert) {
@@ -226,13 +276,21 @@ public enum AlertRules {
     return (key, DesktopAlert(tag: key, title: title, body: "\(item.author) — \(item.text)", target: target))
   }
 
-  /// Agent tasks waiting on the user, keyed like the dashboard sources.
+  /// Agent tasks waiting on the user, keyed like the dashboard sources. The
+  /// words are the web push's (`attentionPayload`, `lib/push/dispatch.ts:53-54`),
+  /// title cut at 120 characters like there.
   static func agentAlerts(_ waiting: [AgentAttention]) -> [(key: String, alert: DesktopAlert)] {
     waiting.map { item in
       let key = "agent:\(item.taskID):\(item.since)"
       let target = AlertTarget(route: .agents, itemID: item.taskID)
-      // Same words as the board's badge and tab title (`AgentBoard.tsx:39`, `:60`).
-      return (key, DesktopAlert(tag: key, title: "Aguardando você", body: item.title, target: target))
+      // The push always names the session's agent; a task held for a decision
+      // may have none assigned.
+      let agent = item.agent.isEmpty ? "O agente" : item.agent
+      let (title, body) =
+        item.kind == "permission"
+        ? ("Pedindo permissão: \(item.title)", "\(agent) está esperando você aprovar uma ação.")
+        : ("Aguardando sua resposta: \(item.title)", "\(agent) parou e está esperando você.")
+      return (key, DesktopAlert(tag: key, title: String(title.prefix(120)), body: body, target: target))
     }
   }
 

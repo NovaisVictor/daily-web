@@ -13,6 +13,8 @@ public final class Poller {
   public enum ScopeID {
     public static let state = "state"
     public static let agents = "agents"
+    /// The minute check for agent tasks waiting on the user, off while `agents` runs.
+    public static let agentAttention = "agentAttention"
     public static let notesSync = "notesSync"
     public static let reminders = "alertReminders"
   }
@@ -22,6 +24,8 @@ public final class Poller {
     public static let stateForeground = Duration.seconds(20)
     public static let stateBackground = Duration.seconds(60)
     public static let agents = Duration.seconds(2)
+    /// Alerts only; the screen, when shown, reads every 2 s.
+    public static let agentAttention = Duration.seconds(60)
     public static let notesSync = Duration.seconds(10)
     /// `useDesktopAlerts.tsx:61`.
     public static let reminders = Duration.seconds(30)

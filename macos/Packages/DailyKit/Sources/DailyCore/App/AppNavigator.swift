@@ -22,7 +22,37 @@ public final class AppNavigator {
 
   public private(set) var pending: PendingItem?
 
+  /// The Settings tab the next `openSettings()` should land on. Whoever opens
+  /// Settings sets it first; the Settings screen selects it and clears it, also
+  /// when the window was already open.
+  public var requestedSettingsTab: SettingsDestination?
+
+  /// The menu bar's "Abrir notificações": the bell of the main window opens its
+  /// popover and clears it.
+  public var isNotificationsRequested = false
+
   public init() {}
+
+  /// Asks the Settings screen for `tab`; call before `openSettings()`.
+  public func requestSettings(_ tab: SettingsDestination) {
+    requestedSettingsTab = tab
+  }
+
+  /// The requested tab, cleared so a later plain ⌘, keeps the last tab.
+  public func takeRequestedSettingsTab() -> SettingsDestination? {
+    defer { requestedSettingsTab = nil }
+    return requestedSettingsTab
+  }
+
+  public func requestNotifications() {
+    isNotificationsRequested = true
+  }
+
+  /// True once per request; the bell calls it when it sees the flag.
+  public func takeNotificationsRequest() -> Bool {
+    defer { isNotificationsRequested = false }
+    return isNotificationsRequested
+  }
 
   public func open(_ route: AppRoute, itemID: String? = nil) {
     pending = itemID.map { PendingItem(route: route, itemID: $0) }
@@ -46,4 +76,10 @@ public final class AppNavigator {
     guard pending == PendingItem(route: route, itemID: itemID) else { return }
     pending = nil
   }
+}
+
+/// The Settings tabs, in core so the app and the Home screen can ask for one
+/// without importing FeatureSettings, whose `SettingsTab` mirrors it.
+public enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
+  case appearance, integrations, profile, users, general
 }
