@@ -224,6 +224,70 @@ nonisolated final class FakeServer: Sendable {
     #expect(dashboard.state?.email.data?.map(\.id) == ["1", "2", "3"])
   }
 
+  @Test func dropOnFolderComparesTheAccountNotOnlyThePath() async {
+    let inFolder = [envelope("7", subject: "Pasta", folder: "Arquivo")]
+    server.route { call in
+      call.path == "/api/email/messages"
+        ? FakeAPIClient.json(EmailMessagesResponse(messages: inFolder, uidvalidity: "1", reindexed: false)) : nil
+    }
+    // The dashboard inbox holds both accounts: another account's INBOX is not "here".
+    store.select(.click("mail-1:1"))
+    await store.dropOnFolder(FolderSelection(account: "mail-2", path: "INBOX"))
+    #expect(store.batchError == "Só dá para mover entre pastas da mesma conta.")
+    store.select(.click("mail-2:3"))
+    await store.dropOnFolder(FolderSelection(account: "mail-2", path: "INBOX"))
+    #expect(store.batchError == "A mensagem já está nessa pasta.")
+
+    await store.openFolder(FolderSelection(account: "mail-1", path: "Arquivo"))
+    store.select(.click("mail-1:7"))
+    await store.dropOnFolder(FolderSelection(account: "mail-2", path: "Arquivo"))
+    #expect(store.batchError == "Só dá para mover entre pastas da mesma conta.")
+    #expect(client.actionCalls.filter { $0.path == "/api/email/batch" }.isEmpty)
+  }
+
+  // MARK: - Notification target
+
+  @Test func revealsTheMessageANotificationPointsAt() async {
+    let inFolder = [envelope("7", subject: "Pasta", folder: "Arquivo")]
+    server.route { call in
+      call.path == "/api/email/messages"
+        ? FakeAPIClient.json(EmailMessagesResponse(messages: inFolder, uidvalidity: "1", reindexed: false)) : nil
+    }
+    await store.openFolder(FolderSelection(account: "mail-1", path: "Arquivo"))
+    store.filters.account = "mail-1"
+    navigator.open(.module(.email), itemID: "mail-2:3")
+    store.revealPending()
+    #expect(store.folder == nil)
+    #expect(store.filters.account == nil)
+    #expect(store.selection.selected == ["mail-2:3"])
+    #expect(store.openKey == "mail-2:3")
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func keepsTheEmailRequestUntilTheInboxArrives() {
+    dashboard.apply(
+      DashboardState(
+        updatedAt: "x", modules: [.email], mailboxes: [MailboxRef(id: "mail-1", label: "Trabalho")],
+        email: PanelResult(data: nil, error: "IMAP fora do ar")))
+    navigator.open(.module(.email), itemID: "mail-1:2")
+    store.revealPending()
+    #expect(store.pendingItemID == "mail-1:2")
+    #expect(store.openKey == nil)
+
+    dashboard.apply(Self.state())
+    store.revealPending()
+    #expect(store.openKey == "mail-1:2")
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func finishesAnEmailRequestForAMessageThatIsGone() {
+    navigator.open(.module(.email), itemID: "mail-1:99")
+    store.revealPending()
+    #expect(store.openKey == nil)
+    #expect(store.selection == .empty)
+    #expect(navigator.pending == nil)
+  }
+
   // MARK: - Folders
 
   @Test func mailboxesShowStoredThenSynced() async {
@@ -486,10 +550,10 @@ nonisolated final class FakeServer: Sendable {
 
     toasts.toasts[0].action?()
     #expect(navigator.route == .module(.notes))
-    #expect(navigator.consumePendingItem() == "n1")
+    #expect(navigator.pendingItem(for: .module(.notes)) == "n1")
     toasts.toasts[1].action?()
     #expect(navigator.route == .module(.tasks))
-    #expect(navigator.consumePendingItem() == nil)
+    #expect(navigator.pending == nil)
 
     server.route { call throws(APIError) in
       if call.path == "/api/email/to-task" {

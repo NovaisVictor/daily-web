@@ -38,6 +38,9 @@ public struct SlackScreen: View {
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .task { store.revealPending() }
+    .onChange(of: store.pendingItemID) { store.revealPending() }
+    .onChange(of: store.panel?.data) { store.revealPending() }
   }
 
   @ViewBuilder private var content: some View {
@@ -75,10 +78,15 @@ public struct SlackScreen: View {
       } primaryAction: { ids in
         if let message = message(ids), let url = SlackStore.link(message) { openURL(url) }
       }
-      .onAppear {
-        if let id = store.revealPending() { proxy.scrollTo(id, anchor: .center) }
-      }
+      .onAppear { scrollToTarget(proxy) }
+      .onChange(of: store.scrollTarget) { scrollToTarget(proxy) }
     }
+  }
+
+  private func scrollToTarget(_ proxy: ScrollViewProxy) {
+    guard let id = store.scrollTarget else { return }
+    proxy.scrollTo(id, anchor: .center)
+    store.scrollTarget = nil
   }
 
   private func message(_ ids: Set<String>) -> SlackMessage? {

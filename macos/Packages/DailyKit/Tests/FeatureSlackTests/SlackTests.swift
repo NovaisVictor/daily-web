@@ -109,17 +109,42 @@ private let digest = SlackDigest(
   @Test func revealsTheMessageANotificationPointsAt() {
     load(PanelResult(data: digest, error: nil))
     navigator.open(.module(.slack), itemID: "d1")
-    #expect(store.revealPending() == "d1")
+    store.revealPending()
     #expect(store.tab == .directs)
     #expect(store.selection == "d1")
-    #expect(navigator.pendingItemID == nil)
+    #expect(store.scrollTarget == "d1")
+    #expect(navigator.pending == nil)
   }
 
-  @Test func ignoresAMessageThatLeftTheDigest() {
+  @Test func keepsTheRequestUntilTheDigestArrives() {
+    navigator.open(.module(.slack), itemID: "d1")
+    store.revealPending()
+    #expect(store.pendingItemID == "d1")
+    load(PanelResult(data: nil, error: "Slack fora do ar"))
+    store.revealPending()
+    #expect(store.pendingItemID == "d1")
+
+    load(PanelResult(data: digest, error: nil))
+    store.revealPending()
+    #expect(store.selection == "d1")
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func finishesAMessageThatLeftTheDigest() {
     load(PanelResult(data: digest, error: nil))
     navigator.open(.module(.slack), itemID: "gone")
-    #expect(store.revealPending() == nil)
+    store.revealPending()
     #expect(store.tab == .mentions)
+    #expect(store.selection == nil)
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func leavesAnotherScreensRequestAlone() {
+    load(PanelResult(data: digest, error: nil))
+    navigator.open(.module(.notes), itemID: "d1")
+    store.revealPending()
+    #expect(store.selection == nil)
+    #expect(navigator.pending?.itemID == "d1")
   }
 
   @Test func linksOnlyWebAddresses() {

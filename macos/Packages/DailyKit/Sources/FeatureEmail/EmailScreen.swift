@@ -33,6 +33,10 @@ public struct EmailScreen: View {
     }
     .task(id: store.mailboxes.map(\.id)) { await store.loadMailboxes() }
     .task { await store.loadNoteFolders() }
+    // A clicked notification: shown now, or once the inbox arrives.
+    .task { store.revealPending() }
+    .onChange(of: store.pendingItemID) { store.revealPending() }
+    .onChange(of: store.inbox.data) { store.revealPending() }
     .confirmDialog($store.confirmation)
     .sheet(isPresented: $store.isMoveSheetPresented) {
       EmailMoveSheet(store: store)

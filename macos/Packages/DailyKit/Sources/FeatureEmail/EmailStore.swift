@@ -572,10 +572,6 @@ final class EmailStore {
   /// A drop on a folder of the tree (`soltarNaPasta`).
   func dropOnFolder(_ destination: FolderSelection) async {
     dragging = nil
-    if destination.path == folderPath {
-      batchError = "A mensagem já está nessa pasta."
-      return
-    }
     let targets = selectedTargets
     let accounts = Set(targets.map(\.account))
     if accounts.isEmpty { return }
@@ -584,8 +580,14 @@ final class EmailStore {
       batchError = "Essas mensagens são de contas diferentes: mova uma conta por vez."
       return
     }
+    // Checked before the path: another account's "INBOX" is not the folder on
+    // screen, even when the dashboard inbox shows that account too.
     if !accounts.contains(destination.account) {
       batchError = "Só dá para mover entre pastas da mesma conta."
+      return
+    }
+    if destination.path == folderPath {
+      batchError = "A mensagem já está nessa pasta."
       return
     }
     await runBatch(.move, folder: destination.path, only: targets)
@@ -623,6 +625,39 @@ final class EmailStore {
     await syncMailboxes(account)
     if folder == FolderSelection(account: account, path: node.path) { await loadFolder() }
     await dashboard.reload()
+  }
+
+  // MARK: - Notification target
+
+  private static let route = AppRoute.module(.email)
+
+  /// The message (`account:id`) a clicked notification points at, still waiting to be shown.
+  var pendingItemID: String? { navigator.pendingItem(for: Self.route) }
+
+  /// Shows the message a notification points at: back to the dashboard inbox,
+  /// without the filters that hide it, its conversation selected and the
+  /// message open. The request stays until the inbox arrives; with it, the
+  /// message is shown or known to be gone.
+  func revealPending() {
+    guard let key = pendingItemID, let inbox = inbox.data else { return }
+    navigator.finishPendingItem(key, for: Self.route)
+    guard let message = inbox.first(where: { $0.key == key && $0.mailbox == .inbox }) else { return }
+    if folder != nil {
+      selection = .empty
+      folder = nil
+      // Drops the answer of the folder that was open, as `loadFolder` does.
+      folderGeneration += 1
+      folderLoading = false
+      folderError = nil
+    }
+    if !listing.threads.contains(where: { thread in thread.messages.contains { $0.key == key } }) {
+      clearAllFilters()
+    }
+    guard let thread = listing.threads.first(where: { thread in thread.messages.contains { $0.key == key } })
+    else { return }
+    select(.click(thread.id))
+    if thread.messages.count > 1 { expanded.insert(thread.id) }
+    if openKey != key { open(message) }
   }
 
   // MARK: - Open message (`EmailDetail`)

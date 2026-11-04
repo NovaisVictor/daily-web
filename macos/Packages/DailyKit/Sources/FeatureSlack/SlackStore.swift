@@ -36,15 +36,24 @@ final class SlackStore {
     return items.first { $0.id == selection }
   }
 
+  /// The message the list should scroll to once it is on screen.
+  var scrollTarget: String?
+
+  private static let route = AppRoute.module(.slack)
+
+  /// The message a clicked notification points at, still waiting to be shown.
+  var pendingItemID: String? { navigator.pendingItem(for: Self.route) }
+
   /// A clicked system notification points at a message: switch to its tab and
-  /// select it. Returns the id to scroll to.
-  @discardableResult
-  func revealPending() -> String? {
-    guard let id = navigator.consumePendingItem() else { return nil }
-    guard let found = SlackTab.containing(id, in: panel?.data) else { return nil }
+  /// select it. The request stays until the digest arrives; with it, the
+  /// message is shown or known to be gone.
+  func revealPending() {
+    guard let id = pendingItemID, let digest = panel?.data else { return }
+    navigator.finishPendingItem(id, for: Self.route)
+    guard let found = SlackTab.containing(id, in: digest) else { return }
     tab = found
     selection = id
-    return id
+    scrollTarget = id
   }
 
   /// The address to open; nil when the server sent none (the web renders such a row without a link).
