@@ -43,9 +43,12 @@ echo "publishing to $TARGET"
 
 # --delete so the target does not accumulate files that left the repository.
 # data/ is excluded: it holds the production database, which is not from git.
+# macos/ is excluded: it is the native client's source, distributed through
+# Homebrew, and nothing on the server reads it.
 rsync -a --delete \
   --exclude '.git/' \
   --exclude 'data/' \
+  --exclude 'macos/' \
   ./ "$TARGET/"
 
 ARTIFACT_READY=1
