@@ -13,8 +13,8 @@ public nonisolated final class PreviewAPIClient: APIClient {
     self.responses = responses
   }
 
-  /// Answers `GET /api/me`, `GET /api/state`, `POST /api/refresh` and the
-  /// pomodoro actions from the given values; anything else gets `{"ok":true}`.
+  /// Answers `GET /api/me`, `GET /api/state`, `POST /api/refresh`, the
+  /// pomodoro actions and an empty pulls config; anything else gets `{"ok":true}`.
   public convenience init(state: DashboardState, user: CurrentUser) {
     var responses: [String: Data] = [:]
     let encoder = JSONEncoder()
@@ -26,6 +26,9 @@ public nonisolated final class PreviewAPIClient: APIClient {
       for action in ["start", "pause", "reset"] {
         responses["POST /api/pomodoro/\(action)"] = try encoder.encode(state.pomodoro)
       }
+      // Pulls config is not in the state; an empty list keeps its preview
+      // from showing an error (`app/api/pulls/repos/route.ts`).
+      responses["GET /api/pulls/repos"] = Data(#"{"repos":[],"authors":{}}"#.utf8)
     } catch {
       Logger.core.fault("Preview fixtures failed to encode: \(String(describing: error), privacy: .public)")
     }
