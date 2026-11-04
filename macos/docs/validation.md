@@ -105,3 +105,31 @@ todos corrigidos com teste de regressão:
 
 `make check` termina com exit 0, com **189 testes em 21 suítes**. Nada mudou
 fora de `macos/` nesta onda.
+
+## Onda 3: T301–T305 (gate em 2026-11-04)
+
+Em `macos/`, `make check` termina com exit 0: **470 testes em 50 suítes**, lint
+limpo e o app compilando. Nada mudou fora de `macos/`.
+
+**App empacotado de ponta a ponta** (Debug, sandbox, assinatura ad-hoc, Keychain de login):
+
+- Login pela interface com `macos-dev` em `http://localhost:8010` funcionou.
+- A barra lateral mostra só os módulos ligados no servidor (Tarefas e Notas).
+- O quadro de tarefas e a tela Hoje aparecem com os textos do web.
+- Memória residente: cerca de 137 MB em Debug. A medição em Release fica para a T502.
+- Sair pelo menu encerra o app pelo caminho ordenado (`ShutdownTasks`).
+
+**Ajustes do orquestrador no gate:**
+
+- 401 de credencial digitada (`/api/me/password`) não encerra mais a sessão.
+- Navegador e encerramento ordenado no núcleo.
+- Formulário de bloco de foco único no DailyDesign.
+- Liga/desliga por módulo removido, porque o web o tirou de propósito.
+- Tipos de arraste declarados no `Info.plist`.
+- Destaque na cor da marca.
+
+**Divergências registradas, que dependem do servidor:**
+
+- O corpo do e-mail chega só em texto puro, sem HTML.
+- O "Bem-vindo" vs. "Bem-vindo de volta" não vem no `/api/me`.
+- Não existe GET da aparência, então o app guarda a aparência localmente por conta.

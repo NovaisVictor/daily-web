@@ -96,17 +96,17 @@ Cada onda termina com o **gate**:
 Cada agente segue o prompt padrão do [plan.md](plan.md#prompt-padrão-de-um-sub-agente-de-feature).
 O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
 
-- [ ] **T301 [P] FeatureHome**: saudação, relógio, pomodoro (iniciar/pausar/zerar,
+- [x] **T301 [P] FeatureHome**: saudação, relógio, pomodoro (iniciar/pausar/zerar,
   relógio local reancorado, aviso de fase) e resumo "Hoje" dos módulos ligados.
   Ref.: `NowBand.tsx`, `Clock.tsx`, `Pomodoro.tsx`, `ShellUser.tsx`.
-- [ ] **T302 [P] FeatureTasks**: tudo da linha "Tarefas" do spec.
+- [x] **T302 [P] FeatureTasks**: tudo da linha "Tarefas" do spec.
   Ref.: `TasksPanel.tsx`, `TaskFormModal.tsx`, `components/tasks/*`, `lib/taskGrouping.ts`.
-- [ ] **T303 [P] FeatureNotes**: tudo da linha "Notas", incluindo autosave em 700 ms
+- [x] **T303 [P] FeatureNotes**: tudo da linha "Notas", incluindo autosave em 700 ms
   e gravação ao fechar a janela. Ref.: `NotesPanel.tsx`, `components/notes/*`, `MarkdownView.tsx`.
-- [ ] **T304 [P] FeatureEmail**: tudo da linha "E-mail", com o corpo HTML num
+- [x] **T304 [P] FeatureEmail**: tudo da linha "E-mail", com o corpo HTML num
   `WebView` restrito. Ref.: `EmailPanel.tsx`, `components/email/*`,
   `lib/hooks/useMailboxGroups.tsx`, `lib/hooks/useFolderMessages.tsx`.
-- [ ] **T305 [P] FeatureAgenda + FeatureSettings**: agenda (período, eventos, área
+- [x] **T305 [P] FeatureAgenda + FeatureSettings**: agenda (período, eventos, área
   de soltar) e a cena `Settings`:
   - Aparência, Perfil e Usuários (admin).
   - Integrações: ligar/desligar, conexões, testar, Google e Slack pelo navegador,
@@ -114,7 +114,7 @@ O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
 
   Ref.: `AgendaPanel.tsx`, `AppearancePanel.tsx`, `ProfilePanel.tsx`,
   `UsersPanel.tsx`, `IntegrationsPanel.tsx`, `lib/modules.ts`.
-- [ ] **T306** Gate da onda.
+- [x] **T306** Gate da onda.
 
 ## Onda 4: features, lote B (4 agentes em paralelo)
 
