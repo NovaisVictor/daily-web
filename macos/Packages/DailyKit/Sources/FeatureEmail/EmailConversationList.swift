@@ -1,0 +1,485 @@
+import AppKit
+import DailyDesign
+import DailyModels
+import SwiftUI
+
+/// The conversations, grouped as chosen. The whole list takes keyboard focus:
+/// arrows walk, ⇧ extends, Space toggles, ⌘A takes everything, E deletes,
+/// M moves and Esc clears (`aoTeclar` in `EmailPanel.tsx`).
+struct EmailConversationList: View {
+  @Environment(\.theme) private var theme
+  let store: EmailStore
+  let listing: EmailListing
+  @FocusState private var focused: Bool
+
+  var body: some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 0) {
+          ForEach(listing.groups) { group in
+            if store.filters.groupBy != .none {
+              EmailGroupHeader(store: store, group: group)
+            }
+            ForEach(group.threads) { thread in
+              EmailThreadRow(
+                store: store, thread: thread, group: group, isCursor: focused && store.selection.cursor == thread.id
+              )
+              .id(thread.id)
+              .simultaneousGesture(TapGesture().onEnded { focused = true })
+            }
+          }
+        }
+      }
+      .focusable()
+      .focused($focused)
+      .focusEffectDisabled()
+      .overlay {
+        RoundedRectangle(cornerRadius: Radius.small)
+          .strokeBorder(theme.brand.opacity(0.5), lineWidth: 2)
+          .opacity(focused ? 1 : 0)
+          .allowsHitTesting(false)
+      }
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("conversas")
+      .onKeyPress(phases: .down) { press in handle(press) }
+      .onCommand(#selector(NSResponder.selectAll(_:))) { store.select(.all) }
+      .onChange(of: store.selection.cursor) { _, cursor in
+        guard let cursor else { return }
+        proxy.scrollTo(cursor)
+      }
+      .onDragSessionUpdated { session in
+        if case .ended = session.phase { store.endDrag() }
+      }
+    }
+  }
+
+  private func handle(_ press: KeyPress) -> KeyPress.Result {
+    let plain = press.modifiers.isDisjoint(with: [.command, .control, .option])
+    switch press.key {
+    case .downArrow, .upArrow:
+      store.select(.move(down: press.key == .downArrow, extend: press.modifiers.contains(.shift)))
+      return .handled
+    case .space:
+      guard let cursor = store.selection.cursor else { return .ignored }
+      store.select(.toggle(cursor))
+      return .handled
+    case .escape:
+      // With something selected, Esc clears and stops there.
+      if !store.selection.selected.isEmpty {
+        store.select(.clear)
+        return .handled
+      }
+      if store.openKey != nil {
+        store.closeMessage()
+        return .handled
+      }
+      return .ignored
+    default:
+      break
+    }
+    switch press.characters.lowercased() {
+    case "a" where press.modifiers.contains(.command):
+      store.select(.all)
+      return .handled
+    // E and M only act on what is marked: without a selection they do nothing,
+    // so a delete is never confirmed for the wrong conversation by accident.
+    case "e" where plain && !store.selection.selected.isEmpty:
+      store.requestDeleteSelected()
+      return .handled
+    case "m" where plain && !store.selection.selected.isEmpty:
+      store.requestMoveSelected()
+      return .handled
+    default:
+      return .ignored
+    }
+  }
+}
+
+/// The header of a group, with its tri-state checkbox.
+struct EmailGroupHeader: View {
+  @Environment(\.theme) private var theme
+  let store: EmailStore
+  let group: EmailThreadGroup
+
+  var body: some View {
+    let ids = group.threads.map(\.id)
+    let selected = Set(store.selection.selected)
+    let all = ids.allSatisfy { selected.contains($0) }
+    let some = ids.contains { selected.contains($0) }
+    HStack(spacing: 10) {
+      Button {
+        store.select(.group(ids))
+      } label: {
+        Image(systemName: all ? "checkmark.square.fill" : (some ? "minus.square.fill" : "square"))
+          .foregroundStyle(some ? theme.brand : theme.inkDim)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("selecionar todo o grupo \(group.label)")
+      .accessibilityValue(all ? "marcado" : (some ? "parcial" : "desmarcado"))
+      Text(group.label)
+        .font(.system(size: 12, weight: .semibold))
+        .lineLimit(1)
+        .accessibilityAddTraits(.isHeader)
+      Text("\(group.threads.count)")
+        .font(.system(size: 12).monospacedDigit())
+    }
+    .foregroundStyle(theme.inkDim)
+    .padding(.horizontal, 8)
+    .padding(.top, 16)
+    .padding(.bottom, 4)
+  }
+}
+
+/// One conversation (`<li>` of the web list), and its messages or body when open.
+struct EmailThreadRow: View {
+  @Environment(\.theme) private var theme
+  let store: EmailStore
+  let thread: EmailThread
+  let group: EmailThreadGroup
+  let isCursor: Bool
+  @State private var hovering = false
+
+  private var title: String { thread.subject.isEmpty ? "(sem assunto)" : thread.subject }
+  private var single: EmailEnvelope? { thread.messages.count == 1 ? thread.messages.first : nil }
+  private var isSelected: Bool { store.selection.selected.contains(thread.id) }
+  private var isOpen: Bool {
+    if let single { return single.key == store.openKey }
+    return store.expanded.contains(thread.id)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      row
+        .draggable(store.beginDrag(thread.id)) {
+          EmailDragPreview(title: title, count: isSelected ? store.selection.selected.count : 1)
+        }
+        .contextMenu { EmailBatchContextMenu(store: store, thread: thread, group: group) }
+      if let single, isOpen {
+        EmailDetailView(store: store, message: single, tags: store.tags(of: thread))
+      } else if isOpen {
+        messages
+      }
+    }
+    .background(isOpen ? theme.brandTint : .clear)
+  }
+
+  private var row: some View {
+    let sent = thread.messages.count - thread.received.count
+    let actionError = thread.messages.first { $0.actionError != nil }?.actionError
+    return HStack(spacing: 12) {
+      Circle()
+        .fill(thread.unreadCount > 0 ? theme.brand : .clear)
+        .frame(width: 6, height: 6)
+        .accessibilityHidden(true)
+      Toggle(
+        "selecionar \(title)",
+        isOn: Binding(
+          get: { isSelected },
+          set: { _ in
+            // The checkbox always toggles; ⇧ on it still marks the range.
+            if NSEvent.modifierFlags.contains(.shift) {
+              store.select(.click(thread.id, shift: true))
+            } else {
+              store.select(.toggle(thread.id))
+            }
+          })
+      )
+      .toggleStyle(.checkbox)
+      .labelsHidden()
+      .accessibilityLabel("selecionar \(title)")
+      Button {
+        let flags = NSEvent.modifierFlags
+        // With a modifier the click is selection; without, it opens.
+        if flags.contains(.shift) || flags.contains(.command) || flags.contains(.control) {
+          store.select(
+            .click(thread.id, shift: flags.contains(.shift), meta: flags.contains(.command) || flags.contains(.control))
+          )
+        } else {
+          store.activate(thread)
+        }
+      } label: {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.system(size: 14, weight: thread.unreadCount > 0 ? .medium : .regular))
+            .foregroundStyle(thread.unreadCount > 0 ? theme.ink : theme.inkMid)
+          Text(thread.participants.isEmpty ? "—" : thread.participants.joined(separator: ", "))
+            .font(.system(size: 12))
+            .foregroundStyle(theme.inkDim)
+          if let actionError {
+            // The action that ran out of retries does not vanish quietly.
+            Text(actionError)
+              .font(.system(size: 12))
+              .foregroundStyle(theme.danger)
+              .accessibilityAddTraits(.isStaticText)
+          }
+        }
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
+      }
+      .buttonStyle(.plain)
+      .accessibilityValue(isOpen ? "aberta" : "fechada")
+      if thread.messages.count > 1 {
+        Text("\(thread.messages.count)")
+          .font(.system(size: 12).monospacedDigit())
+          .padding(.horizontal, 6)
+          .foregroundStyle(thread.unreadCount > 0 ? theme.brand : theme.inkDim)
+          .background(thread.unreadCount > 0 ? theme.brandTint : theme.neutralTint, in: .capsule)
+          .overlay { Capsule().strokeBorder(thread.unreadCount > 0 ? theme.brandEdge : theme.lineStrong) }
+          .accessibilityLabel(
+            sent > 0
+              ? "\(thread.messages.count) mensagens, \(sent) enviadas por você" : "\(thread.messages.count) mensagens")
+      }
+      Text(relative(thread.lastDate))
+        .font(.system(size: 12).monospacedDigit())
+        .foregroundStyle(theme.inkDim)
+        .frame(minWidth: 36, alignment: .trailing)
+      if store.mailboxes.count > 1, let label = thread.messages.first?.accountLabel {
+        Badge(label, style: .secondary)
+      }
+      EmailTagButton(store: store, thread: thread, title: title)
+      Button("excluir \(title)", systemImage: "trash") { store.requestDelete(thread) }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
+        .help("Excluir")
+      EmailCreateMenu(store: store, thread: thread, title: title)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 10)
+    .background(rowBackground)
+    .overlay {
+      // Where the keyboard is, so the arrows do not walk blind.
+      Rectangle().strokeBorder(theme.brandEdge).opacity(isCursor ? 1 : 0)
+    }
+    .overlay(alignment: .bottom) { Rectangle().fill(theme.lineSoft).frame(height: 1) }
+    .opacity(store.dragging != nil && isSelected ? 0.7 : 1)
+    .onHover { inside in
+      hovering = inside
+      // The tag menu and the move destinations need the account's folders.
+      if inside, let account = thread.messages.first?.account {
+        Task { await store.loadAccountFolders(account) }
+      }
+    }
+  }
+
+  private var rowBackground: Color {
+    if isOpen || hovering { return theme.brandTint }
+    return isSelected ? theme.brandTint.opacity(0.7) : .clear
+  }
+
+  private var messages: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      ForEach(thread.messages, id: \.key) { message in
+        let open = message.key == store.openKey
+        Button {
+          store.toggleOpen(message)
+        } label: {
+          HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(message.from.isEmpty ? "—" : message.from)
+              .font(.system(size: 14, weight: message.mailbox == .inbox && message.unread ? .medium : .regular))
+              .foregroundStyle(
+                message.mailbox == .sent ? theme.inkDim : (message.unread ? theme.ink : theme.inkMid)
+              )
+              .lineLimit(1)
+              .frame(maxWidth: .infinity, alignment: .leading)
+            if message.mailbox == .sent {
+              Badge("enviada", style: .secondary)
+            }
+            Text(relative(message.date))
+              .font(.system(size: 12).monospacedDigit())
+              .foregroundStyle(theme.inkDim)
+          }
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .background(open ? theme.brandTint : .clear)
+        .accessibilityValue(open ? "aberta" : "fechada")
+        if open {
+          EmailDetailView(store: store, message: message, tags: store.tags(of: thread))
+        }
+      }
+    }
+    .padding(.leading, 36)
+    .overlay(alignment: .leading) {
+      Rectangle().fill(theme.lineSoft).frame(width: 1).padding(.leading, 36)
+    }
+  }
+
+  private func relative(_ iso: String) -> String {
+    let text = store.relativeTime(iso)
+    return text.isEmpty ? "—" : text
+  }
+}
+
+/// The right-click batch menu (`menuDoLote`). The clicked row joins the
+/// selection first, so every item acts on what is marked.
+struct EmailBatchContextMenu: View {
+  let store: EmailStore
+  let thread: EmailThread
+  let group: EmailThreadGroup
+
+  var body: some View {
+    let inSelection = store.selection.selected.contains(thread.id)
+    let count = inSelection ? store.selection.selected.count : 1
+    let folders =
+      inSelection ? store.moveFolders : (thread.messages.first.flatMap { store.accountFolders[$0.account] } ?? [])
+    let ids = group.threads.map(\.id)
+    let wholeGroup = ids.allSatisfy { store.selection.selected.contains($0) }
+    Text("\(count) \(count == 1 ? "conversa" : "conversas")")
+    Button("Marcar lido", systemImage: "envelope.open") { run(.read) }
+    Button("Marcar não lido", systemImage: "envelope.badge") { run(.unread) }
+    Menu("Mover para", systemImage: "folder") {
+      ForEach(folders, id: \.self) { folder in
+        Button(folder) { run(.move, folder: folder) }
+      }
+    }
+    .disabled(folders.isEmpty)
+    Divider()
+    if store.filters.groupBy != .none && !wholeGroup {
+      Button("Selecionar todo o grupo \(group.label)") { store.select(.group(ids)) }
+    }
+    Button("Limpar seleção") { store.select(.clear) }
+    Divider()
+    Button("Excluir", systemImage: "trash", role: .destructive) {
+      store.select(.context(thread.id))
+      store.requestDeleteSelected()
+    }
+  }
+
+  private func run(_ action: EmailBatchAction, folder: String? = nil) {
+    store.select(.context(thread.id))
+    Task { await store.runBatch(action, folder: folder) }
+  }
+}
+
+/// The tag picker of a conversation: the account's folders, loaded on first use.
+struct EmailTagButton: View {
+  @Environment(\.theme) private var theme
+  let store: EmailStore
+  let thread: EmailThread
+  let title: String
+
+  var body: some View {
+    let account = thread.messages.first?.account ?? ""
+    let tagged = !store.tags(of: thread).isEmpty
+    Button("etiquetar \(title)", systemImage: tagged ? "tag.fill" : "tag") {
+      store.tagMenuThread = store.tagMenuThread == thread.id ? nil : thread.id
+    }
+    .labelStyle(.iconOnly)
+    .buttonStyle(.borderless)
+    .foregroundStyle(tagged ? theme.brand : theme.inkDim)
+    .help("Etiquetar")
+    .popover(
+      isPresented: Binding(
+        get: { store.tagMenuThread == thread.id },
+        set: { if !$0, store.tagMenuThread == thread.id { store.tagMenuThread = nil } })
+    ) {
+      tagList(account: account)
+        .task { await store.loadAccountFolders(account) }
+    }
+  }
+
+  @ViewBuilder
+  private func tagList(account: String) -> some View {
+    let folders = store.accountFolders[account] ?? []
+    VStack(alignment: .leading, spacing: 2) {
+      if let error = store.accountFoldersError[account], folders.isEmpty {
+        Text(error)
+          .font(.system(size: 14))
+          .foregroundStyle(theme.danger)
+          .padding(8)
+      } else if folders.isEmpty {
+        Text("Carregando etiquetas…")
+          .font(.system(size: 14))
+          .foregroundStyle(theme.inkDim)
+          .padding(8)
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 2) {
+            ForEach(folders, id: \.self) { folder in
+              Button {
+                Task { await store.applyTag(folder, to: thread) }
+              } label: {
+                Text(folder)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .padding(.horizontal, 10)
+                  .padding(.vertical, 6)
+                  .contentShape(.rect)
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
+        .frame(maxHeight: 320)
+      }
+    }
+    .padding(6)
+    .frame(minWidth: 180)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("etiquetas")
+  }
+}
+
+/// "Criar a partir deste e-mail" (`components/email/CreateFromEmailMenu.tsx`).
+/// The note folder is a submenu instead of a select inside the menu.
+struct EmailCreateMenu: View {
+  let store: EmailStore
+  let thread: EmailThread
+  let title: String
+
+  var body: some View {
+    Menu {
+      Section("Criar a partir deste e-mail") {
+        Menu("Criar nota", systemImage: "note.text.badge.plus") {
+          Section("Pasta da nota") {
+            Button("Sem pasta") { create(.note, folderId: nil) }
+            ForEach(store.noteFolders) { folder in
+              Button(folder.name) { create(.note, folderId: folder.id) }
+            }
+          }
+        }
+        Button("Criar tarefa", systemImage: "checklist") { create(.task, folderId: nil) }
+      }
+    } label: {
+      Image(systemName: "ellipsis")
+    }
+    .menuStyle(.borderlessButton)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .disabled(store.creating != nil)
+    .accessibilityLabel("Ações de \(title)")
+  }
+
+  private func create(_ kind: CreateKind, folderId: String?) {
+    Task { await store.create(kind, from: thread, noteFolderId: folderId) }
+  }
+}
+
+/// What follows the cursor: the top subject and how many go along.
+struct EmailDragPreview: View {
+  @Environment(\.theme) private var theme
+  let title: String
+  let count: Int
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Text(title).lineLimit(1)
+      if count > 1 {
+        Text("\(count)")
+          .font(.system(size: 12).monospacedDigit())
+          .foregroundStyle(.white)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 1)
+          .background(theme.brand, in: .capsule)
+      }
+    }
+    .font(.system(size: 13, weight: .medium))
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .frame(maxWidth: 320)
+    .background(theme.surface2, in: .rect(cornerRadius: 10))
+    .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(theme.brandEdge) }
+  }
+}
