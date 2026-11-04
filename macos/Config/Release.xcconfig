@@ -4,3 +4,11 @@ DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
 SWIFT_OPTIMIZATION_LEVEL = -O
 SWIFT_COMPILATION_MODE = wholemodule
 VALIDATE_PRODUCT = YES
+
+// The release binary ships without debug symbols (the dSYM keeps them for
+// crash reports): it takes the .app from about 32 MB to about 17 MB, under the
+// 25 MB budget of NFR-001.
+DEPLOYMENT_POSTPROCESSING = YES
+STRIP_INSTALLED_PRODUCT = YES
+STRIP_STYLE = all
+COPY_PHASE_STRIP = NO
