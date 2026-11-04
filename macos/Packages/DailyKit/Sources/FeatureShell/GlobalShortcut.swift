@@ -2,8 +2,10 @@ import KeyboardShortcuts
 import SwiftUI
 
 extension KeyboardShortcuts.Name {
-  /// "Abrir Daily Web", ⌥⌘D until the user records another one.
-  static let openDailyWeb = Self("openDailyWeb", initial: .init(.d, modifiers: [.option, .command]))
+  /// "Abrir Daily Web", ⌃⌥⌘D until the user records another one. Not ⌥⌘D:
+  /// that is the system's "Turn Dock hiding on/off", so every Dock toggle
+  /// brought the app forward, hidden or not (G-14).
+  static let openDailyWeb = Self("openDailyWeb", initial: .init(.d, modifiers: [.control, .option, .command]))
 }
 
 /// The system-wide shortcut that brings the app forward from anywhere.

@@ -37,20 +37,24 @@ struct MenuBarContent: View {
     MenuBarActions(
       openApp: { show(nil) },
       openTasks: { show(.module(.tasks)) },
+      openTask: { id in show(.module(.tasks), itemID: id) },
       openAgenda: { show(.module(.agenda)) },
-      // The bell is a popover of the main window's toolbar; nothing can open it
-      // from outside yet, so the window comes forward with the bell in sight.
-      openNotifications: { show(nil) },
+      // The bell is a popover of the main window's toolbar: the request waits
+      // in the navigator until the bell sees it.
+      openNotifications: {
+        environment.navigator.requestNotifications()
+        show(nil)
+      },
       togglePomodoro: { Task { await environment.pomodoro.toggle() } },
       resetPomodoro: { Task { await environment.pomodoro.reset() } },
       quit: { NSApp.terminate(nil) }
     )
   }
 
-  private func show(_ route: AppRoute?) {
-    if let route { environment.navigator.open(route) }
+  private func show(_ route: AppRoute?, itemID: String? = nil) {
+    if let route { environment.navigator.open(route, itemID: itemID) }
     dismiss()
-    opener.showMain()
+    opener.showMain(.menuBar)
   }
 }
 

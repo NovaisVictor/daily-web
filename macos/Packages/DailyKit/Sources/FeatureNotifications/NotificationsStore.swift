@@ -94,12 +94,7 @@ final class NotificationsStore {
   /// The badge drops now; a failure puts the notice back and says why.
   func markRead(_ item: NotificationItem) async {
     error = nil
-    let id = item.id
-    let failure = await dashboard.mutate { state in
-      NotificationsLogic.markRead([id], in: &state)
-    } commit: { () async throws(APIError) in
-      _ = try await client.send(NotificationsEndpoints.markRead(id: id))
-    }
+    let failure = await NotificationsReading.markRead(ids: [item.id], client: client, dashboard: dashboard)
     if let failure { error = failure.userMessage }
   }
 
@@ -112,6 +107,7 @@ final class NotificationsStore {
     markingAll = true
     defer { markingAll = false }
     error = nil
+    // `{ids}` even for one notice: the "all" request keeps the web's shape.
     var delivered = 0
     let failure = await dashboard.mutate { state in
       NotificationsLogic.markRead(ids, in: &state)

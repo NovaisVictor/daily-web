@@ -71,7 +71,10 @@ final class Reports {
     #expect(store.tasks.map(\.id) == ["w", "p"])
     #expect(store.waitingOnYou.map(\.id) == ["w"])
     let alerts = reported.items
-    #expect(alerts == [[DailyCore.AgentAttention(taskID: "w", title: "Precisa de mim", since: since)]])
+    #expect(
+      alerts == [
+        [DailyCore.AgentAttention(taskID: "w", title: "Precisa de mim", since: since, kind: "input", agent: "Claude")]
+      ])
   }
 
   @Test func filteredBoardsDoNotReport() async {

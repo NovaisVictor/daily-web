@@ -131,10 +131,8 @@ final class AgentsStore {
       request.days == AgentsLogic.defaultActivityWindow,
       request.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else { return }
-    let waiting = waitingOnYou.compactMap { task in
-      AgentsLogic.needsYou(task).map { DailyCore.AgentAttention(taskID: task.id, title: task.title, since: $0.since) }
-    }
-    await reportWaiting(waiting)
+    guard let board else { return }
+    await reportWaiting(AgentAttentionRules.waiting(board, now: now()))
   }
 
   // MARK: - Filters

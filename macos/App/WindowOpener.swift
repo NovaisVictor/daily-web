@@ -13,8 +13,15 @@ final class WindowOpener {
 
   private static let logger = Logger(subsystem: "io.github.novaisvictor.dailyweb", category: "App")
 
+  /// Why the app comes forward. Only explicit user actions may activate it
+  /// (G-14); the reason goes to the log so an unexpected activation can be traced.
+  enum Reason: String {
+    case dock, globalShortcut, menuBar, notification, moduleWindow
+  }
+
   /// Activates the app and shows the main window, reopening it when it was closed.
-  func showMain() {
+  func showMain(_ reason: Reason) {
+    Self.logger.notice("Showing the main window: \(reason.rawValue, privacy: .public)")
     NSApp.activate()
     guard let openWindow else {
       // Only before any scene rendered, i.e. during launch, when the main window is
@@ -25,6 +32,7 @@ final class WindowOpener {
     openWindow(id: SceneID.main)
   }
 
+  /// "Abrir em nova janela", always from a click or a menu command.
   func open(_ route: AppRoute) {
     NSApp.activate()
     guard let openWindow else {

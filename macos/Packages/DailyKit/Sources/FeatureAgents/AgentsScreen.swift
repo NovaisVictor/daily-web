@@ -9,6 +9,8 @@ import SwiftUI
 public struct AgentsScreen: View {
   @State private var store: AgentsStore
   @State private var searchPresented = false
+  /// The card "N aguardando você" moves the keyboard to (`card.focus()` in the web).
+  @FocusState private var focusedCard: String?
   @Environment(\.theme) private var theme
   private let navigator: AppNavigator
 
@@ -95,6 +97,7 @@ public struct AgentsScreen: View {
       Button {
         guard let first = waiting.first else { return }
         withAnimation { proxy.scrollTo(first.id, anchor: .center) }
+        focusedCard = first.id
       } label: {
         HStack(spacing: 6) {
           Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
@@ -167,6 +170,7 @@ public struct AgentsScreen: View {
         board: store.board,
         showFinished: $store.showFinished,
         now: now,
+        focusedCard: $focusedCard,
         open: { store.openTask($0) })
     }
     if store.board != nil { pagination }

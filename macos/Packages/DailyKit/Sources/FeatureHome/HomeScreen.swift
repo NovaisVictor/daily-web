@@ -10,6 +10,7 @@ public struct HomeScreen: View {
   @Environment(\.theme) private var theme
   @State private var store: HomeStore
   private let open: (AppRoute) -> Void
+  private let navigator: AppNavigator
 
   /// A chosen card moves the window through the app's navigator.
   public init(environment: AppEnvironment) {
@@ -21,6 +22,7 @@ public struct HomeScreen: View {
   public init(environment: AppEnvironment, open: @escaping (AppRoute) -> Void) {
     _store = State(initialValue: HomeStore(environment: environment))
     self.open = open
+    navigator = environment.navigator
   }
 
   public var body: some View {
@@ -42,7 +44,7 @@ public struct HomeScreen: View {
   private func content(_ summary: HomeSummary?) -> some View {
     if let summary {
       if summary.nothingOn {
-        NothingOnState()
+        NothingOnState(navigator: navigator)
       } else {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16, alignment: .top)], spacing: 16) {
           ForEach(summary.cards) { card in
@@ -245,6 +247,7 @@ private struct MetricView: View {
 /// The empty state of `app/(app)/page.tsx:126-137`. The web's link goes to the
 /// integrations page; the native app keeps integrations in Settings.
 private struct NothingOnState: View {
+  let navigator: AppNavigator
   @Environment(\.openSettings) private var openSettings
 
   var body: some View {
@@ -255,8 +258,11 @@ private struct NothingOnState: View {
         + "Cada um é opcional e leva menos de um minuto.",
       systemImage: "powerplug"
     ) {
-      Button("Conectar minhas contas") { openSettings() }
-        .buttonStyle(.borderedProminent)
+      Button("Conectar minhas contas") {
+        navigator.requestSettings(.integrations)
+        openSettings()
+      }
+      .buttonStyle(.borderedProminent)
     }
   }
 }

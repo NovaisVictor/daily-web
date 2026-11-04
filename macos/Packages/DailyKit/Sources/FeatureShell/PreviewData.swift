@@ -16,6 +16,7 @@ enum PreviewData {
   static let menuBarActions = MenuBarActions(
     openApp: {},
     openTasks: {},
+    openTask: { _ in },
     openAgenda: {},
     openNotifications: {},
     togglePomodoro: {},

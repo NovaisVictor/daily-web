@@ -41,7 +41,7 @@ struct MainWindow: View {
 
   private var accountActions: ShellAccountActions {
     ShellAccountActions(
-      profile: { openSettings() },
+      profile: { showSettings(.profile) },
       connectAgent: { selection = .access },
       settings: { openSettings() },
       signOut: { await environment.session.signOut() }
@@ -57,12 +57,18 @@ struct MainWindow: View {
       setBackdrop: { value in
         updateAppearance(Appearance(backdrop: AppearanceBackdrop(rawValue: value.rawValue)))
       },
-      profile: { openSettings() },
-      changePassword: { openSettings() },
-      changePhoto: { openSettings() },
-      appearance: { openSettings() },
+      profile: { showSettings(.profile) },
+      changePassword: { showSettings(.profile) },
+      changePhoto: { showSettings(.profile) },
+      appearance: { showSettings(.appearance) },
       signOut: { Task { await environment.session.signOut() } }
     )
+  }
+
+  /// Settings on `tab`; the Settings screen reads the request even when it is already open.
+  private func showSettings(_ tab: SettingsDestination) {
+    environment.navigator.requestSettings(tab)
+    openSettings()
   }
 
   private func updateAppearance(_ patch: Appearance) {

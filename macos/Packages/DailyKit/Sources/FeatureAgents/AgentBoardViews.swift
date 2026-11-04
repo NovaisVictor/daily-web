@@ -200,6 +200,7 @@ struct AgentKanbanView: View {
   let board: AgentsBoard?
   @Binding var showFinished: Bool
   let now: Date
+  var focusedCard: FocusState<String?>.Binding
   let open: (String) -> Void
 
   var body: some View {
@@ -246,6 +247,7 @@ struct AgentKanbanView: View {
       } else {
         ForEach(cards) { task in
           AgentTaskCard(task: task, progress: progress[task.id], now: now, open: open)
+            .focused(focusedCard, equals: task.id)
             .id(task.id)
         }
       }

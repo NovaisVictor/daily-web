@@ -9,8 +9,10 @@ public struct NotificationsBell: View {
   @Environment(\.theme) private var theme
   @State private var store: NotificationsStore
   @State private var isOpen = false
+  private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
+    navigator = environment.navigator
     _store = State(
       initialValue: NotificationsStore(
         client: environment.client,
@@ -47,6 +49,14 @@ public struct NotificationsBell: View {
     .popover(isPresented: $isOpen, arrowEdge: .bottom) {
       NotificationCenterView(store: store) { isOpen = false }
     }
+    // The menu bar's "Abrir notificações" asks for the popover; the request may
+    // come before this window rendered (onAppear) or while it is shown (onChange).
+    .onAppear(perform: takeRequest)
+    .onChange(of: navigator.isNotificationsRequested) { takeRequest() }
+  }
+
+  private func takeRequest() {
+    if navigator.takeNotificationsRequest() { isOpen = true }
   }
 }
 

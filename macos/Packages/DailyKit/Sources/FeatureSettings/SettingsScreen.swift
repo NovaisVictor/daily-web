@@ -6,6 +6,17 @@ import SwiftUI
 /// The tabs of the Settings scene (⌘,).
 public enum SettingsTab: String, CaseIterable, Hashable, Sendable {
   case appearance, integrations, profile, users, general
+
+  /// The core request mirrored one to one.
+  public init(_ destination: SettingsDestination) {
+    switch destination {
+    case .appearance: self = .appearance
+    case .integrations: self = .integrations
+    case .profile: self = .profile
+    case .users: self = .users
+    case .general: self = .general
+    }
+  }
 }
 
 /// The app's settings: the web's `/config`, `/tools` and `/perfil` pages in one
@@ -43,6 +54,15 @@ public struct SettingsScreen: View {
       }
     }
     .frame(minWidth: 620, idealWidth: 680, minHeight: 460, idealHeight: 560)
+    // The request arrives before the window opens (onAppear) or while it is
+    // already open (onChange).
+    .onAppear(perform: takeRequestedTab)
+    .onChange(of: environment.navigator.requestedSettingsTab) { takeRequestedTab() }
+  }
+
+  private func takeRequestedTab() {
+    guard let tab = environment.navigator.takeRequestedSettingsTab() else { return }
+    selection = SettingsTab(tab)
   }
 }
 

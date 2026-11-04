@@ -7,6 +7,8 @@ import SwiftUI
 public struct MenuBarActions {
   public let openApp: () -> Void
   public let openTasks: () -> Void
+  /// One task of the list: the Tasks screen opens scrolled to it.
+  public let openTask: (String) -> Void
   public let openAgenda: () -> Void
   public let openNotifications: () -> Void
   public let togglePomodoro: () -> Void
@@ -16,6 +18,7 @@ public struct MenuBarActions {
   public init(
     openApp: @escaping () -> Void,
     openTasks: @escaping () -> Void,
+    openTask: @escaping (String) -> Void,
     openAgenda: @escaping () -> Void,
     openNotifications: @escaping () -> Void,
     togglePomodoro: @escaping () -> Void,
@@ -24,6 +27,7 @@ public struct MenuBarActions {
   ) {
     self.openApp = openApp
     self.openTasks = openTasks
+    self.openTask = openTask
     self.openAgenda = openAgenda
     self.openNotifications = openNotifications
     self.togglePomodoro = togglePomodoro
@@ -121,7 +125,9 @@ public struct MenuBarPanel: View {
             emptyLine("Nenhuma tarefa atrasada ou para hoje.")
           }
           ForEach(tasks) { task in
-            Button(action: actions.openTasks) {
+            Button {
+              actions.openTask(task.id)
+            } label: {
               HStack(spacing: 6) {
                 Text(task.title).lineLimit(1)
                 if task.isOverdue {

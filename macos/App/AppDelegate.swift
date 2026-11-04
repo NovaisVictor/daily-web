@@ -14,12 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   )
   let opener = WindowOpener()
 
-  private static let logger = Logger(subsystem: "io.github.novaisvictor.dailyweb", category: "App")
+  private nonisolated static let logger = Logger(subsystem: "io.github.novaisvictor.dailyweb", category: "App")
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     NotificationActions.register(on: .current())
-    GlobalShortcut.install { [opener] in opener.showMain() }
+    GlobalShortcut.install { [opener] in opener.showMain(.globalShortcut) }
     // Once per process: a second window must not restore an already live session.
     Task { await environment.launch() }
     updateForeground()
@@ -48,7 +48,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     Task {
       await withTaskGroup(of: Void.self) { group in
         group.addTask { await self.environment.shutdown.flushAll() }
-        group.addTask { try? await Task.sleep(for: .seconds(5)) }
+        group.addTask {
+          do {
+            try await Task.sleep(for: .seconds(5))
+            Self.logger.error("Pending writes did not finish in 5 s; quitting without them")
+          } catch {
+            // Cancelled because the flush won the race: nothing was lost.
+            return
+          }
+        }
         await group.next()
         group.cancelAll()
       }
@@ -66,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   /// bar item keeps the app running meanwhile.
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     guard !flag else { return true }
-    opener.showMain()
+    opener.showMain(.dock)
     return false
   }
 
@@ -105,11 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     case NotificationActions.open, UNNotificationDefaultActionIdentifier:
       guard let target = AlertTarget(userInfo: userInfo) else {
         Self.logger.error("A clicked notification had no target")
-        opener.showMain()
+        opener.showMain(.notification)
         return
       }
       environment.navigator.open(target)
-      opener.showMain()
+      opener.showMain(.notification)
     case UNNotificationDismissActionIdentifier:
       return
     default:

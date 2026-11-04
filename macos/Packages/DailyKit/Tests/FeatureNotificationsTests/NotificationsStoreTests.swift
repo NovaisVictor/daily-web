@@ -102,6 +102,25 @@ final class FakePoster: NotificationPosting {
     #expect(store.error == "banco fora do ar")
   }
 
+  // MARK: - Shared helper (the app's "Marcar como lida" action)
+
+  @Test func readingHelperSendsOneIDAsTheBellDoes() async {
+    let failure = await NotificationsReading.markRead(ids: ["slack:C1-1"], client: client, dashboard: dashboard)
+    #expect(failure == nil)
+    #expect(client.actionCalls == [.init("POST", "/api/notifications/read", body: #"{"id":"slack:C1-1"}"#)])
+    #expect(unreadIDs == ["jira_mention:ABC-1", "email:<m@x>"])
+  }
+
+  @Test func readingHelperRollsBackOnFailure() async {
+    let failure = failure
+    server.route { _ throws(APIError) in throw failure }
+    let result = await NotificationsReading.markRead(
+      ids: ["slack:C1-1", "email:<m@x>"], client: client, dashboard: dashboard)
+    #expect(result == failure)
+    #expect(client.actionCalls.first?.body == #"{"ids":["slack:C1-1","email:<m@x>"]}"#)
+    #expect(store.unreadCount == 3)
+  }
+
   // MARK: - Mark all
 
   @Test func markAllSendsTheUnreadIDs() async {

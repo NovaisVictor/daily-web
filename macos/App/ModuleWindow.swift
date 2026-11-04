@@ -54,7 +54,7 @@ struct ModuleWindow: View {
       } description: {
         Text("Entre pela janela principal.")
       } actions: {
-        Button("Entrar…") { opener.showMain() }
+        Button("Entrar…") { opener.showMain(.moduleWindow) }
       }
     }
   }
@@ -69,7 +69,7 @@ struct ModuleWindow: View {
       isRefreshing: environment.dashboard.isRefreshing,
       select: { route in
         environment.navigator.open(route)
-        opener.showMain()
+        opener.showMain(.moduleWindow)
       },
       openPalette: nil,
       refresh: { Task { await environment.dashboard.refresh() } },

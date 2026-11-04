@@ -1,4 +1,5 @@
 import DailyAPI
+import DailyCore
 import DailyModels
 import Foundation
 import os
@@ -148,26 +149,9 @@ nonisolated enum AgentsLogic {
 
   // MARK: - Needs you
 
-  /// `needsYou` (`contracts.ts:34-45`). The hooks raise "input" whenever a turn
-  /// ends; the terminal's live state and the agent's own "waiting" status are
-  /// stronger evidence than that signal.
+  /// `needsYou` (`contracts.ts:34-45`), shared with the background alert check.
   static func needsYou(_ task: AgentTask) -> NeedsYou? {
-    guard activeStatuses.contains(task.status) else { return nil }
-    let live = task.assignment?.live
-    if live?.state == .working { return nil }
-    if task.status == .blocked, let hold = task.hold, [.decision, .access, .credential].contains(hold.reason) {
-      return NeedsYou(kind: hold.reason.rawValue, since: task.lastActivityAt)
-    }
-    let attention = task.assignment?.attention
-    if let live, live.state == .prompt {
-      return NeedsYou(
-        kind: attention?.kind == .permission ? "permission" : "menu",
-        since: attention?.since ?? live.since ?? task.lastActivityAt)
-    }
-    guard let attention else { return nil }
-    if let live, [.working, .background, .stopped].contains(live.state) { return nil }
-    if attention.kind == .input && task.status == .waiting { return nil }
-    return NeedsYou(kind: attention.kind.rawValue, since: attention.since)
+    AgentAttentionRules.needsYou(task).map { NeedsYou(kind: $0.kind, since: $0.since) }
   }
 
   /// `sessionNeedsYou` (`BoardViews.tsx:57-61`).
@@ -185,21 +169,16 @@ nonisolated enum AgentsLogic {
 
   /// `activityWindows` (`lib/agents/model.ts:35`).
   static let activityWindows = [3, 7, 15, 30]
-  static let defaultActivityWindow = 3
+  static let defaultActivityWindow = AgentAttentionRules.defaultActivityWindow
 
   /// `activityWindow` (`contracts.ts:48-51`): an unknown value falls back to the default.
   static func activityWindow(_ days: Int) -> Int {
     activityWindows.contains(days) ? days : defaultActivityWindow
   }
 
-  /// The cards the board shows: root tasks active within the window
-  /// (`AgentBoard.tsx:34`), even if the server sent more.
+  /// The cards the board shows (`AgentBoard.tsx:34`).
   static func boardTasks(_ tasks: [AgentTask], days: Int, now: Date) -> [AgentTask] {
-    let start = now.addingTimeInterval(-Double(days) * 86_400)
-    return tasks.filter { task in
-      guard task.parentTaskId == nil, let at = date(task.lastActivityAt) else { return false }
-      return at > start
-    }
+    AgentAttentionRules.boardTasks(tasks, days: days, now: now)
   }
 
   /// The finished strip: server totals for the whole period when present,
@@ -281,11 +260,7 @@ nonisolated enum AgentsLogic {
 
   /// Server timestamps are `toISOString()` output; older rows may lack the fraction.
   static func date(_ text: String) -> Date? {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = formatter.date(from: text) { return date }
-    formatter.formatOptions = [.withInternetDateTime]
-    return formatter.date(from: text)
+    AgentAttentionRules.date(text)
   }
 
   /// `waitedFor` (`contracts.ts:52-55`).

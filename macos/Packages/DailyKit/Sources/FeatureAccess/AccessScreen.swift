@@ -12,13 +12,16 @@ public struct AccessScreen: View {
   @State private var confirmation: ConfirmRequest?
   @Environment(\.theme) private var theme
   @Environment(\.openSettings) private var openSettings
+  /// Nil in tests and previews built from a bare store.
+  private let navigator: AppNavigator?
 
   public init(environment: AppEnvironment) {
-    self.init(store: AccessStore(client: environment.client))
+    self.init(store: AccessStore(client: environment.client), navigator: environment.navigator)
   }
 
-  init(store: AccessStore) {
+  init(store: AccessStore, navigator: AppNavigator? = nil) {
     _store = State(initialValue: store)
+    self.navigator = navigator
   }
 
   public var body: some View {
@@ -214,8 +217,11 @@ public struct AccessScreen: View {
       .frame(maxWidth: 720, alignment: .leading)
       .fixedSize(horizontal: false, vertical: true)
       mcpEndpoint
-      Button("Gerenciar conexões") { openSettings() }
-        .buttonStyle(.bordered)
+      Button("Gerenciar conexões") {
+        navigator?.requestSettings(.integrations)
+        openSettings()
+      }
+      .buttonStyle(.bordered)
       Divider()
       grants
     }
