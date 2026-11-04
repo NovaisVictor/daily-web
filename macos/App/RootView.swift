@@ -7,6 +7,11 @@ import SwiftUI
 /// in `AppDelegate`: they are per app, not per window.
 struct RootView: View {
   let environment: AppEnvironment
+  let opener: WindowOpener
+  /// The main window follows the shared navigator, which notifications and other
+  /// screens move; a window opened with ⌘N keeps a sidebar selection of its own.
+  let followsNavigator: Bool
+  @State private var ownSelection: AppRoute? = .today
 
   var body: some View {
     ThemedRoot(preferences: environment.preferences) {
@@ -14,6 +19,15 @@ struct RootView: View {
         .frame(minWidth: 900, minHeight: 560)
         .overlay(alignment: .bottomTrailing) { toasts }
     }
+    .modifier(CapturesWindowOpener(opener: opener))
+  }
+
+  private var selection: Binding<AppRoute?> {
+    if followsNavigator {
+      let navigator = environment.navigator
+      return Binding(get: { navigator.route }, set: { navigator.route = $0 })
+    }
+    return $ownSelection
   }
 
   @ViewBuilder private var content: some View {
@@ -37,7 +51,7 @@ struct RootView: View {
         }
       }
     case .signedIn(let user):
-      MainWindow(environment: environment, navigator: environment.navigator, user: user)
+      MainWindow(environment: environment, selection: selection, user: user, opener: opener)
     }
   }
 

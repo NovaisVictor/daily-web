@@ -1,55 +1,108 @@
 import DailyCore
 import SwiftUI
 
-/// The window-level shortcuts: ⌘K opens the palette, ⌘R refreshes, ⌘1…⌘9 jump to
-/// the sidebar rows in order.
+/// ⌘1…⌘9 jump to the sidebar rows in order.
 public enum ShellShortcuts {
   /// One digit per route, for the first nine routes.
   public static func routeShortcuts(_ routes: [AppRoute]) -> [(key: Character, route: AppRoute)] {
     zip(1...9, routes).map { (key: Character(String($0)), route: $1) }
   }
-}
 
-extension View {
-  /// Installs the shell's shortcuts on this view's window. `ShellRootView` applies it
-  /// itself; it is public so another window can offer the same keys.
-  public func shellKeyboardShortcuts(
-    routes: [AppRoute],
-    onOpenPalette: @escaping () -> Void,
-    onRefresh: @escaping () -> Void,
-    onSelect: @escaping (AppRoute) -> Void
-  ) -> some View {
-    background {
-      ShellShortcutButtons(
-        routes: routes,
-        onOpenPalette: onOpenPalette,
-        onRefresh: onRefresh,
-        onSelect: onSelect
-      )
+  /// The "Ir" menu: every sidebar row, top to bottom, the first nine with their digit.
+  public static func goMenuItems(_ entries: [ModuleEntry]) -> [ShellMenuItem] {
+    let keys = Dictionary(uniqueKeysWithValues: routeShortcuts(entries.map(\.route)).map { ($0.route, $0.key) })
+    return entries.map { entry in
+      ShellMenuItem(route: entry.route, title: entry.title, systemImage: entry.systemImage, key: keys[entry.route])
     }
   }
 }
 
-/// Invisible buttons carry the shortcuts because a key equivalent only exists on a
-/// control; they take no space and stay out of the accessibility tree, where the
-/// visible toolbar buttons already describe the same actions.
-private struct ShellShortcutButtons: View {
-  let routes: [AppRoute]
-  let onOpenPalette: () -> Void
-  let onRefresh: () -> Void
-  let onSelect: (AppRoute) -> Void
+/// One row of the "Ir" menu.
+public struct ShellMenuItem: Equatable, Identifiable, Sendable {
+  public let route: AppRoute
+  public let title: String
+  public let systemImage: String
+  /// The digit pressed with ⌘; nil past the ninth row.
+  public let key: Character?
 
-  var body: some View {
-    ZStack {
-      Button("Buscar", action: onOpenPalette).keyboardShortcut("k", modifiers: .command)
-      Button("Atualizar agora", action: onRefresh).keyboardShortcut("r", modifiers: .command)
-      ForEach(ShellShortcuts.routeShortcuts(routes), id: \.route) { shortcut in
-        Button(String(shortcut.key)) { onSelect(shortcut.route) }
-          .keyboardShortcut(KeyEquivalent(shortcut.key), modifiers: .command)
+  public var id: AppRoute { route }
+}
+
+/// What the focused shell window offers the menu bar's commands. Published per
+/// window with `focusedSceneValue`, so the menus act on the window in front.
+public struct ShellMenuActions {
+  public let items: [ShellMenuItem]
+  public let selection: AppRoute?
+  public let isRefreshing: Bool
+  public let select: (AppRoute) -> Void
+  /// Nil in a window without the palette (a single module's window).
+  public let openPalette: (() -> Void)?
+  public let refresh: () -> Void
+  /// Nil when the app offers no extra windows.
+  public let openInNewWindow: ((AppRoute) -> Void)?
+
+  public init(
+    items: [ShellMenuItem],
+    selection: AppRoute?,
+    isRefreshing: Bool,
+    select: @escaping (AppRoute) -> Void,
+    openPalette: (() -> Void)?,
+    refresh: @escaping () -> Void,
+    openInNewWindow: ((AppRoute) -> Void)?
+  ) {
+    self.items = items
+    self.selection = selection
+    self.isRefreshing = isRefreshing
+    self.select = select
+    self.openPalette = openPalette
+    self.refresh = refresh
+    self.openInNewWindow = openInNewWindow
+  }
+}
+
+extension FocusedValues {
+  @Entry public var shellMenu: ShellMenuActions?
+}
+
+/// The shell's menu bar commands: "Ir" with ⌘K and ⌘1…⌘9, "Atualizar agora" (⌘R) in
+/// the View menu and "Abrir em nova janela" in the File menu. Real menu items, so the
+/// keys show in the menu bar instead of living on hidden buttons.
+public struct ShellMenuCommands: Commands {
+  @FocusedValue(\.shellMenu) private var shell
+
+  public init() {}
+
+  public var body: some Commands {
+    CommandGroup(after: .newItem) {
+      Button("Abrir em nova janela") {
+        if let shell, let route = shell.selection { shell.openInNewWindow?(route) }
+      }
+      .keyboardShortcut("n", modifiers: [.command, .shift])
+      .disabled(shell?.selection == nil || shell?.openInNewWindow == nil)
+    }
+    CommandGroup(before: .toolbar) {
+      Button("Atualizar agora") { shell?.refresh() }
+        .keyboardShortcut("r", modifiers: .command)
+        .disabled(shell == nil || shell?.isRefreshing == true)
+      Divider()
+    }
+    CommandMenu("Ir") {
+      Button("Buscar…") { shell?.openPalette?() }
+        .keyboardShortcut("k", modifiers: .command)
+        .disabled(shell?.openPalette == nil)
+      Divider()
+      ForEach(shell?.items ?? []) { item in
+        goButton(item)
       }
     }
-    .frame(width: 0, height: 0)
-    .opacity(0)
-    .accessibilityHidden(true)
+  }
+
+  @ViewBuilder private func goButton(_ item: ShellMenuItem) -> some View {
+    let button = Button(item.title, systemImage: item.systemImage) { shell?.select(item.route) }
+    if let key = item.key {
+      button.keyboardShortcut(KeyEquivalent(key), modifiers: .command)
+    } else {
+      button
+    }
   }
 }

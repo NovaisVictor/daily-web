@@ -8,8 +8,9 @@ import SwiftUI
 /// The signed-in window: shell, palette and account actions wired to the stores.
 struct MainWindow: View {
   let environment: AppEnvironment
-  @Bindable var navigator: AppNavigator
+  @Binding var selection: AppRoute?
   let user: CurrentUser
+  let opener: WindowOpener
   @Environment(\.openSettings) private var openSettings
 
   var body: some View {
@@ -18,12 +19,13 @@ struct MainWindow: View {
     ShellRootView(
       registry: registry,
       enabledModules: enabled,
-      selection: $navigator.route,
+      selection: $selection,
       account: account,
       accountActions: accountActions,
       isRefreshing: environment.dashboard.isRefreshing,
       onRefresh: { Task { await environment.dashboard.refresh() } },
-      paletteCommands: paletteCommands(sidebar: SidebarModel(registry: registry, enabled: enabled))
+      paletteCommands: paletteCommands(sidebar: SidebarModel(registry: registry, enabled: enabled)),
+      onOpenInNewWindow: { opener.open($0) }
     ) {
       NotificationsBell(environment: environment)
     }
@@ -40,7 +42,7 @@ struct MainWindow: View {
   private var accountActions: ShellAccountActions {
     ShellAccountActions(
       profile: { openSettings() },
-      connectAgent: { navigator.open(.access) },
+      connectAgent: { selection = .access },
       settings: { openSettings() },
       signOut: { await environment.session.signOut() }
     )
@@ -49,7 +51,7 @@ struct MainWindow: View {
   private func paletteCommands(sidebar: SidebarModel) -> [PaletteCommand] {
     ShellCommands.standard(
       sidebar: sidebar,
-      navigate: { navigator.open($0) },
+      navigate: { selection = $0 },
       setTheme: { value in updateAppearance(Appearance(theme: AppearanceTheme(rawValue: value.rawValue))) },
       setDensity: { value in updateAppearance(Appearance(density: AppearanceDensity(rawValue: value.rawValue))) },
       setBackdrop: { value in

@@ -13,6 +13,16 @@ enum PreviewData {
     signOut: {}
   )
 
+  static let menuBarActions = MenuBarActions(
+    openApp: {},
+    openTasks: {},
+    openAgenda: {},
+    openNotifications: {},
+    togglePomodoro: {},
+    resetPomodoro: {},
+    quit: {}
+  )
+
   static let registry = ModuleRegistry(
     entries: [
       placeholder(.today, "Hoje", "sun.max", nil),

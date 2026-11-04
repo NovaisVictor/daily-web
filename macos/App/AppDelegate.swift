@@ -1,7 +1,9 @@
 import AppKit
 import DailyCore
 import DailyStorage
+import FeatureShell
 import UserNotifications
+import os
 
 /// Owns the object graph so notification clicks, which arrive here, can reach
 /// the same navigator the window uses.
@@ -10,9 +12,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     settings: UserDefaultsServerSettings(),
     tokenStore: KeychainSessionTokenStore()
   )
+  let opener = WindowOpener()
+
+  private static let logger = Logger(subsystem: "io.github.novaisvictor.dailyweb", category: "App")
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
+    NotificationActions.register(on: .current())
+    GlobalShortcut.install { [opener] in opener.showMain() }
     // Once per process: a second window must not restore an already live session.
     Task { await environment.launch() }
     updateForeground()
@@ -55,6 +62,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     false
   }
 
+  /// A Dock click with every window closed brings the main window back; the menu
+  /// bar item keeps the app running meanwhile.
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    guard !flag else { return true }
+    opener.showMain()
+    return false
+  }
+
   nonisolated func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification
@@ -73,10 +88,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if let key = key as? String, let value = value as? String { info[key] = value }
     }
     let captured = info
+    let action = response.actionIdentifier
     await MainActor.run {
-      guard let target = AlertTarget(userInfo: captured) else { return }
+      handle(action: action, userInfo: captured)
+    }
+  }
+
+  private func handle(action: String, userInfo: [String: String]) {
+    switch action {
+    case NotificationActions.markRead:
+      guard let id = userInfo[NotificationActions.notificationIDKey] else {
+        Self.logger.error("A \"Marcar como lida\" action came without a notification id")
+        return
+      }
+      Task { await NotificationActions.markRead(id, environment: environment) }
+    case NotificationActions.open, UNNotificationDefaultActionIdentifier:
+      guard let target = AlertTarget(userInfo: userInfo) else {
+        Self.logger.error("A clicked notification had no target")
+        opener.showMain()
+        return
+      }
       environment.navigator.open(target)
-      NSApp.activate()
+      opener.showMain()
+    case UNNotificationDismissActionIdentifier:
+      return
+    default:
+      Self.logger.error("Unknown notification action \(action, privacy: .public)")
     }
   }
 }

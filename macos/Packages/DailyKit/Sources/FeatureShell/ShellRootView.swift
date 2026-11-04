@@ -14,12 +14,15 @@ public struct ShellRootView<Accessory: View>: View {
   private let isRefreshing: Bool
   private let onRefresh: () -> Void
   private let paletteCommands: [PaletteCommand]
+  private let onOpenInNewWindow: ((AppRoute) -> Void)?
   private let accessory: Accessory
 
   @State private var isPalettePresented = false
   @Environment(\.theme) private var theme
 
-  /// - Parameter accessory: trailing toolbar content, such as the notifications bell.
+  /// - Parameters:
+  ///   - onOpenInNewWindow: opens one entry in a window of its own; nil hides the option.
+  ///   - accessory: trailing toolbar content, such as the notifications bell.
   public init(
     registry: ModuleRegistry,
     enabledModules: [ModuleID],
@@ -29,6 +32,7 @@ public struct ShellRootView<Accessory: View>: View {
     isRefreshing: Bool,
     onRefresh: @escaping () -> Void,
     paletteCommands: [PaletteCommand],
+    onOpenInNewWindow: ((AppRoute) -> Void)? = nil,
     @ViewBuilder accessory: () -> Accessory
   ) {
     self.registry = registry
@@ -39,6 +43,7 @@ public struct ShellRootView<Accessory: View>: View {
     self.isRefreshing = isRefreshing
     self.onRefresh = onRefresh
     self.paletteCommands = paletteCommands
+    self.onOpenInNewWindow = onOpenInNewWindow
     self.accessory = accessory()
   }
 
@@ -50,7 +55,13 @@ public struct ShellRootView<Accessory: View>: View {
         ForEach(sidebar.sections) { section in
           Section {
             ForEach(section.entries) { entry in
-              Label(entry.title, systemImage: entry.systemImage).tag(entry.route)
+              Label(entry.title, systemImage: entry.systemImage)
+                .tag(entry.route)
+                .contextMenu {
+                  if let onOpenInNewWindow {
+                    Button("Abrir em nova janela") { onOpenInNewWindow(entry.route) }
+                  }
+                }
             }
           } header: {
             if let title = section.title { Text(title) }
@@ -73,16 +84,24 @@ public struct ShellRootView<Accessory: View>: View {
     .sheet(isPresented: $isPalettePresented) {
       CommandPalette(commands: paletteCommands) { isPalettePresented = false }
     }
-    .shellKeyboardShortcuts(
-      routes: sidebar.orderedEntries.map(\.route),
-      onOpenPalette: { isPalettePresented.toggle() },
-      onRefresh: { if !isRefreshing { onRefresh() } },
-      onSelect: { selection = $0 }
-    )
+    .focusedSceneValue(\.shellMenu, menuActions)
     .onChange(of: enabledModules, initial: true) {
       let resolved = sidebar.resolvedSelection(selection)
       if resolved != selection { selection = resolved }
     }
+  }
+
+  /// The menu bar's "Ir", "Atualizar agora" and "Abrir em nova janela" act on this window.
+  private var menuActions: ShellMenuActions {
+    ShellMenuActions(
+      items: ShellShortcuts.goMenuItems(sidebar.orderedEntries),
+      selection: selection,
+      isRefreshing: isRefreshing,
+      select: { selection = $0 },
+      openPalette: { isPalettePresented.toggle() },
+      refresh: { if !isRefreshing { onRefresh() } },
+      openInNewWindow: onOpenInNewWindow
+    )
   }
 
   @ViewBuilder private var detail: some View {

@@ -46,18 +46,50 @@ public struct SettingsScreen: View {
   }
 }
 
-/// Global shortcut and launch at login; T501 fills these in.
+/// The controls of the "Geral" tab. They come from the app, which owns the
+/// global shortcut library and the login item; a feature cannot import the shell.
+public struct GeneralSettingsControls {
+  public let shortcutRecorder: AnyView
+  public let launchAtLogin: AnyView
+
+  public init(shortcutRecorder: some View, launchAtLogin: some View) {
+    self.shortcutRecorder = AnyView(shortcutRecorder)
+    self.launchAtLogin = AnyView(launchAtLogin)
+  }
+}
+
+extension EnvironmentValues {
+  /// Set by the app on the Settings scene; nil in previews.
+  @Entry public var generalSettingsControls: GeneralSettingsControls?
+}
+
+/// Global shortcut and launch at login.
 struct GeneralSettingsView: View {
+  @Environment(\.generalSettingsControls) private var controls
+  @Environment(\.theme) private var theme
+
   var body: some View {
     Form {
       Section("Atalho global") {
-        EmptyView()
+        if let controls {
+          controls.shortcutRecorder
+        } else {
+          unavailable
+        }
       }
       Section("Abrir ao iniciar") {
-        EmptyView()
+        if let controls {
+          controls.launchAtLogin
+        } else {
+          unavailable
+        }
       }
     }
     .formStyle(.grouped)
+  }
+
+  private var unavailable: some View {
+    Text("Disponível só no app.").foregroundStyle(theme.inkDim)
   }
 }
 
