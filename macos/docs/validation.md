@@ -133,3 +133,34 @@ limpo e o app compilando. Nada mudou fora de `macos/`.
 - O corpo do e-mail chega só em texto puro, sem HTML.
 - O "Bem-vindo" vs. "Bem-vindo de volta" não vem no `/api/me`.
 - Não existe GET da aparência, então o app guarda a aparência localmente por conta.
+
+## Onda 4: T401–T404 e revisão (T405), 2026-11-04
+
+Em `macos/`, `make clean && make check` termina com exit 0: **778 testes em 78
+suítes**, lint limpo e o app compilando. Nada mudou fora de `macos/`.
+
+| Tarefa | Testes do target |
+|---|---|
+| T401 Jira | 106 (filtros, ordem e resumo da daily portados dos testes do web, todos os endpoints) |
+| T402 Pulls | 80 (todas as escritas `idempotent`, `headSha` em merge/rerun) |
+| T403 Slack + Notificações | 41 (lotes de até 200 ao marcar como lidas, chave do Jira para responder) |
+| T404 Agentes + Acesso | 57 (transições por status, `expectedVersion`, 409, escopos de token) |
+
+Não exercitados contra o servidor real: Jira, GitHub, Slack, e-mail e Google,
+porque o servidor local não tem credenciais. A cobertura dessas telas é de código
+e de testes com cliente falso.
+
+**Revisão independente (T405):** 10 achados, todos corrigidos com teste:
+
+- item pendente de notificação consumido cedo, ou vazando entre telas (navegador redesenhado);
+- texto de nota perdido num autosave que falhou;
+- autosaves fora de ordem;
+- espera de encerramento sem limite (agora 5 s);
+- janela de dias dos agentes gerando aviso duplicado;
+- agenda com calendário não gregoriano;
+- três cópias da janela de foco e URL de reconexão divergente;
+- arraste de e-mail para pasta de outra conta.
+
+**Incidente de build:** um campo novo em `Endpoint` deixou binários com layout
+antigo no build incremental do SwiftPM, e os testes caíram com sinal 10/11.
+Foi resolvido com build limpo. Criado o `make clean`, com nota no `AGENTS.md`.

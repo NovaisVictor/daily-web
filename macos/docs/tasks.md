@@ -118,22 +118,22 @@ O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
 
 ## Onda 4: features, lote B (4 agentes em paralelo)
 
-- [ ] **T401 [P] FeatureJira**: tudo da linha "Jira", incluindo o resumo da daily
+- [x] **T401 [P] FeatureJira**: tudo da linha "Jira", incluindo o resumo da daily
   (`lib/standup.ts`). Ref.: `JiraPanel.tsx`, `components/jira/*`,
   `JiraProblemFix.tsx`, `JiraMultiFilterDropdown.tsx`, `lib/jiraFilters.ts`, `lib/jiraOrder.ts`.
-- [ ] **T402 [P] FeaturePulls**: tudo da linha "Pull requests".
+- [x] **T402 [P] FeaturePulls**: tudo da linha "Pull requests".
   Ref.: `PullsPanel.tsx`, `components/pulls/*`.
-- [ ] **T403 [P] FeatureSlack + FeatureNotifications**: Slack (menções e DMs) e a
+- [x] **T403 [P] FeatureSlack + FeatureNotifications**: Slack (menções e DMs) e a
   central de notificações (filtros, marcar lidas, responder menção do Jira usando
   o endpoint de comentário). Ref.: `SlackPanel.tsx`, `NotificationsBell.tsx`,
   `HeaderNotifications.tsx`.
-- [ ] **T404 [P] FeatureAgents + FeatureAccess**:
+- [x] **T404 [P] FeatureAgents + FeatureAccess**:
   - Agentes: kanban, sessões, detalhe e transições com `expectedVersion`.
   - Terminal ao vivo com resposta (⌘↩) e aviso "aguardando você".
   - Tokens, prompt, MCP e concessões.
 
   Ref.: `components/agents/*`, `AccessPanel.tsx`.
-- [ ] **T405** Gate + revisão do diff acumulado + correções.
+- [x] **T405** Gate + revisão do diff acumulado + correções.
 
 ## Onda 5: integração e acabamento (2 agentes em paralelo + Orq.)
 
