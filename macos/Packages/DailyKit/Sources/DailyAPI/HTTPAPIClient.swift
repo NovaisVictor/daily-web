@@ -163,25 +163,11 @@ public final class HTTPAPIClient: APIClient {
     if endpoint.idempotent {
       // Read by `mutation()` (`lib/agents/http.ts:15`) and the pulls writes
       // (`app/api/pulls/shared.ts:15`); validated in `lib/access/receipts.ts:14-17`.
+      // The server's own fallback is `new Date().toISOString()`, hence `JSISODate`.
       request.setValue(makeIdempotencyKey(), forHTTPHeaderField: "Idempotency-Key")
-      request.setValue(Self.requestTimestamp(now()), forHTTPHeaderField: "X-Request-Timestamp")
+      request.setValue(JSISODate.string(from: now()), forHTTPHeaderField: "X-Request-Timestamp")
     }
     return request
-  }
-
-  /// The server parses the header with `Date.parse` and its own fallback is
-  /// `new Date().toISOString()` (`app/api/pulls/shared.ts:15`), so the client
-  /// sends that exact form: UTC with milliseconds, e.g. `2026-11-04T12:30:45.123Z`.
-  static func requestTimestamp(_ date: Date) -> String {
-    // `Date` is a `Double`, so x.123 may be stored as x.12299…; the formatter
-    // truncates, which would send .122. Milliseconds are rounded first and
-    // written by hand, as JavaScript's integer milliseconds would print them.
-    let milliseconds = Int64((date.timeIntervalSince1970 * 1000).rounded())
-    let (seconds, fraction) = milliseconds.quotientAndRemainder(dividingBy: 1000)
-    let (wholeSeconds, positiveFraction) = fraction < 0 ? (seconds - 1, fraction + 1000) : (seconds, fraction)
-    let base = Date(timeIntervalSince1970: TimeInterval(wholeSeconds)).formatted(Date.ISO8601FormatStyle())
-    let fractionText = String(positiveFraction + 1000).dropFirst()
-    return "\(base.dropLast()).\(fractionText)Z"
   }
 
   // MARK: - Response
@@ -215,6 +201,12 @@ public final class HTTPAPIClient: APIClient {
       .timedOut
     case .cancelled:
       .cancelled
+    case .appTransportSecurityRequiresSecureConnection:
+      // ATS refuses plain `http` except for local addresses.
+      .insecureConnection
+    case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+      .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+      .untrustedCertificate
     default:
       .invalidResponse
     }

@@ -26,6 +26,10 @@ public enum APIError: Error, Sendable, Equatable {
   /// The session could not be kept on this Mac (Keychain write failed); the
   /// detail is for logs, not users.
   case storage(detail: String)
+  /// App Transport Security refused a plain `http` server that is not local.
+  case insecureConnection
+  /// The TLS handshake failed or the server's certificate is not trusted.
+  case untrustedCertificate
 
   /// Text for the person using the app, in the web's voice.
   public var userMessage: String {
@@ -38,6 +42,8 @@ public enum APIError: Error, Sendable, Equatable {
     case .cancelled: "Operação cancelada."
     case .decoding, .invalidResponse: "Resposta inesperada do servidor."
     case .storage: "Não foi possível guardar a sessão neste Mac."
+    case .insecureConnection: "Este servidor precisa usar HTTPS (ou ser um endereço local)."
+    case .untrustedCertificate: "O certificado do servidor não é confiável."
     }
   }
 }

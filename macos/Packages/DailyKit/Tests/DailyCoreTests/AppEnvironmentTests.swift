@@ -1,5 +1,6 @@
 import DailyAPI
 import DailyModels
+import DailyStorage
 import Foundation
 import Testing
 
@@ -48,5 +49,55 @@ import Testing
     #expect(environment.session.phase == .signedOut(message: SessionStore.expiredMessage))
     #expect(environment.dashboard.state == nil)
     #expect(!environment.poller.isRunning)
+  }
+
+  @Test func launchWithAnExpiredSessionClearsThePreviousAccount() async throws {
+    let fake = FakeAPIClient()
+    let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: "t")
+    let directory = Fixtures.temporaryDirectory()
+    let cache = DiskCache<DashboardState>(fileName: "dashboard-state.json", directory: directory)
+    try cache.save(Fixtures.state())
+    let environment = AppEnvironment(
+      rawClient: fake,
+      tokenStore: storage,
+      settings: storage,
+      cacheDirectory: directory,
+      defaults: Fixtures.defaults(),
+      poster: FakeNotificationPoster()
+    )
+    fake.respond { _ throws(APIError) in throw .unauthorized }
+    await environment.launch()
+    #expect(environment.session.phase == .signedOut(message: SessionStore.expiredMessage))
+    #expect(try cache.load() == nil)
+  }
+
+  @Test func signInLoadsThatAccountsAppearance() async throws {
+    let fake = FakeAPIClient()
+    let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: "t")
+    let defaults = Fixtures.defaults()
+    let environment = AppEnvironment(
+      rawClient: fake,
+      tokenStore: storage,
+      settings: storage,
+      cacheDirectory: nil,
+      defaults: defaults,
+      poster: FakeNotificationPoster()
+    )
+    fake.respond { call in
+      switch call.path {
+      case "/api/me": FakeAPIClient.json(Fixtures.user)
+      case "/api/preferences": FakeAPIClient.json(AppearanceResponse(appearance: Appearance(theme: .dark)))
+      default: FakeAPIClient.json(Fixtures.state())
+      }
+    }
+    await environment.launch()
+    await environment.preferences.updateAppearance(Appearance(theme: .dark))
+    await environment.session.signOut()
+    #expect(environment.preferences.appearance == Appearance())
+
+    let server = try #require(storage.serverURL)
+    #expect(await environment.session.signIn(server: server, username: "ana", password: "x") == nil)
+    #expect(environment.preferences.appearance == Appearance(theme: .dark))
+    environment.poller.stop()
   }
 }

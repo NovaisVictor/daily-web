@@ -97,12 +97,7 @@ public final class FocusScheduler {
     guard durations.contains(minutes) else { return .failure(Refusal(message: "duração inválida")) }
     let item = FocusSource(kind: source.kind, ref: ref, title: title, url: source.url)
     return .success(
-      FocusBlockRequest(connectionId: connectionId, item: item, start: isoString(start), minutes: minutes))
-  }
-
-  /// `Date.prototype.toISOString()`: UTC with milliseconds.
-  static func isoString(_ date: Date) -> String {
-    date.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+      FocusBlockRequest(connectionId: connectionId, item: item, start: JSISODate.string(from: start), minutes: minutes))
   }
 
   static func sortedInsert(_ items: [AgendaItem], _ item: AgendaItem) -> [AgendaItem] {

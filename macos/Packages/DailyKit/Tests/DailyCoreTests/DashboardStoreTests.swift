@@ -40,6 +40,7 @@ import Testing
     await loading.value
     #expect(store.state == fresh)
     #expect(store.lastUpdated == VirtualClock.origin)
+    await store.flushCache()
     #expect(try cache.load() == fresh)
     #expect(client.calls == [.init(method: "GET", path: "/api/state", body: nil)])
   }
@@ -94,6 +95,7 @@ import Testing
     }
     #expect(error == failure)
     #expect(store.state == Fixtures.state())
+    await store.flushCache()
     #expect(try cache.load() == Fixtures.state())
     #expect(toasts.toasts.map(\.text) == ["falhou"])
   }
@@ -141,13 +143,73 @@ import Testing
     #expect(store.state?.agendaDays == 7)
   }
 
-  @Test func clearForgetsMemoryAndCache() throws {
+  @Test func clearForgetsMemoryAndCache() async throws {
     let store = makeStore()
     store.apply(Fixtures.state())
+    await store.flushCache()
     #expect(try cache.load() != nil)
     store.clear()
     #expect(store.state == nil)
     #expect(store.lastUpdated == nil)
     #expect(try cache.load() == nil)
+  }
+
+  @Test func clearDropsAWriteStillQueued() async throws {
+    let store = makeStore()
+    store.apply(Fixtures.state())
+    store.clear()
+    await store.flushCache()
+    #expect(try cache.load() == nil)
+  }
+
+  @Test func unchangedStateIsNotWrittenAgain() async throws {
+    let store = makeStore()
+    var changes = 0
+    store.observe { _ in changes += 1 }
+    store.apply(Fixtures.state())
+    await store.flushCache()
+    try cache.remove()
+
+    store.apply(Fixtures.state())
+    await store.flushCache()
+    #expect(try cache.load() == nil)
+    #expect(changes == 2)
+
+    store.apply(Fixtures.state(updatedAt: "changed"))
+    await store.flushCache()
+    #expect(try cache.load() == Fixtures.state(updatedAt: "changed"))
+  }
+
+  @Test func failedReadAfterClearDoesNotRecordTheError() async {
+    let store = makeStore()
+    store.apply(Fixtures.state())
+    let gate = Gate()
+    client.respond { _ throws(APIError) in
+      await gate.wait()
+      throw .unauthorized
+    }
+    let polling = Task { await store.reload() }
+    await settle()
+    // The sign-out the 401 causes runs before the read reports back.
+    store.clear()
+    gate.open()
+    await polling.value
+    #expect(store.lastError == nil)
+    #expect(store.state == nil)
+  }
+
+  @Test func failedRefreshAfterClearShowsNoToast() async {
+    let store = makeStore()
+    let gate = Gate()
+    client.respond { _ throws(APIError) in
+      await gate.wait()
+      throw .unauthorized
+    }
+    let refreshing = Task { await store.refresh() }
+    await settle()
+    store.clear()
+    gate.open()
+    await refreshing.value
+    #expect(toasts.toasts.isEmpty)
   }
 }

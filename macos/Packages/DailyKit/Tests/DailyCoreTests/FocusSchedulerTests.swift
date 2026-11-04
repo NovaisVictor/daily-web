@@ -88,4 +88,14 @@ import Testing
     let result = await scheduler.schedule(source, connectionId: "c", start: now, minutes: 25)
     #expect(result == .failed(.offline))
   }
+
+  @Test func startIsSentLikeJavaScriptToISOString() throws {
+    // 1793795445.123 is stored as …445.12299990654; truncating would send .122.
+    let start = Date(timeIntervalSince1970: 1_793_795_445.123)
+    let source = FocusSource(kind: .task, ref: "t1", title: "Revisar", url: nil)
+    let result = FocusScheduler.validate(
+      source, connectionId: "c", start: start, minutes: 25, now: start.addingTimeInterval(-60))
+    let request = try result.get()
+    #expect(request.start == "2026-11-04T12:30:45.123Z")
+  }
 }

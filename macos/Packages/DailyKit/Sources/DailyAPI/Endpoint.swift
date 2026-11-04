@@ -42,12 +42,29 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
   }
 
   /// Percent-encodes a single path segment (ids may contain `/`, `+`, `=`).
+  ///
+  /// Encodes the UTF-8 bytes by hand instead of `addingPercentEncoding`, whose
+  /// optional result would need a fallback; this way every input has an answer.
   public static func segment(_ value: String) -> String {
-    var allowed = CharacterSet.urlPathAllowed
-    allowed.remove(charactersIn: "/+=?#")
-    return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    var encoded = ""
+    encoded.reserveCapacity(value.utf8.count)
+    for byte in value.utf8 {
+      if segmentAllowed.contains(byte) {
+        encoded.unicodeScalars.append(Unicode.Scalar(byte))
+      } else {
+        encoded += "%" + hexDigits[Int(byte >> 4)] + hexDigits[Int(byte & 0x0F)]
+      }
+    }
+    return encoded
   }
 }
+
+/// RFC 3986 `pchar` without the characters a server or router may read as
+/// structure (`/`, `+`, `=`); `?` and `#` are not `pchar` at all.
+private let segmentAllowed: Set<UInt8> = Set(
+  Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*,;:@".utf8))
+
+private let hexDigits = Array("0123456789ABCDEF").map(String.init)
 
 /// For calls whose success has no useful body (204, or `{ok:true}` we ignore).
 public struct EmptyResponse: Decodable, Sendable, Equatable {

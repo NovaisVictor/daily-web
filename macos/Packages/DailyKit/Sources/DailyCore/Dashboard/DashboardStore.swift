@@ -34,6 +34,7 @@ public final class DashboardStore {
 
   @ObservationIgnored private let client: any APIClient
   @ObservationIgnored private let cache: DiskCache<DashboardState>?
+  @ObservationIgnored private let writer: CacheWriter<DashboardState>?
   @ObservationIgnored private let toasts: ToastCenter
   @ObservationIgnored private let now: Now
   /// Same idea as `geracao` in `lib/hooks/usePolling.tsx:15`: every read and
@@ -52,6 +53,7 @@ public final class DashboardStore {
   ) {
     self.client = client
     self.cache = cache
+    writer = cache.map { CacheWriter(cache: $0, label: "dashboard") }
     self.toasts = toasts
     self.now = now
   }
@@ -117,6 +119,9 @@ public final class DashboardStore {
     } catch {
       if case .cancelled = error { return nil }
       Logger.core.error("Dashboard \(label, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+      // A sign-out (`clear()`) or a newer read happened meanwhile: this failure
+      // describes a state that is gone, e.g. the 401 that caused the sign-out.
+      guard mine == generation else { return nil }
       lastError = error
       return error
     }
@@ -188,9 +193,9 @@ public final class DashboardStore {
     lastError = nil
     lastUpdated = nil
     isRefreshing = false
-    guard let cache else { return }
+    guard let writer else { return }
     do {
-      try cache.remove()
+      try writer.remove()
     } catch {
       Logger.core.error("Could not delete the dashboard cache: \(String(describing: error), privacy: .public)")
     }
@@ -198,19 +203,18 @@ public final class DashboardStore {
 
   private func set(_ next: DashboardState, origin: DashboardChange.Origin) {
     let previous = state
-    state = next
-    if origin != .cache { save(next) }
+    // Most polls answer what is already shown; that is neither a change to
+    // observe nor one to write. Listeners still hear every answer, as before.
+    if next != previous {
+      state = next
+      if origin != .cache { writer?.save(next) }
+    }
     let change = DashboardChange(previous: previous, current: next, origin: origin)
     for listener in listeners { listener(change) }
   }
 
-  private func save(_ value: DashboardState) {
-    guard let cache else { return }
-    do {
-      try cache.save(value)
-    } catch {
-      // The cache only speeds up the next launch; the app works without it.
-      Logger.core.error("Could not save the dashboard cache: \(String(describing: error), privacy: .public)")
-    }
+  /// Waits for the cache writes queued so far.
+  func flushCache() async {
+    await writer?.flush()
   }
 }

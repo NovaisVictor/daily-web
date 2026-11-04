@@ -116,7 +116,14 @@ func writesSendOriginWithPort(method: HTTPMethod) async throws {
 
 @Test func timestampMatchesJavaScriptToISOString() {
   // `new Date(1793795445000).toISOString()` === "2026-11-04T12:30:45.000Z"
-  #expect(HTTPAPIClient.requestTimestamp(Date(timeIntervalSince1970: 1_793_795_445)) == "2026-11-04T12:30:45.000Z")
+  #expect(JSISODate.string(from: Date(timeIntervalSince1970: 1_793_795_445)) == "2026-11-04T12:30:45.000Z")
+}
+
+@Test func jsISODateRoundsMillisecondsInsteadOfTruncating() {
+  // 1793795445.123 is stored as …445.12299990654; truncating would print .122.
+  #expect(JSISODate.string(from: Date(timeIntervalSince1970: 1_793_795_445.123)) == "2026-11-04T12:30:45.123Z")
+  #expect(JSISODate.string(from: Date(timeIntervalSince1970: 1_793_795_445.9996)) == "2026-11-04T12:30:46.000Z")
+  #expect(JSISODate.string(from: Date(timeIntervalSince1970: -0.001)) == "1969-12-31T23:59:59.999Z")
 }
 
 @Test func unconfiguredServerFailsWithoutNetwork() async {
@@ -236,6 +243,12 @@ func serverErrorShapes(body: String, expected: APIError) async {
   (.cannotFindHost, .offline),
   (.timedOut, .timedOut),
   (.cancelled, .cancelled),
+  (.appTransportSecurityRequiresSecureConnection, .insecureConnection),
+  (.secureConnectionFailed, .untrustedCertificate),
+  (.serverCertificateUntrusted, .untrustedCertificate),
+  (.serverCertificateHasBadDate, .untrustedCertificate),
+  (.serverCertificateHasUnknownRoot, .untrustedCertificate),
+  (.serverCertificateNotYetValid, .untrustedCertificate),
 ])
 func urlErrorsMap(code: URLError.Code, expected: APIError) async {
   let fixture = Fixture(replies: [.failure(code)])
@@ -265,7 +278,35 @@ func urlErrorsMap(code: URLError.Code, expected: APIError) async {
   }
 }
 
+@Test func transportSecurityErrorsHaveTheirOwnMessages() {
+  #expect(APIError.insecureConnection.userMessage == "Este servidor precisa usar HTTPS (ou ser um endereço local).")
+  #expect(APIError.untrustedCertificate.userMessage == "O certificado do servidor não é confiável.")
+}
+
 // MARK: - Endpoints and origin
+
+@Test(arguments: [
+  ("abc-123_x.y~z", "abc-123_x.y~z"),
+  ("a/b+c=d?e#f", "a%2Fb%2Bc%3Dd%3Fe%23f"),
+  ("a b%c", "a%20b%25c"),
+  ("!$&'()*,;:@", "!$&'()*,;:@"),
+  ("ação", "a%C3%A7%C3%A3o"),
+  ("🙂", "%F0%9F%99%82"),
+  ("", ""),
+])
+func segmentPercentEncodesUTF8Bytes(input: String, expected: String) {
+  #expect(Endpoint<EmptyResponse>.segment(input) == expected)
+}
+
+@Test func segmentMatchesFoundationForEveryASCIIByte() throws {
+  var allowed = CharacterSet.urlPathAllowed
+  allowed.remove(charactersIn: "/+=?#")
+  for byte in UInt8(0)...UInt8(127) {
+    let value = String(Character(Unicode.Scalar(byte)))
+    let foundation = try #require(value.addingPercentEncoding(withAllowedCharacters: allowed))
+    #expect(Endpoint<EmptyResponse>.segment(value) == foundation, "byte \(byte)")
+  }
+}
 
 @Test func coreEndpoints() {
   #expect(CoreEndpoints.me.method == .get)

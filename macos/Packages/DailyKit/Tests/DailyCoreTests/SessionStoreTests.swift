@@ -47,6 +47,37 @@ import Testing
     #expect(store.phase == .signedOut(message: "Sua sessão expirou. Entre de novo."))
   }
 
+  @Test func restoreThatEndsSignedOutRunsTheSignOutCleanup() async {
+    // The previous account's cache, alerts and appearance must not survive an
+    // expired or missing session at launch.
+    client.respond { _ throws(APIError) in throw .unauthorized }
+    let expired = makeStore()
+    var expiredCleanups = 0
+    expired.onSignedOut = { expiredCleanups += 1 }
+    await expired.restore()
+    #expect(expiredCleanups == 1)
+
+    let missing = makeStore(token: nil)
+    var missingCleanups = 0
+    missing.onSignedOut = { missingCleanups += 1 }
+    await missing.restore()
+    await missing.signOut()
+    #expect(missingCleanups == 1)
+  }
+
+  @Test func restoreWhileSignedInKeepsTheSession() async {
+    client.respond { _ in FakeAPIClient.json(Fixtures.user) }
+    let store = makeStore()
+    await store.restore()
+    client.respond { _ throws(APIError) in throw .unauthorized }
+    var signedOut = 0
+    store.onSignedOut = { signedOut += 1 }
+    await store.restore()
+    #expect(store.phase == .signedIn(Fixtures.user))
+    #expect(signedOut == 0)
+    #expect(client.calls.count == 1)
+  }
+
   @Test func restoreOfflineKeepsTheSessionAndOffersRetry() async {
     client.respond { _ throws(APIError) in throw .offline }
     let store = makeStore()

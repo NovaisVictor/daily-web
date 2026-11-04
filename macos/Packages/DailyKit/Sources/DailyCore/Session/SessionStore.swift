@@ -31,7 +31,9 @@ public final class SessionStore {
 
   /// Runs after every transition into `.signedIn` (restore or login).
   @ObservationIgnored public var onSignedIn: ((CurrentUser) -> Void)?
-  /// Runs after every transition out of `.signedIn` (logout or 401).
+  /// Runs after every transition into `.signedOut` (logout, 401, or a launch
+  /// whose stored session is missing or expired), so what the previous account
+  /// left in memory or on disk never reaches the next one.
   @ObservationIgnored public var onSignedOut: (() -> Void)?
 
   @ObservationIgnored private let client: any APIClient
@@ -49,12 +51,14 @@ public final class SessionStore {
   /// The server the user last signed in to, to prefill the login screen.
   public var serverURL: URL? { settings.serverURL }
 
-  /// Checks the stored token with `GET /api/me`.
+  /// Checks the stored token with `GET /api/me`. Does nothing while signed in:
+  /// a live session is never put back to `.restoring`.
   public func restore() async {
+    if case .signedIn = phase { return }
     phase = .restoring
     restoreError = nil
     guard let server = settings.serverURL else {
-      phase = .signedOut(message: nil)
+      leave(message: nil)
       return
     }
     let token: String?
@@ -62,18 +66,18 @@ public final class SessionStore {
       token = try tokenStore.token(for: server)
     } catch {
       Logger.core.error("Could not read the session token: \(String(describing: error), privacy: .public)")
-      phase = .signedOut(message: nil)
+      leave(message: nil)
       return
     }
     guard token != nil else {
-      phase = .signedOut(message: nil)
+      leave(message: nil)
       return
     }
     do {
       let user = try await client.send(CoreEndpoints.me)
       enterSignedIn(user)
     } catch .unauthorized {
-      phase = .signedOut(message: Self.expiredMessage)
+      leave(message: Self.expiredMessage)
     } catch {
       Logger.core.error("Session restore failed: \(String(describing: error), privacy: .public)")
       restoreError = error
@@ -118,10 +122,12 @@ public final class SessionStore {
     onSignedIn?(user)
   }
 
+  /// The only way into `.signedOut`.
   private func leave(message: String?) {
-    let wasSignedIn = user != nil
+    let wasSignedOut: Bool
+    if case .signedOut = phase { wasSignedOut = true } else { wasSignedOut = false }
     phase = .signedOut(message: message)
-    if wasSignedIn { onSignedOut?() }
+    if !wasSignedOut { onSignedOut?() }
   }
 }
 

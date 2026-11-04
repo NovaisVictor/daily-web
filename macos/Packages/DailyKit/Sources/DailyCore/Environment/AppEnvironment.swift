@@ -3,6 +3,7 @@ import DailyModels
 import DailyStorage
 import Foundation
 import Observation
+import os
 
 /// Every core store, wired together. The app builds one at launch and hands
 /// the stores and `client` to the features.
@@ -89,7 +90,13 @@ public final class AppEnvironment {
       background: Poller.Cadence.reminders
     ) { await alerts.checkReminders() }
 
-    session.onSignedIn = { _ in
+    session.onSignedIn = { user in
+      if let server = settings.serverURL {
+        preferences.activate(server: server, username: user.username)
+      } else {
+        Logger.core.error("Signed in without a server URL; the appearance stays in memory")
+        preferences.deactivate()
+      }
       dashboard.loadCached()
       poller.start()
     }
@@ -98,7 +105,7 @@ public final class AppEnvironment {
       dashboard.clear()
       pomodoro.clear()
       alerts.reset()
-      preferences.clear()
+      preferences.deactivate()
     }
 
     self.session = session
