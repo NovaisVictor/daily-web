@@ -37,6 +37,11 @@ public struct EmailScreen: View {
     .task { store.revealPending() }
     .onChange(of: store.pendingItemID) { store.revealPending() }
     .onChange(of: store.inbox.data) { store.revealPending() }
+    // Esc closes the open message from any pane, as the web's window listener
+    // (`EmailPanel.tsx:1765-1771`); the list handles it first to clear a selection.
+    .onExitCommand {
+      if store.openKey != nil { store.closeMessage() }
+    }
     .confirmDialog($store.confirmation)
     .sheet(isPresented: $store.isMoveSheetPresented) {
       EmailMoveSheet(store: store)

@@ -33,7 +33,6 @@ struct PersonSwitcher: View {
     }
     .menuStyle(.borderlessButton)
     .fixedSize()
-    .accessibilityLabel("Jira · \(active?.displayName ?? "Eu")")
   }
 }
 

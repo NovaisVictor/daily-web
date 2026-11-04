@@ -21,6 +21,13 @@ import Testing
   static let byKey = Dictionary(uniqueKeysWithValues: all.map { ($0.key, $0) })
   static let mine = [storyA1, storyA2, subA1, storyB, epicB]
 
+  @Test func modeButtonsNameTheirModeAsTheWeb() {
+    #expect(JiraFilterMode.include.accessibilityLabel(for: "Status") == "modo é igual a para Status")
+    #expect(JiraFilterMode.exclude.accessibilityLabel(for: "Status") == "modo não é igual a para Status")
+    #expect(JiraFilterMode.include.title == "É igual a (=)")
+    #expect(JiraFilterMode.exclude.title == "Não é igual a (≠)")
+  }
+
   func keys(_ change: (inout JiraFilterState) -> Void) -> [String] {
     var filters = JiraFilterState()
     change(&filters)

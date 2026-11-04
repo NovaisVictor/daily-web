@@ -32,6 +32,21 @@ nonisolated enum JiraTier: String, CaseIterable, Sendable {
 nonisolated enum JiraFilterMode: String, Sendable {
   case include
   case exclude
+
+  var title: String {
+    switch self {
+    case .include: "É igual a (=)"
+    case .exclude: "Não é igual a (≠)"
+    }
+  }
+
+  /// The mode button's name (`JiraMultiFilterDropdown.tsx:181`, `:192`).
+  func accessibilityLabel(for filter: String) -> String {
+    switch self {
+    case .include: "modo é igual a para \(filter)"
+    case .exclude: "modo não é igual a para \(filter)"
+    }
+  }
 }
 
 /// One selector's choice: values and include/exclude. Tier values are

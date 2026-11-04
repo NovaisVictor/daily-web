@@ -96,6 +96,7 @@ struct EmailFolderRow: View {
   let node: MailboxNode
   @State private var targeted = false
   @State private var hovering = false
+  @FocusState private var markReadFocused: Bool
 
   private var name: String { node.name.isEmpty ? node.path : node.name }
   private var selection: FolderSelection { FolderSelection(account: account.id, path: node.path) }
@@ -144,7 +145,9 @@ struct EmailFolderRow: View {
           }
           .labelStyle(.iconOnly)
           .buttonStyle(.borderless)
-          .opacity(hovering ? 1 : 0)
+          .focused($markReadFocused)
+          // Shown when focused too, as the web's `focus-visible:opacity-100` (`FolderTree.tsx:248`).
+          .opacity(hovering || markReadFocused ? 1 : 0)
           .help(
             "Marca como lidos os e-mails de \(name) em \(account.label), inclusive os que ainda não foram carregados aqui. Não é o mesmo que marcar os selecionados."
           )

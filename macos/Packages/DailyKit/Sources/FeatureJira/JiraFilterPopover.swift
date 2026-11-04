@@ -171,6 +171,25 @@ struct JiraMultiFilter: View {
     .popover(isPresented: $open, arrowEdge: .bottom) { panel }
   }
 
+  private func modeButton(_ mode: JiraFilterMode) -> some View {
+    let current = group.mode == mode
+    let tint = mode == .exclude ? theme.danger : theme.surface2
+    return Button {
+      onChange(JiraFilterGroup(group.values, mode: mode))
+    } label: {
+      Text(mode.title)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(current ? (mode == .exclude ? Color.white : theme.ink) : theme.inkDim)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .background(current ? tint : .clear, in: .rect(cornerRadius: 6))
+        .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(mode.accessibilityLabel(for: label))
+    .accessibilityAddTraits(current ? .isSelected : [])
+  }
+
   private var panel: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
@@ -182,15 +201,14 @@ struct JiraMultiFilter: View {
             .accessibilityLabel("limpar opções de \(label)")
         }
       }
-      Picker(
-        "Modo", selection: Binding(get: { group.mode }, set: { onChange(JiraFilterGroup(group.values, mode: $0)) })
-      ) {
-        Text("É igual a (=)").tag(JiraFilterMode.include)
-        Text("Não é igual a (≠)").tag(JiraFilterMode.exclude)
+      // Two buttons, as the web: each one names its mode aloud (`JiraMultiFilterDropdown.tsx:172-195`).
+      HStack(spacing: 4) {
+        ForEach([JiraFilterMode.include, .exclude], id: \.self) { mode in
+          modeButton(mode)
+        }
       }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .accessibilityLabel("modo de \(label)")
+      .padding(3)
+      .background(theme.surface1, in: .rect(cornerRadius: 8))
       if allOptions.count > 5 {
         TextField("Buscar opção...", text: $search).textFieldStyle(.roundedBorder)
       }
