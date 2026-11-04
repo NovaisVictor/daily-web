@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The folders and notes (`components/notes/NoteTree.tsx`). Selecting a note opens
 /// it; selecting a folder or a view makes it the scope. Double click or Return
-/// renames, the context menu holds the rest, and rows drag onto folders.
+/// renames; the "…" button, the context menu and the keys of `NoteTreeShortcut`
+/// hold the rest; rows drag onto folders.
 struct NoteTreeView: View {
   @Bindable var store: NotesStore
   let onDeleteNote: (Note) -> Void
@@ -12,6 +13,9 @@ struct NoteTreeView: View {
 
   @State private var selection: String?
   @State private var dropTarget: String?
+  @State private var hovered: String?
+  /// The row whose action list the keyboard opened (⌃Return).
+  @State private var actionListKey: String?
   @Environment(\.theme) private var theme
 
   var body: some View {
@@ -25,7 +29,7 @@ struct NoteTreeView: View {
     .listStyle(.sidebar)
     .accessibilityLabel("pastas e notas")
     .contextMenu(forSelectionType: String.self) { keys in
-      if let key = keys.first, keys.count == 1 { menu(for: key) }
+      if let key = keys.first, keys.count == 1 { contextMenu(for: key) }
     } primaryAction: { keys in
       guard let key = keys.first, keys.count == 1 else { return }
       startRenaming(key)
@@ -41,6 +45,9 @@ struct NoteTreeView: View {
     }
     .onKeyPress(.leftArrow) { setExpanded(false) }
     .onKeyPress(.rightArrow) { setExpanded(true) }
+    .onKeyPress(keys: [.return, .delete, .deleteForward, .upArrow, .downArrow, "n", "N"]) { press in
+      handle(NoteTreeShortcut.command(character: press.key.character, modifiers: press.modifiers))
+    }
   }
 
   // MARK: - Rows
@@ -75,7 +82,9 @@ struct NoteTreeView: View {
           title(folder.name, current: store.scope == .folder(folder.id))
           Spacer(minLength: 4)
           if noteCount > 0 { countLabel(noteCount) }
+          actionsButton(key: row.id, label: NoteTreeActions.label(for: folder))
         }
+        .modifier(RowActions(items: items(for: row.id)) { perform($0, on: row.id) })
         .draggable(NoteTreeItem.folder(folder.id)) { dragPreview(folder.name, systemImage: "folder") }
         .modifier(DropModifier(key: row.id, target: $dropTarget) { item in drop(item, intoFolder: folder.id) })
       }
@@ -94,8 +103,10 @@ struct NoteTreeView: View {
             .foregroundStyle(note.id == store.activeID ? theme.ink : theme.inkMid)
             .fontWeight(note.id == store.activeID ? .medium : .regular)
           Spacer(minLength: 0)
+          actionsButton(key: row.id, label: NoteTreeActions.label(for: note))
         }
         .help("Clique duplo para renomear")
+        .modifier(RowActions(items: items(for: row.id)) { perform($0, on: row.id) })
         .accessibilityAddTraits(note.id == store.activeID ? .isSelected : [])
         .draggable(NoteTreeItem.note(note.id)) { dragPreview(displayTitle(note), systemImage: "doc.text") }
         .modifier(
@@ -122,6 +133,41 @@ struct NoteTreeView: View {
     }
     .padding(.leading, indent(depth))
     .contentShape(.rect)
+  }
+
+  /// The web's "…" (`NoteMenu`/`FolderMenu`): shown on hover and on the selected
+  /// row, the keyboard's equivalent of the web's `focus-visible`.
+  private func actionsButton(key: String, label: String) -> some View {
+    Menu {
+      ForEach(items(for: key)) { item in menuButton(item, label: item.label, key: key) }
+    } label: {
+      Image(systemName: "ellipsis")
+        .foregroundStyle(theme.inkDim)
+    }
+    .menuStyle(.borderlessButton)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .opacity(hovered == key || selection == key || actionListKey == key ? 1 : 0)
+    .help(label)
+    .accessibilityLabel(label)
+    .onHover { inside in
+      if inside {
+        hovered = key
+      } else if hovered == key {
+        hovered = nil
+      }
+    }
+    .popover(
+      isPresented: Binding(
+        get: { actionListKey == key },
+        set: { if !$0, actionListKey == key { actionListKey = nil } }),
+      arrowEdge: .trailing
+    ) {
+      NoteTreeActionList(label: label, items: items(for: key)) { action in
+        actionListKey = nil
+        perform(action, on: key)
+      }
+    }
   }
 
   private func chevron(_ key: String, expanded: Bool, name: String) -> AnyView {
@@ -177,48 +223,82 @@ struct NoteTreeView: View {
 
   // MARK: - Menus
 
-  @ViewBuilder private func menu(for key: String) -> some View {
+  private func items(for key: String) -> [NoteTreeMenuItem] {
     if let note = note(for: key) {
-      Button("Renomear") { store.renaming = note.id }
-      Divider()
-      Menu("Mover para") {
-        if note.folderId != nil {
-          Button("Sem pasta") { Task { await store.moveNote(note.id, to: nil) } }
-        }
-        ForEach(store.folders.filter { $0.id != note.folderId }) { folder in
-          Button(NotesTree.path(store.folders, to: folder.id).joined(separator: " / ")) {
-            Task { await store.moveNote(note.id, to: folder.id) }
-          }
-        }
-      }
-      Button("Mover para cima") { Task { await store.shiftNote(note.id, by: -1) } }
-        .disabled(!store.canShiftNote(note.id, by: -1))
-      Button("Mover para baixo") { Task { await store.shiftNote(note.id, by: 1) } }
-        .disabled(!store.canShiftNote(note.id, by: 1))
-      Divider()
-      Button("Apagar nota", role: .destructive) { onDeleteNote(note) }
-    } else if let folder = folder(for: key) {
-      Button("Renomear") { store.renaming = folder.id }
-      Button("Nova subpasta") {
-        store.expanded.insert(folder.id)
-        Task { await store.createFolder(in: folder.id) }
-      }
-      Divider()
-      Menu("Mover para") {
-        Button("A raiz") { Task { await store.moveFolder(folder.id, to: nil) } }
-          .disabled(folder.parentId == nil)
-        ForEach(store.folders.filter { $0.id != folder.id && $0.id != folder.parentId }) { target in
-          Button(NotesTree.path(store.folders, to: target.id).joined(separator: " / ")) {
-            Task { await store.moveFolder(folder.id, to: target.id) }
-          }
-        }
-      }
-      Divider()
-      Button("Apagar pasta", role: .destructive) { onDeleteFolder(folder.id) }
+      return NoteTreeActions.items(
+        for: note, folders: store.folders,
+        canShiftUp: store.canShiftNote(note.id, by: -1), canShiftDown: store.canShiftNote(note.id, by: 1))
     }
+    if let folder = folder(for: key) { return NoteTreeActions.items(for: folder, folders: store.folders) }
+    return []
+  }
+
+  /// The native menu groups the destinations under "Mover para".
+  @ViewBuilder private func contextMenu(for key: String) -> some View {
+    let items = items(for: key)
+    let moves = items.filter(\.action.isMove)
+    ForEach(items.filter { !$0.action.isMove && !$0.isDestructive }) { item in
+      menuButton(item, label: item.label, key: key)
+    }
+    if !moves.isEmpty {
+      Divider()
+      Menu("Mover para") {
+        ForEach(moves) { item in menuButton(item, label: item.shortLabel, key: key) }
+      }
+    }
+    Divider()
+    ForEach(items.filter(\.isDestructive)) { item in menuButton(item, label: item.label, key: key) }
+  }
+
+  private func menuButton(_ item: NoteTreeMenuItem, label: String, key: String) -> some View {
+    Button(label, role: item.isDestructive ? .destructive : nil) { perform(item.action, on: key) }
+      .disabled(!item.isEnabled)
   }
 
   // MARK: - Actions
+
+  private func perform(_ action: NoteTreeAction, on key: String) {
+    if let note = note(for: key) {
+      switch action {
+      case .rename: store.renaming = note.id
+      case .moveNote(let folderID): Task { await store.moveNote(note.id, to: folderID) }
+      case .shiftNote(let offset): Task { await store.shiftNote(note.id, by: offset) }
+      case .deleteNote: onDeleteNote(note)
+      case .newSubfolder, .moveFolder, .deleteFolder: break
+      }
+    } else if let folder = folder(for: key) {
+      switch action {
+      case .rename: store.renaming = folder.id
+      case .newSubfolder:
+        store.expanded.insert(folder.id)
+        Task { await store.createFolder(in: folder.id) }
+      case .moveFolder(let parentID): Task { await store.moveFolder(folder.id, to: parentID) }
+      case .deleteFolder: onDeleteFolder(folder.id)
+      case .moveNote, .shiftNote, .deleteNote: break
+      }
+    }
+  }
+
+  /// Runs a key on the selected row, only when that row offers the action.
+  private func handle(_ shortcut: NoteTreeShortcut?) -> KeyPress.Result {
+    // The rename field lives inside the list: its keys are its own.
+    guard let shortcut, let key = selection, store.renaming == nil else { return .ignored }
+    let available = items(for: key).filter(\.isEnabled).map(\.action)
+    let action: NoteTreeAction
+    switch shortcut {
+    case .showActions:
+      guard !available.isEmpty else { return .ignored }
+      actionListKey = key
+      return .handled
+    case .rename: action = .rename
+    case .delete: action = note(for: key) != nil ? .deleteNote : .deleteFolder
+    case .shift(let offset): action = .shiftNote(by: offset)
+    case .newSubfolder: action = .newSubfolder
+    }
+    guard available.contains(action) else { return .ignored }
+    perform(action, on: key)
+    return .handled
+  }
 
   private func select(_ key: String) {
     switch key {
@@ -345,5 +425,59 @@ struct RenameField: View {
     guard !finished else { return }
     finished = true
     onFinish(value)
+  }
+}
+
+/// The row's actions as VoiceOver actions, so the rotor lists them on the row itself.
+private struct RowActions: ViewModifier {
+  let items: [NoteTreeMenuItem]
+  let perform: (NoteTreeAction) -> Void
+
+  func body(content: Content) -> some View {
+    content.accessibilityActions {
+      ForEach(items.filter(\.isEnabled)) { item in
+        Button(item.label) { perform(item.action) }
+      }
+    }
+  }
+}
+
+/// The row's actions opened from the keyboard (⌃Return): arrows choose, Return
+/// runs, Escape closes. A list, because a SwiftUI `Menu` cannot be opened by a key.
+struct NoteTreeActionList: View {
+  let label: String
+  let items: [NoteTreeMenuItem]
+  let perform: (NoteTreeAction) -> Void
+
+  @State private var selection: NoteTreeAction?
+  @FocusState private var focused: Bool
+  @Environment(\.theme) private var theme
+
+  var body: some View {
+    List(selection: $selection) {
+      ForEach(items) { item in
+        Text(item.label)
+          .foregroundStyle(item.isEnabled ? (item.isDestructive ? theme.danger : theme.ink) : theme.inkDim)
+          .tag(item.action)
+          .selectionDisabled(!item.isEnabled)
+      }
+    }
+    .listStyle(.plain)
+    .accessibilityLabel(label)
+    .focused($focused)
+    .frame(width: 280, height: min(CGFloat(items.count) * 26 + 12, 360))
+    .onAppear {
+      selection = items.first(where: \.isEnabled)?.action
+      focused = true
+    }
+    .onKeyPress(.return) {
+      guard let selection else { return .ignored }
+      perform(selection)
+      return .handled
+    }
+    .contextMenu(forSelectionType: NoteTreeAction.self) { _ in
+    } primaryAction: { actions in
+      if let action = actions.first { perform(action) }
+    }
   }
 }

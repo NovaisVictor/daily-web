@@ -121,6 +121,15 @@ import Testing
     #expect(store.expanded.contains("f1"))
   }
 
+  @Test func creationContextNamesTheFolderPath() async {
+    let store = await loaded()
+    #expect(store.creationContext == "Sem pasta")
+    store.scope = .folder("f2")
+    #expect(store.creationContext == "Trabalho / Clientes")
+    store.scope = .none
+    #expect(store.creationContext == "Sem pasta")
+  }
+
   // MARK: - Autosave
 
   @Test func autosaveWaitsForTypingToStop() async {

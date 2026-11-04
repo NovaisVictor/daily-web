@@ -114,6 +114,12 @@ public struct NotesScreen: View {
 
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 6) {
+      // Says where "Nova nota" and "Nova pasta" land (`NotesPanel.tsx:717-735`).
+      Text("Criar em: \(Text(store.creationContext).foregroundStyle(theme.inkMid))")
+        .typeRole(.caption)
+        .foregroundStyle(theme.inkDim)
+        .lineLimit(1)
+        .truncationMode(.middle)
       SearchField(
         text: Binding(get: { store.searchText }, set: { store.setSearchText($0) }),
         label: "Buscar notas",
