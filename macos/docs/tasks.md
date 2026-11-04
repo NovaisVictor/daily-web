@@ -44,14 +44,14 @@ Cada onda termina com o **gate**:
 
 ## Onda 1: núcleo (4 agentes em paralelo)
 
-- [ ] **T101 [P] Modelos**: dono `Pkg/Sources/DailyModels`, `Pkg/Tests/DailyModelsTests`.
+- [x] **T101 [P] Modelos**: dono `Pkg/Sources/DailyModels`, `Pkg/Tests/DailyModelsTests`.
   - Escopo: todos os tipos de [contracts/api.md](contracts/api.md) e de
     `lib/types.ts`, `lib/agents/model.ts` e `lib/agents/schemas.ts`. Enums
     desconhecidos decodificam como `.unknown(String)`, sem falhar.
   - Fixtures: um JSON por tipo, incluindo um `DashboardState` completo com todos
     os módulos ligados e outro com módulos desligados.
   - Aceite: todo fixture decodifica, e `encode → decode` é idempotente nos corpos de requisição.
-- [ ] **T102 [P] API e armazenamento**: dono `Pkg/Sources/DailyAPI`, `Pkg/Sources/DailyStorage` e testes.
+- [x] **T102 [P] API e armazenamento**: dono `Pkg/Sources/DailyAPI`, `Pkg/Sources/DailyStorage` e testes.
   - `APIClient` real implementando o protocolo do T006, com:
     - captura do `Set-Cookie` no login, `Cookie` manual e `Origin` em escrita
     - `Idempotency-Key`/`X-Request-Timestamp` opcionais
@@ -60,7 +60,7 @@ Cada onda termina com o **gate**:
   - Keychain (salvar, ler e apagar por host), cache JSON do último estado e
     configuração do servidor.
   - Aceite: testes com `URLProtocol` stub cobrindo cada header e cada formato de erro.
-- [ ] **T103 [P] Design**: dono `Pkg/Sources/DailyDesign` e testes.
+- [x] **T103 [P] Design**: dono `Pkg/Sources/DailyDesign` e testes.
   - Tokens de `app/globals.css` (claro/escuro × mesh/Catppuccin/Dracula/WezTerm),
     densidade, escala tipográfica, raio e durações.
   - Componentes: `EmptyState`, `ErrorState`, `PanelError`, `ConfirmDialog`
@@ -68,7 +68,7 @@ Cada onda termina com o **gate**:
     `SectionHeader`, `LoadingState`, `FocusDropTarget`.
   - Galeria de previews.
   - Aceite: contraste AA nos pares texto/fundo de cada tema (teste) e previews renderizando.
-- [ ] **T104 [P] Shell**: dono `Pkg/Sources/FeatureShell` e testes.
+- [x] **T104 [P] Shell**: dono `Pkg/Sources/FeatureShell` e testes.
   - `NavigationSplitView` com barra lateral montada do `ModuleRegistry` e de `state.modules`.
   - Tela de login (servidor, usuário, senha), paleta ⌘K com as entradas do
     `CommandPalette.tsx`, menu "Ajuda → Novidades" e contêiner de toasts.

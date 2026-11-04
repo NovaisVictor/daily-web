@@ -51,3 +51,21 @@ Em `macos/`, `make check` termina com exit 0. Ele inclui:
 
 O app sai com o identificador `io.github.novaisvictor.dailyweb` e assinatura ad-hoc
 (em Debug, `codesign` desliga o hardened runtime com ad-hoc, como esperado).
+
+## Onda 1: T101–T104 (gate em 2026-11-04)
+
+Em `macos/`, `make check` termina com exit 0: lint sem achados, **106 testes em 12 suítes** passando e o app compilando.
+
+| Tarefa | Evidência |
+|---|---|
+| T101 Modelos | 73 fixtures fictícios; todos decodificam e fazem encode → decode igual; o reencode precisa conter toda chave não nula; enum desconhecido decodifica |
+| T102 API/armazenamento | 31 testes com `URLProtocol` stub cobrindo `Cookie`, `Origin`, idempotência, `Authorization` nunca enviado, três formatos de erro, 401, mapeamento de `URLError`, 204. O Keychain de login passa. O Keychain moderno é pulado, porque com assinatura ad-hoc responde -34018 |
+| T103 Design | 18 testes: contraste WCAG (ink/surface ≥ 11,4; inkMid ≥ 8,0 em todas as paletas), fallback de Dracula e WezTerm no tema claro, conversão de oklch |
+| T104 Shell | 20 testes: ordem e fallback da barra lateral, busca da paleta, validação do endereço do servidor |
+
+Ajustes do orquestrador no gate:
+
+- `APIError.storage(detail:)`. Falha ao gravar no Keychain deixa de aparecer como "sessão expirou".
+- Contrato corrigido em três respostas do Jira.
+
+Fora de `macos/`, nada mudou nesta onda.
