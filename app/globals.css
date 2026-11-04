@@ -3,6 +3,11 @@
 @import 'react-grid-layout/css/styles.css';
 @import 'react-resizable/css/styles.css';
 
+/* Tailwind scans every file git does not ignore. The native macOS client lives
+   in macos/, and class-like strings in its Swift sources would leak utilities
+   into this stylesheet. */
+@source not "../macos";
+
 /* Two legs. No class on <html> means follow the system. An explicit choice stamps
    .light or .dark, which must beat the media query in BOTH directions. :where()
    keeps the variant at zero specificity so ordering alone decides. */
