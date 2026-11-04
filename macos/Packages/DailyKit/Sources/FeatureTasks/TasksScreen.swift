@@ -14,6 +14,8 @@ public struct TasksScreen: View {
   @State private var focusRequest: FocusRequest?
   @State private var confirm: ConfirmRequest?
   @State private var addingSubtaskFor: String?
+  /// The task just revealed from outside, drawn with a ring for a moment.
+  @State private var revealed: String?
 
   public init(environment: AppEnvironment) {
     self.environment = environment
@@ -122,22 +124,53 @@ public struct TasksScreen: View {
       } else if !all.isEmpty, store.visibleCount(today: today) == 0 {
         EmptyState("Nenhuma tarefa com esses filtros.")
       } else {
-        ScrollView {
-          // The board needs no empty state of its own: its empty columns say
-          // where a note goes, and each has its own "Adicionar".
-          if store.view == .board {
-            TaskBoardView(tasks: store.boardTasks(today: today), today: today, store: store, actions: actions)
-              .padding(.top, 8)
-          } else {
-            TaskListView(
-              groups: store.listGroups(today: today), today: today, store: store, actions: actions,
-              addingSubtaskFor: $addingSubtaskFor)
+        ScrollViewReader { proxy in
+          ScrollView {
+            // The board needs no empty state of its own: its empty columns say
+            // where a note goes, and each has its own "Adicionar".
+            if store.view == .board {
+              TaskBoardView(tasks: store.boardTasks(today: today), today: today, store: store, actions: actions)
+                .padding(.top, 8)
+            } else {
+              TaskListView(
+                groups: store.listGroups(today: today), today: today, store: store, actions: actions,
+                addingSubtaskFor: $addingSubtaskFor)
+            }
           }
+          .onAppear { revealPendingTask(proxy) }
+          .onChange(of: environment.navigator.pending) { revealPendingTask(proxy) }
+          .onChange(of: store.all) { revealPendingTask(proxy) }
+          .environment(\.revealedTaskID, revealed)
+          .task(id: revealed) { await fadeRevealed() }
         }
       }
     } else {
       LoadingState()
     }
+  }
+
+  /// A task chosen elsewhere (the menu bar) scrolls into view and is marked
+  /// for a moment. A task the filters hide, or one gone, finishes the request
+  /// too: it is never shown, and waiting would only move the list later.
+  private func revealPendingTask(_ proxy: ScrollViewProxy) {
+    let route = AppRoute.module(.tasks)
+    guard let id = environment.navigator.pendingItem(for: route), store.panel?.data != nil else { return }
+    environment.navigator.finishPendingItem(id, for: route)
+    guard store.all.contains(where: { $0.id == id }) else { return }
+    withAnimation { proxy.scrollTo(id, anchor: .center) }
+    revealed = id
+  }
+
+  /// Takes the reveal mark away after a moment.
+  private func fadeRevealed() async {
+    guard revealed != nil else { return }
+    do {
+      try await Task.sleep(for: .seconds(2))
+    } catch {
+      // Cancelled by a newer reveal or by leaving the screen; either drops this mark.
+      return
+    }
+    revealed = nil
   }
 
   private var actions: TaskActions {
@@ -163,6 +196,29 @@ public struct TasksScreen: View {
       destructive: true,
       onConfirm: { Task { await store.delete(task) } }
     )
+  }
+}
+
+extension EnvironmentValues {
+  /// The task the screen just scrolled to for the menu bar; rows and notes ring it.
+  @Entry var revealedTaskID: String?
+}
+
+/// The scroll target of a task, ringed while it is the one just revealed.
+struct RevealRing: ViewModifier {
+  let taskID: String
+  @Environment(\.revealedTaskID) private var revealed
+  @Environment(\.theme) private var theme
+
+  func body(content: Content) -> some View {
+    content
+      .id(taskID)
+      .overlay {
+        if revealed == taskID {
+          RoundedRectangle(cornerRadius: Radius.small).strokeBorder(theme.brand, lineWidth: 2)
+            .allowsHitTesting(false)
+        }
+      }
   }
 }
 

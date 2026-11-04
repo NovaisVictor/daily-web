@@ -97,6 +97,35 @@ nonisolated struct TaskDraft: Equatable, Sendable {
     dueText = words.count > 1 ? "\(iso) \(words[1])" : iso
   }
 
+  /// The text as the server will read it, or nil while it does not parse
+  /// (or is empty). Drives the "Dia" and "Hora" pickers.
+  func parsedDue(now: Date, calendar: Calendar = .current) -> (day: String, time: String)? {
+    guard hasDue else { return nil }
+    do {
+      let parsed = try DueDateParser.parse(dueText, now: now, calendar: calendar)
+      return (parsed.due, parsed.time == "none" ? "" : parsed.time)
+    } catch {
+      // Being typed; the form shows the parser's hint instead.
+      return nil
+    }
+  }
+
+  /// The line under the date field (`TaskFormModal.tsx:160-165`, `:431-432`):
+  /// the preview, the refusal, or the examples while empty.
+  func dueHint(now: Date, calendar: Calendar = .current) -> (text: String, isError: Bool) {
+    guard hasDue else { return ("hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim", false) }
+    if let preview = DueDateParser.preview(dueText, now: now, calendar: calendar) { return ("→ \(preview)", false) }
+    return ("Não reconheci \"\(trimmedDue)\". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.", true)
+  }
+
+  /// The "Hora" picker: keeps the day as typed, so "amanhã" stays readable.
+  /// No time clears it; a time needs a day, as the web's disabled input does.
+  mutating func setTime(_ time: String?) {
+    let day = dayPart
+    guard !day.isEmpty else { return }
+    dueText = time.map { "\(day) \($0)" } ?? day
+  }
+
   /// Clips the title to the browser's `maxLength`.
   mutating func clipTitle() {
     guard title.utf16.count > Self.titleLimit else { return }

@@ -47,6 +47,7 @@ struct TaskBoardView: View {
       } else {
         ForEach(shown) { task in
           NoteCard(task: task, overdue: TaskGrouping.isOverdue(task, today: today), store: store, actions: actions)
+            .modifier(RevealRing(taskID: task.id))
         }
       }
       if column == .done, list.count > TaskBoard.doneLimit {

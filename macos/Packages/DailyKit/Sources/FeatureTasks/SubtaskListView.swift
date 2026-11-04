@@ -21,6 +21,8 @@ struct SubtaskListView: View {
   private enum Field: Hashable {
     case add
     case rename(String)
+    /// The title itself, so Tab reaches it and Return renames (A-2).
+    case title(String)
   }
 
   var body: some View {
@@ -79,6 +81,7 @@ struct SubtaskListView: View {
           .onSubmit { commitRename(subtask) }
           .onKeyPress(.escape) {
             renaming = nil
+            focus = .title(subtask.id)
             return .handled
           }
       } else {
@@ -89,6 +92,13 @@ struct SubtaskListView: View {
           .lineLimit(2)
           .frame(maxWidth: .infinity, alignment: .leading)
           .contentShape(.rect)
+          .focusable()
+          .focused($focus, equals: .title(subtask.id))
+          // An app-only addition: the web renames on double click alone.
+          .onKeyPress(.return) {
+            startRename(subtask)
+            return .handled
+          }
           .onTapGesture(count: 2) { startRename(subtask) }
           .contextMenu {
             Button("Renomear", systemImage: "pencil") { startRename(subtask) }
@@ -97,6 +107,7 @@ struct SubtaskListView: View {
             }
           }
           .accessibilityAction(named: "Renomear") { startRename(subtask) }
+          .help("Return ou clique duplo para renomear")
       }
       Button {
         Task { await store.deleteSubtask(subtask, of: task) }

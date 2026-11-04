@@ -40,6 +40,7 @@ struct TaskListView: View {
                   get: { addingSubtaskFor == task.id },
                   set: { addingSubtaskFor = $0 ? task.id : nil })
               )
+              .modifier(RevealRing(taskID: task.id))
             }
           }
         }

@@ -60,12 +60,15 @@ struct TaskFormSheet: View {
               }
               Chip("Sem data", isOn: !draft.hasDue) { draft.setDay(nil) }
             }
+            dayAndTimePickers
             TextField("Data em texto", text: $draft.dueText, prompt: Text("amanhã 14:30"))
               .textFieldStyle(.roundedBorder)
               .accessibilityLabel("Data em texto")
-            Text("hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim")
+            let hint = draft.dueHint(now: now)
+            Text(hint.text)
               .typeRole(.caption)
-              .foregroundStyle(theme.inkDim)
+              .foregroundStyle(hint.isError ? theme.danger : theme.inkDim)
+              .accessibilityAddTraits(.updatesFrequently)
           }
 
           HStack(alignment: .top, spacing: 16) {
@@ -146,6 +149,68 @@ struct TaskFormSheet: View {
     .interactiveDismissDisabled(true)
     .onAppear { titleFocused = true }
     .confirmDialog($confirm)
+  }
+
+  /// "Dia" and "Hora" (`TaskFormModal.tsx:375-389`). They follow the text while
+  /// it parses and write back into it; "Hora" waits for a day, as on the web.
+  private var dayAndTimePickers: some View {
+    let parsed = draft.parsedDue(now: now)
+    let calendar = Calendar.current
+    return HStack(alignment: .top, spacing: 16) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Dia").typeRole(.caption).foregroundStyle(theme.inkDim)
+        DatePicker(
+          "Dia",
+          selection: Binding(
+            get: { parsed.flatMap { Self.date(day: $0.day, time: "", calendar: calendar) } ?? now },
+            set: { draft.setDay(TaskGrouping.localISO($0, calendar: calendar)) }),
+          displayedComponents: .date
+        )
+        .labelsHidden()
+        .datePickerStyle(.field)
+      }
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Hora").typeRole(.caption).foregroundStyle(theme.inkDim)
+        HStack(spacing: 6) {
+          DatePicker(
+            "Hora",
+            selection: Binding(
+              get: {
+                parsed.flatMap { Self.date(day: $0.day, time: $0.time.isEmpty ? "09:00" : $0.time, calendar: calendar) }
+                  ?? now
+              },
+              set: {
+                let parts = calendar.dateComponents([.hour, .minute], from: $0)
+                draft.setTime(String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0))
+              }),
+            displayedComponents: .hourAndMinute
+          )
+          .labelsHidden()
+          .datePickerStyle(.field)
+          .disabled(parsed == nil)
+          if let parsed, !parsed.time.isEmpty {
+            Button {
+              draft.setTime(nil)
+            } label: {
+              Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .help("Sem hora")
+            .accessibilityLabel("Sem hora")
+          }
+        }
+      }
+    }
+  }
+
+  private static func date(day: String, time: String, calendar: Calendar) -> Date? {
+    let dayParts = day.split(separator: "-").compactMap { Int($0) }
+    let timeParts = time.split(separator: ":").compactMap { Int($0) }
+    guard dayParts.count == 3 else { return nil }
+    return calendar.date(
+      from: DateComponents(
+        year: dayParts[0], month: dayParts[1], day: dayParts[2],
+        hour: timeParts.first ?? 0, minute: timeParts.count > 1 ? timeParts[1] : 0))
   }
 
   private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
