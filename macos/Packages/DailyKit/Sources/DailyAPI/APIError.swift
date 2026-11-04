@@ -23,6 +23,9 @@ public enum APIError: Error, Sendable, Equatable {
   /// The body did not match the expected type; the detail is for logs, not users.
   case decoding(detail: String)
   case invalidResponse
+  /// The session could not be kept on this Mac (Keychain write failed); the
+  /// detail is for logs, not users.
+  case storage(detail: String)
 
   /// Text for the person using the app, in the web's voice.
   public var userMessage: String {
@@ -34,6 +37,7 @@ public enum APIError: Error, Sendable, Equatable {
     case .timedOut: "O servidor demorou para responder."
     case .cancelled: "Operação cancelada."
     case .decoding, .invalidResponse: "Resposta inesperada do servidor."
+    case .storage: "Não foi possível guardar a sessão neste Mac."
     }
   }
 }
