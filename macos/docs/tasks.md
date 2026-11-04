@@ -76,9 +76,9 @@ Cada onda termina com o **gate**:
 
 ## Onda 2: estado (Orq. + 1 agente)
 
-- [ ] **T201 Integração do núcleo** (Orq.): liga as implementações do T101–T104 no
+- [x] **T201 Integração do núcleo** (Orq.): liga as implementações do T101–T104 no
   `App/`, troca os stubs e resolve divergências de interface.
-- [ ] **T202 Stores do núcleo**: dono `Pkg/Sources/DailyCore` e testes.
+- [x] **T202 Stores do núcleo**: dono `Pkg/Sources/DailyCore` e testes.
   - `SessionStore` (login, logout, me, 401 → login).
   - `DashboardStore`: cache primeiro, `mutate` otimista com reversão e toast,
     refresh manual.
@@ -89,7 +89,7 @@ Cada onda termina com o **gate**:
     ids vistos em disco).
   - Aceite: testes de cadência com relógio injetável, reversão otimista e
     deduplicação de avisos.
-- [ ] **T203** Gate + revisão do diff acumulado (skill `code-review`) + correções.
+- [x] **T203** Gate + revisão do diff acumulado (skill `code-review`) + correções.
 
 ## Onda 3: features, lote A (5 agentes em paralelo)
 

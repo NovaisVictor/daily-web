@@ -69,3 +69,39 @@ Ajustes do orquestrador no gate:
 - Contrato corrigido em três respostas do Jira.
 
 Fora de `macos/`, nada mudou nesta onda.
+
+## Onda 2: contrato contra o servidor real (2026-11-04)
+
+O servidor rodou com `npm run dev` na worktree, com `.env.local` local e um banco
+SQLite descartável (`data/macos-dev.db`), usando o usuário de teste `macos-dev`
+(admin). Um executável descartável usou o `HTTPAPIClient` real do DailyKit:
+
+| Passo | Resultado |
+|---|---|
+| Login com senha errada | `.server(401)` → "usuário ou senha inválidos" |
+| Login correto em `http://localhost:8010` | token do `Set-Cookie` (cookie `Secure`) guardado |
+| `GET /api/me` | decodifica `CurrentUser` (`macos-dev`, admin) |
+| `GET /api/state` | decodifica `DashboardState` real (módulos `tasks` e `notes`, pomodoro ligado) |
+| `signOut` + `GET /api/me` | `.unauthorized` |
+
+Ainda não verificado nesta etapa: o login pela interface do app empacotado, com
+sandbox e Keychain de login.
+
+## Onda 2: gate e revisão (T203)
+
+A revisão independente (skill `code-review`, nível medium) encontrou 10 achados,
+todos corrigidos com teste de regressão:
+
+- sessão expirada mantendo dados da conta anterior;
+- `restore` repetido por janela;
+- ordem das atualizações de aparência;
+- aparência não sincronizada (limitação do servidor, que não tem GET; o espelho passou a ser por conta);
+- cadência por foco em vez de visibilidade;
+- ATS sem mensagem própria;
+- cache gravado na thread principal;
+- erro de leitura antiga gravado;
+- formatação de data duplicada;
+- fallback silencioso em `Endpoint.segment`.
+
+`make check` termina com exit 0, com **189 testes em 21 suítes**. Nada mudou
+fora de `macos/` nesta onda.
