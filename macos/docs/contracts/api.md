@@ -196,17 +196,17 @@ Todas as rotas exigem a conexão Jira, exceto `DELETE /api/jira/people`.
 | GET `/api/jira/epics` | `project` | `{epics:[{key,summary}]}` |
 | GET / POST `/api/jira/issues/{key}/approvals` | POST `{approvalId, decision: approve\|decline}` | `{approvals:[{id,name}]}` / `{ok}` |
 | POST `/api/jira/issues/{key}/comments` | `{body 1..5000}` | `{ok, comment:{id}}` |
-| GET `/api/jira/issues/{key}/fields?options=priority` | — | `{priorities:{priorities:[{id,name}], current}}` |
+| GET `/api/jira/issues/{key}/fields?options=priority` | — | `{priorities:[{id,name}], current}` |
 | PUT `/api/jira/issues/{key}/fields` | `{change:"due", dueDate}` \| `{change:"priority", priorityId}` \| `{change:"assign-self"}` | `{ok}` |
 | POST `/api/jira/issues/{key}/flag` | `{action:"flag", reason}` \| `{action:"unflag", note?}` | `{ok, warning?}` |
 | PUT `/api/jira/issues/{key}/parent` | `{epic}` | `{ok}` |
-| GET / PUT `/api/jira/issues/{key}/start-date` | PUT `{date}` | `{date, basis}` / `{ok}` |
+| GET / PUT `/api/jira/issues/{key}/start-date` | PUT `{date}` | `{date, basis}` (ambos `null` sem sugestão) / `{ok}` |
 | POST `/api/jira/issues/{key}/stories` | `{summary ≤255, description? ≤10000}` | `{ok, key, url}` |
 | GET / POST `/api/jira/issues/{key}/transitions` | POST `{transitionId}` | `{transitions:[{id,name,to:{name,category},requires}]}` / `{ok}` |
 | GET `/api/jira/people/search` | `q` (≥ 2) | `{people}` |
 | POST / DELETE `/api/jira/people` | `{accountId}` | `{people}` |
 | GET `/api/jira/people/{accountId}` | — | `{jira, delivered, approved, problems, ancestors}`, cada um `{data, error}` |
-| GET / POST `/api/jira/problems/start-dates` | GET `keys=A-1,B-2` (≤ 50); POST `{items:[{key,date}]}` | `{suggestions}` / `{results}` |
+| GET / POST `/api/jira/problems/start-dates` | GET `keys=A-1,B-2` (≤ 50); POST `{items:[{key,date}]}` | `{suggestions}` / `{results, ok?}` (`ok` só quando alguma data foi gravada) |
 | POST / DELETE `/api/jira/watch` | `{key}` | `DashboardState` |
 
 ## Pull requests
