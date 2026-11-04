@@ -110,9 +110,11 @@ extension Theme {
     radius: 12, density: .comfortable
   )
 
-  /// Resolves the palette for a color scheme and backdrop. T103 replaces the body.
+  /// Resolves the palette for a color scheme and backdrop. Dracula and WezTerm exist
+  /// only in dark, so a light scheme with either resolves to the default light palette,
+  /// as on the web. The page background itself comes from `BackdropPalette`.
   public static func resolve(scheme: ColorScheme, backdrop: Backdrop, density: Density) -> Theme {
-    var theme = Theme.fallback
+    var theme = palette(scheme: scheme, backdrop: backdrop)
     theme.density = density
     return theme
   }
