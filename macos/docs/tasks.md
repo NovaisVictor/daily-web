@@ -156,6 +156,7 @@ O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
   zip com `ditto`, sha256, `gh release` no fork com a tag `macos-v<versão>` e
   atualização do cask.
 - [ ] **T603** Criar `NovaisVictor/homebrew-tap` com `Casks/daily-web.rb` (aprovado em 2026-11-04).
+  Repositório criado vazio e público em 2026-11-04 (https://github.com/NovaisVictor/homebrew-tap). Falta o cask. O tap é genérico e pode receber casks e formulas de outros projetos.
 - [ ] **T604** `macos/README.md` completo: instalar pelo brew, confiar no tap,
   "Abrir mesmo assim", primeiro login, build local.
 - [ ] **T605** Instalação limpa numa conta de usuário nova do macOS (SC-004),
