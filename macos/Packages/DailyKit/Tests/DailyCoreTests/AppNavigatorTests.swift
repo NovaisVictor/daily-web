@@ -1,0 +1,35 @@
+import Testing
+
+@testable import DailyCore
+
+@Suite struct AppNavigatorTests {
+  @Test func pendingItemBelongsToItsRoute() {
+    let navigator = AppNavigator()
+    navigator.open(.module(.email), itemID: "acct:1")
+    #expect(navigator.pendingItem(for: .module(.email)) == "acct:1")
+    #expect(navigator.pendingItem(for: .agents) == nil)
+  }
+
+  @Test func choosingAnotherRouteDropsThePendingItem() {
+    let navigator = AppNavigator()
+    navigator.open(.module(.email), itemID: "acct:1")
+    navigator.route = .agents
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func finishingClearsOnlyTheSameItem() {
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "PROJ-1")
+    navigator.finishPendingItem("PROJ-2", for: .module(.jira))
+    #expect(navigator.pendingItem(for: .module(.jira)) == "PROJ-1")
+    navigator.finishPendingItem("PROJ-1", for: .module(.jira))
+    #expect(navigator.pending == nil)
+  }
+
+  @Test func openingWithoutAnItemClearsTheOldOne() {
+    let navigator = AppNavigator()
+    navigator.open(.module(.jira), itemID: "PROJ-1")
+    navigator.open(.module(.jira))
+    #expect(navigator.pending == nil)
+  }
+}
