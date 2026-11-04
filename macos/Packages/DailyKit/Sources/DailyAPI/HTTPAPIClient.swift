@@ -164,7 +164,7 @@ public final class HTTPAPIClient: APIClient {
       // Read by `mutation()` (`lib/agents/http.ts:15`) and the pulls writes
       // (`app/api/pulls/shared.ts:15`); validated in `lib/access/receipts.ts:14-17`.
       // The server's own fallback is `new Date().toISOString()`, hence `JSISODate`.
-      request.setValue(makeIdempotencyKey(), forHTTPHeaderField: "Idempotency-Key")
+      request.setValue(endpoint.idempotencyKey ?? makeIdempotencyKey(), forHTTPHeaderField: "Idempotency-Key")
       request.setValue(JSISODate.string(from: now()), forHTTPHeaderField: "X-Request-Timestamp")
     }
     return request

@@ -114,6 +114,14 @@ func writesSendOriginWithPort(method: HTTPMethod) async throws {
   #expect(request.header("Authorization") == nil)
 }
 
+@Test func callerSuppliedIdempotencyKeyIsSent() async throws {
+  let fixture = Fixture(replies: [.json(200, "{}")])
+  var endpoint = Endpoint<EmptyResponse>(.post, "/api/agents/sessions/s/messages", idempotent: true)
+  endpoint.idempotencyKey = "reply-key-1"
+  _ = try await fixture.client.send(endpoint)
+  #expect(fixture.request?.headers["Idempotency-Key"] == "reply-key-1")
+}
+
 @Test func timestampMatchesJavaScriptToISOString() {
   // `new Date(1793795445000).toISOString()` === "2026-11-04T12:30:45.000Z"
   #expect(JSISODate.string(from: Date(timeIntervalSince1970: 1_793_795_445)) == "2026-11-04T12:30:45.000Z")

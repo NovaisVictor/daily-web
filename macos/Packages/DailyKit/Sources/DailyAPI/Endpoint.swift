@@ -26,6 +26,10 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
   /// Adds `Idempotency-Key` and `X-Request-Timestamp`, read by the pulls writes
   /// and agent messages (`app/api/pulls/shared.ts`, `lib/access/receipts.ts`).
   public var idempotent: Bool
+  /// Key to send instead of a fresh one, so a retry of the same action is
+  /// recognised by the server's receipts and not applied twice (the web keeps
+  /// one key per reply until it is delivered, `components/agents/LivePanel.tsx`).
+  public var idempotencyKey: String?
   /// The route itself answers 401 for a wrong credential in the body (e.g.
   /// "senha atual incorreta", `app/api/me/password/route.ts:16`). Such a 401 is
   /// shown as a server error; only the middleware's own 401 still ends the session.
