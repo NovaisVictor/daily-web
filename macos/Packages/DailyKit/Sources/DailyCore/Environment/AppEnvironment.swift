@@ -19,6 +19,8 @@ public final class AppEnvironment {
   public let focus: FocusScheduler
   public let alerts: AlertEngine
   public let toasts: ToastCenter
+  public let navigator = AppNavigator()
+  public let shutdown = ShutdownTasks()
 
   /// The app's graph: `HTTPAPIClient`, Keychain token, caches under
   /// Application Support and `UNUserNotificationCenter`.
