@@ -7,7 +7,6 @@ import SwiftUI
 /// in `AppDelegate`: they are per app, not per window.
 struct RootView: View {
   let environment: AppEnvironment
-  let router: AppRouter
 
   var body: some View {
     ThemedRoot(preferences: environment.preferences) {
@@ -38,7 +37,7 @@ struct RootView: View {
         }
       }
     case .signedIn(let user):
-      MainWindow(environment: environment, router: router, user: user)
+      MainWindow(environment: environment, navigator: environment.navigator, user: user)
     }
   }
 

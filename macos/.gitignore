@@ -4,3 +4,4 @@ dist/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 Packages/DailyKit/.swiftpm/
+*.profraw

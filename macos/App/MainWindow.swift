@@ -7,7 +7,7 @@ import SwiftUI
 /// The signed-in window: shell, palette and account actions wired to the stores.
 struct MainWindow: View {
   let environment: AppEnvironment
-  @Bindable var router: AppRouter
+  @Bindable var navigator: AppNavigator
   let user: CurrentUser
   @Environment(\.openSettings) private var openSettings
 
@@ -17,7 +17,7 @@ struct MainWindow: View {
     ShellRootView(
       registry: registry,
       enabledModules: enabled,
-      selection: $router.selection,
+      selection: $navigator.route,
       account: account,
       accountActions: accountActions,
       isRefreshing: environment.dashboard.isRefreshing,
@@ -40,7 +40,7 @@ struct MainWindow: View {
   private var accountActions: ShellAccountActions {
     ShellAccountActions(
       profile: { openSettings() },
-      connectAgent: { router.selection = .access },
+      connectAgent: { navigator.open(.access) },
       settings: { openSettings() },
       signOut: { await environment.session.signOut() }
     )
@@ -49,7 +49,7 @@ struct MainWindow: View {
   private func paletteCommands(sidebar: SidebarModel) -> [PaletteCommand] {
     ShellCommands.standard(
       sidebar: sidebar,
-      navigate: { router.selection = $0 },
+      navigate: { navigator.open($0) },
       setTheme: { value in updateAppearance(Appearance(theme: AppearanceTheme(rawValue: value.rawValue))) },
       setDensity: { value in updateAppearance(Appearance(density: AppearanceDensity(rawValue: value.rawValue))) },
       setBackdrop: { value in

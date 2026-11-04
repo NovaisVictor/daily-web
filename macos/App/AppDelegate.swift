@@ -4,13 +4,12 @@ import DailyStorage
 import UserNotifications
 
 /// Owns the object graph so notification clicks, which arrive here, can reach
-/// the same router the window uses.
+/// the same navigator the window uses.
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
   let environment = AppEnvironment(
     settings: UserDefaultsServerSettings(),
     tokenStore: KeychainSessionTokenStore()
   )
-  let router = AppRouter()
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
@@ -33,6 +32,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private func updateForeground() {
     environment.setForeground(NSApp.occlusionState.contains(.visible))
+  }
+
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    // Screens register pending writes (a note's autosave); quit once they land.
+    Task {
+      await environment.shutdown.flushAll()
+      sender.reply(toApplicationShouldTerminate: true)
+    }
+    return .terminateLater
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -60,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let captured = info
     await MainActor.run {
       guard let target = AlertTarget(userInfo: captured) else { return }
-      router.open(target)
+      environment.navigator.open(target)
       NSApp.activate()
     }
   }

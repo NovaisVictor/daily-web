@@ -22,8 +22,12 @@ struct ThemedRoot<Content: View>: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
+      let theme = Theme.resolve(scheme: scheme, backdrop: backdrop, density: density)
       inner
-        .environment(\.theme, Theme.resolve(scheme: scheme, backdrop: backdrop, density: density))
+        .environment(\.theme, theme)
+        // Selection and prominent controls follow the brand, as on the web,
+        // instead of the system accent color.
+        .tint(theme.brand)
         .background(BackdropView(backdrop))
     }
   }

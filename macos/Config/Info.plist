@@ -21,6 +21,26 @@
 				<string>public.data</string>
 			</array>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.novaisvictor.dailyweb.note-tree-item</string>
+			<key>UTTypeDescription</key>
+			<string>Nota ou pasta</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.novaisvictor.dailyweb.email-drag</string>
+			<key>UTTypeDescription</key>
+			<string>Mensagens de e-mail</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
