@@ -211,3 +211,26 @@ Não foi reproduzido.
 - Tela cheia do e-mail e "Maximizar" das notas substituídos pela tela cheia nativa.
 - Dependências transitivas do Textual (`swiftui-math`, cerca de 7 MB de fontes)
   dentro do pacote: aceitas, porque o `.app` está em 16 MB.
+
+## Checagens finais da Onda 5 (2026-11-04, build Release)
+
+| Verificação | Resultado |
+|---|---|
+| Menu "Ir" | Lista Hoje e os módulos com a janela principal em foco; sem foco, só "Buscar…" |
+| Item da barra de menus | Painel com pomodoro, tarefas, não lidas, "Abrir notificações", "Abrir Daily Web" e "Sair" |
+| App oculto por 10 min | Não voltou a ficar visível (G-14 não se repetiu com o novo atalho) |
+| CPU oculto, antes | Média de 2,7%: o relógio da tela Hoje redesenhava a janela a cada segundo |
+| CPU oculto, depois da correção | **0,04%** (0,11 s de CPU em 300 s); RSS de 104 MB |
+| Tamanho do `.app` Release | **16 MB** |
+
+O NFR-001 está atendido: menos de 150 MB, menos de 1% de CPU em segundo plano e
+menos de 25 MB de `.app`.
+
+`make check` final: **824 testes em 87 suítes**, lint limpo e o app compilando.
+
+`Scripts/sign.sh`, testado numa cópia do Release:
+
+- A identidade "Daily Web Self-Signed" foi criada no Keychain de login.
+- `codesign --verify --strict` passa.
+- Requisito designado: `identifier "io.github.novaisvictor.dailyweb" and certificate leaf = H"7770…e88a"`.
+  Ele é estável entre builds; com ad-hoc, era o cdhash de cada build.
