@@ -11,6 +11,7 @@ import Testing
   let clock = VirtualClock()
   let client: FakeAPIClient
   let poller: Poller
+  let shutdown = ShutdownTasks()
   let store: NotesStore
 
   nonisolated static let notes = [
@@ -24,7 +25,7 @@ import Testing
     let clock = self.clock
     client = FakeAPIClient(handler: Self.server())
     poller = Poller(sleep: { try await clock.sleep($0) })
-    store = NotesStore(client: client, poller: poller, sleep: { try await clock.sleep($0) })
+    store = NotesStore(client: client, poller: poller, shutdown: shutdown, sleep: { try await clock.sleep($0) })
   }
 
   /// A server that answers the list and echoes writes back.
@@ -512,13 +513,13 @@ import Testing
     await store.load()
     #expect(!poller.registeredScopes.contains(Poller.ScopeID.notesSync))
 
-    store.setVisible(true)
+    store.viewAppeared()
     #expect(poller.registeredScopes.contains(Poller.ScopeID.notesSync))
     await clock.advance(by: .seconds(20))
     let polls = client.calls.filter { $0.path == "/api/notes/sync" }.count
     #expect(polls == 3)
 
-    store.setVisible(false)
+    store.viewDisappeared()
     #expect(!poller.registeredScopes.contains(Poller.ScopeID.notesSync))
     await clock.advance(by: .seconds(30))
     #expect(client.calls.filter { $0.path == "/api/notes/sync" }.count == polls)
@@ -527,7 +528,50 @@ import Testing
 
   @Test func doesNotPollWhenTheDriveIsNotConnected() async {
     let store = await loaded()
-    store.setVisible(true)
+    store.viewAppeared()
     #expect(!poller.registeredScopes.contains(Poller.ScopeID.notesSync))
+  }
+
+  // MARK: - Two views on one store
+
+  @Test func keepsPollingTheDriveWhileAnyViewIsVisible() async {
+    let connected = NotesSyncStatus(connected: true, account: "a", pending: 0, lastError: nil, lastSyncedAt: nil)
+    client.respond(Self.server(sync: connected))
+    await store.load()
+    store.viewAppeared()
+    store.viewAppeared()
+    #expect(store.hasVisibleViews)
+
+    store.viewDisappeared()
+    #expect(poller.registeredScopes.contains(Poller.ScopeID.notesSync))
+    store.viewDisappeared()
+    #expect(!poller.registeredScopes.contains(Poller.ScopeID.notesSync))
+    #expect(!store.hasVisibleViews)
+  }
+
+  @Test func quitFlushStaysRegisteredUntilTheLastViewLeaves() async {
+    let store = await loaded()
+    store.viewAppeared()
+    store.viewAppeared()
+    store.viewDisappeared()
+    store.edit("um!")
+    await shutdown.flushAll()
+    #expect(client.writes.map(\.description) == [#"PATCH /api/notes/n1 {"body":"um!"}"#])
+
+    store.viewDisappeared()
+    store.edit("um!!")
+    await shutdown.flushAll()
+    #expect(client.writes.count == 1)
+    await store.flushPending()
+  }
+
+  @Test func anExtraDisappearanceDoesNotUnderflow() async {
+    let store = await loaded()
+    store.viewDisappeared()
+    store.viewAppeared()
+    #expect(store.hasVisibleViews)
+    store.edit("um!")
+    await shutdown.flushAll()
+    #expect(client.writes.count == 1)
   }
 }

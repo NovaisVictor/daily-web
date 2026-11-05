@@ -27,6 +27,8 @@ struct NoteEditor: NSViewRepresentable {
   let controller: NoteEditorController
   let onChange: (String) -> Void
   let onBlur: () -> Void
+  /// Esc in the text; nil keeps the text view's own completion.
+  var onEscape: (() -> Void)?
   @Environment(\.theme) private var theme
 
   func makeCoordinator() -> Coordinator { Coordinator() }
@@ -72,6 +74,7 @@ struct NoteEditor: NSViewRepresentable {
     coordinator.onChange = onChange
     coordinator.onBlur = onBlur
     controller.textView = textView
+    textView.onEscape = onEscape
     textView.textColor = NSColor(theme.ink)
     textView.insertionPointColor = NSColor(theme.brand)
     textView.setAccessibilityLabel(accessibilityLabel)
@@ -126,6 +129,18 @@ struct NoteEditor: NSViewRepresentable {
 
 /// Adds the web's key map and list continuation to the plain text view.
 final class MarkdownTextView: NSTextView {
+  /// The maximized note closes on Esc (`NotesPanel.tsx:839-844`); the text view
+  /// would otherwise take Esc for word completion and keep it from the sheet.
+  var onEscape: (() -> Void)?
+
+  override func cancelOperation(_ sender: Any?) {
+    guard let onEscape else {
+      super.cancelOperation(sender)
+      return
+    }
+    onEscape()
+  }
+
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     guard window?.firstResponder === self, !hasMarkedText(), let action = Self.action(for: event) else {
       return super.performKeyEquivalent(with: event)

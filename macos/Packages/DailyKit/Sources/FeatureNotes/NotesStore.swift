@@ -57,13 +57,29 @@ final class NotesStore {
   @ObservationIgnored private var saving: [String: Task<Bool, Never>] = [:]
   @ObservationIgnored private var autosaveTask: Task<Void, Never>?
   @ObservationIgnored private var searchTask: Task<Void, Never>?
-  @ObservationIgnored private var isVisible = false
+  @ObservationIgnored private let shutdown: ShutdownTasks
+  /// How many notes views (the screen, the Início panel) are on screen. The
+  /// store is shared, so the Drive polling and the quit flush follow the count,
+  /// not any one view.
+  @ObservationIgnored private var visibleViews = 0
   @ObservationIgnored private var isPollingSync = false
 
-  init(client: any APIClient, poller: Poller, sleep: @escaping Sleeper = LiveTime.sleep) {
+  static let shutdownID = "notes"
+
+  init(
+    client: any APIClient, poller: Poller, shutdown: ShutdownTasks, sleep: @escaping Sleeper = LiveTime.sleep
+  ) {
     self.client = client
     self.poller = poller
+    self.shutdown = shutdown
     self.sleep = sleep
+  }
+
+  /// The one store the notes screen and the Início panel share (spec 011 FR-011-10).
+  static func shared(in environment: AppEnvironment) -> NotesStore {
+    environment.featureStores.store("notes") {
+      NotesStore(client: environment.client, poller: environment.poller, shutdown: environment.shutdown)
+    }
   }
 
   // MARK: - Derived
@@ -490,9 +506,31 @@ final class NotesStore {
 
   // MARK: - Drive status
 
-  /// The screen is on screen or not; the Drive status is polled only while it is.
-  func setVisible(_ visible: Bool) {
-    isVisible = visible
+  var hasVisibleViews: Bool { visibleViews > 0 }
+
+  /// A notes view came on screen. The first one registers the quit flush: an
+  /// unsent draft is lost when the process exits, and the app waits for this
+  /// flush before quitting (the web needs `sendBeacon`, `NotesPanel.tsx:264-278`).
+  func viewAppeared() {
+    visibleViews += 1
+    if visibleViews == 1 {
+      shutdown.register(Self.shutdownID) { [weak self] in
+        guard let self else { return }
+        await self.flushPending()
+      }
+    }
+    updateSyncPolling()
+  }
+
+  /// A notes view left the screen; the last one takes the quit flush and the
+  /// Drive polling with it.
+  func viewDisappeared() {
+    guard visibleViews > 0 else {
+      Logger.notes.fault("Notes view disappeared more times than it appeared")
+      return
+    }
+    visibleViews -= 1
+    if visibleViews == 0 { shutdown.unregister(Self.shutdownID) }
     updateSyncPolling()
   }
 
@@ -511,7 +549,7 @@ final class NotesStore {
   }
 
   private func updateSyncPolling() {
-    let wanted = isVisible && sync?.connected == true
+    let wanted = visibleViews > 0 && sync?.connected == true
     guard wanted != isPollingSync else { return }
     isPollingSync = wanted
     if wanted {
