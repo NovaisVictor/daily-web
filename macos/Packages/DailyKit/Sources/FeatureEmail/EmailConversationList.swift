@@ -191,6 +191,11 @@ struct EmailThreadRow: View {
         .draggable(store.beginDrag(thread.id)) {
           EmailDragPreview(title: title, count: isSelected ? store.selection.selected.count : 1)
         }
+        // The right click marks the row before the menu shows (`onContextMenu`
+        // dispatching `context`, EM-16), so the menu speaks of what is marked.
+        .background {
+          RightMouseDownMonitor { [store, thread] in store.select(.context(thread.id)) }
+        }
         .contextMenu { EmailBatchContextMenu(store: store, thread: thread, group: group) }
       if let single, isOpen {
         EmailDetailView(store: store, message: single, tags: store.tags(of: thread))
@@ -363,16 +368,12 @@ struct EmailBatchContextMenu: View {
   let group: EmailThreadGroup
 
   var body: some View {
-    let inSelection = store.selection.selected.contains(thread.id)
-    let count = inSelection ? store.selection.selected.count : 1
-    let folders =
-      inSelection ? store.moveFolders : (thread.messages.first.flatMap { store.accountFolders[$0.account] } ?? [])
+    // From the selection as the right click leaves it, whether or not the
+    // click's own selection reached the store before the menu was built.
+    let summary = store.contextMenuSummary(for: thread, in: group)
+    let folders = summary.moveFolders
     let ids = group.threads.map(\.id)
-    let wholeGroup = ids.allSatisfy { store.selection.selected.contains($0) }
-    Text("\(count) \(count == 1 ? "conversa" : "conversas")")
-      // The right click marks the row before the menu shows (`onContextMenu`
-      // dispatching `context`, EM-16): the menu speaks of what is marked.
-      .onAppear { store.select(.context(thread.id)) }
+    Text("\(summary.count) \(summary.count == 1 ? "conversa" : "conversas")")
     Button("Marcar lido", systemImage: "envelope.open") { run(.read) }
     Button("Marcar não lido", systemImage: "envelope.badge") { run(.unread) }
     Menu("Mover para", systemImage: "folder") {
@@ -382,7 +383,7 @@ struct EmailBatchContextMenu: View {
     }
     .disabled(folders.isEmpty)
     Divider()
-    if store.filters.groupBy != .none && !wholeGroup {
+    if store.filters.groupBy != .none && !summary.wholeGroup {
       Button("Selecionar todo o grupo \(group.label)") { store.select(.group(ids)) }
     }
     Button("Limpar seleção") { store.select(.clear) }
@@ -611,5 +612,57 @@ private struct EmailRowShell: ViewModifier {
         // Where the keyboard is, so the arrows do not walk blind.
         Rectangle().strokeBorder(theme.brandEdge).opacity(isCursor ? 1 : 0).allowsHitTesting(false)
       }
+  }
+}
+
+/// Runs `action` on a right click inside the view, before the click reaches
+/// SwiftUI: the context menu then opens over a selection that already holds
+/// the row. The view never takes a click itself; the event goes on untouched.
+struct RightMouseDownMonitor: NSViewRepresentable {
+  let action: () -> Void
+
+  func makeNSView(context: Context) -> MonitorView {
+    let view = MonitorView()
+    view.action = action
+    return view
+  }
+
+  func updateNSView(_ view: MonitorView, context: Context) {
+    view.action = action
+  }
+
+  static func dismantleNSView(_ view: MonitorView, coordinator: ()) {
+    view.stopMonitoring()
+  }
+
+  final class MonitorView: NSView {
+    var action: () -> Void = {}
+    private var monitor: Any?
+
+    // Clicks fall through to the row's controls.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      stopMonitoring()
+      guard window != nil else { return }
+      monitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+        // Local monitors run on the main thread, before the event is dispatched.
+        MainActor.assumeIsolated { self?.handle(event) }
+        return event
+      }
+    }
+
+    func stopMonitoring() {
+      if let monitor { NSEvent.removeMonitor(monitor) }
+      monitor = nil
+    }
+
+    private func handle(_ event: NSEvent) {
+      guard let window, event.window === window, !isHiddenOrHasHiddenAncestor else { return }
+      // `visibleRect` leaves out what the scroll view clips.
+      guard visibleRect.contains(convert(event.locationInWindow, from: nil)) else { return }
+      action()
+    }
   }
 }

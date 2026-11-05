@@ -30,6 +30,19 @@ import Testing
     FakeAPIClient.json(AppearanceResponse(appearance: Appearance(theme: theme, density: density)))
   }
 
+  /// The mirror keys are on disk: `AccountScope` keeps their format.
+  @Test func mirrorKeysKeepTheirFormat() async {
+    client.respond { _ in Self.appearance(.dark) }
+    let store = makeStore()
+    await store.updateAppearance(Appearance(theme: .dark))
+    let key = "io.github.novaisvictor.dailyweb.appearance.https://daily.example.com|ana"
+    #expect(defaults.string(forKey: "io.github.novaisvictor.dailyweb.appearanceAccount") == key)
+    #expect(defaults.data(forKey: key) != nil)
+    // A relaunch reads the mirror through the same key.
+    let relaunched = PreferencesStore(client: client, dashboard: dashboard, toasts: toasts, defaults: defaults)
+    #expect(relaunched.appearance.theme == .dark)
+  }
+
   @Test func appearanceSendsOnlyTheChangedFieldAndMirrorsTheAnswer() async {
     client.respond { _ in
       FakeAPIClient.json(AppearanceResponse(appearance: Appearance(theme: .dark, density: .compact)))

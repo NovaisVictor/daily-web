@@ -92,7 +92,7 @@ final class JiraStore {
     get { storedTab }
     set {
       storedTab = newValue
-      viewState?.set(newValue.rawValue, module: Self.viewStateModule, field: Self.tabField)
+      rememberedTab.save(newValue)
     }
   }
   private var storedTab: JiraTab = .open
@@ -135,7 +135,7 @@ final class JiraStore {
   @ObservationIgnored let dashboard: DashboardStore
   @ObservationIgnored let focus: FocusScheduler?
   @ObservationIgnored let now: Now
-  @ObservationIgnored private let viewState: ViewStateStore?
+  @ObservationIgnored private let rememberedTab: RememberedValue<JiraTab>
   @ObservationIgnored private let logger = Logger(subsystem: "io.github.novaisvictor.dailyweb", category: "FeatureJira")
 
   static let viewStateModule = "jira"
@@ -148,13 +148,9 @@ final class JiraStore {
     self.client = client
     self.dashboard = dashboard
     self.focus = focus
-    self.viewState = viewState
+    rememberedTab = RememberedValue(viewState, module: Self.viewStateModule, field: Self.tabField)
     self.now = now
-    if let raw = viewState?.string(module: Self.viewStateModule, field: Self.tabField),
-      let tab = JiraTab(rawValue: raw)
-    {
-      storedTab = tab
-    }
+    rememberedTab.bind(self) { [weak self] in self?.storedTab = $0 ?? .open }
   }
 
   convenience init(environment: AppEnvironment) {

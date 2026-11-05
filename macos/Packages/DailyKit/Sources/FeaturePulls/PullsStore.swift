@@ -50,7 +50,7 @@ final class PullsStore {
     get { storedTab }
     set {
       storedTab = newValue
-      viewState?.set(newValue.rawValue, module: Self.viewStateModule, field: Self.tabField)
+      rememberedTab.save(newValue)
     }
   }
   private var storedTab: PullsTab = .tracked
@@ -78,7 +78,7 @@ final class PullsStore {
   @ObservationIgnored let dashboard: DashboardStore
   @ObservationIgnored let focus: FocusScheduler?
   @ObservationIgnored let now: Now
-  @ObservationIgnored private let viewState: ViewStateStore?
+  @ObservationIgnored private let rememberedTab: RememberedValue<PullsTab>
   @ObservationIgnored private let logger = Logger(
     subsystem: "io.github.novaisvictor.dailyweb", category: "FeaturePulls")
 
@@ -92,13 +92,9 @@ final class PullsStore {
     self.client = client
     self.dashboard = dashboard
     self.focus = focus
-    self.viewState = viewState
+    rememberedTab = RememberedValue(viewState, module: Self.viewStateModule, field: Self.tabField)
     self.now = now
-    if let raw = viewState?.string(module: Self.viewStateModule, field: Self.tabField),
-      let tab = PullsTab(rawValue: raw)
-    {
-      storedTab = tab
-    }
+    rememberedTab.bind(self) { [weak self] in self?.storedTab = $0 ?? .tracked }
   }
 
   convenience init(environment: AppEnvironment) {

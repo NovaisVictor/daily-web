@@ -33,6 +33,23 @@ import Testing
     #expect(launch("bia").tab == JiraStore(client: harness.client, dashboard: harness.dashboard).tab)
   }
 
+  /// Built while the session was still being checked, the store picks up the
+  /// account's tab once the sign-in activates it.
+  @Test func aStoreBuiltBeforeTheSignInPicksUpTheTab() {
+    launch().tab = .problems
+    let viewState = ViewStateStore(defaults: defaults)
+    viewState.deactivate()
+    let store = JiraStore(client: harness.client, dashboard: harness.dashboard, viewState: viewState)
+    let fallback = JiraStore(client: harness.client, dashboard: harness.dashboard).tab
+    #expect(store.tab == fallback)
+
+    let server = URL(string: "https://daily.example.com") ?? URL(filePath: "/")
+    viewState.activate(server: server, username: "ana")
+    #expect(store.tab == .problems)
+    viewState.activate(server: server, username: "bia")
+    #expect(store.tab == fallback)
+  }
+
   @Test func withoutAViewStateNothingIsRemembered() {
     let store = JiraStore(client: harness.client, dashboard: harness.dashboard)
     store.tab = .problems

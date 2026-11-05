@@ -44,8 +44,9 @@ public struct EmailScreen: View {
     .onExitCommand {
       if store.openKey != nil { store.closeMessage() }
     }
-    // While the panel's full screen is open, its sheet owns the dialogs.
-    .emailDialogs(store, isActive: !store.isFullScreen)
+    // The screen has no full-screen sheet of its own; a panel's sheet in
+    // another window is told apart by the presenter its request carries.
+    .emailDialogs(store, isActive: true)
   }
 
   /// Only the main window takes the request; it is the one the navigator moved.
@@ -98,9 +99,16 @@ struct EmailListPane: View {
       store.syncSelection()
       store.restoreOpenMessage()
     }
-    // What the last launch left open (spec 015 FR-015-01).
-    .task {
+    // What the last launch left open (spec 015 FR-015-01), read again after
+    // an account switch.
+    .task(id: store.restoreGeneration) {
       await store.loadRestoredFolder()
+      store.restoreOpenMessage()
+    }
+    // A fresh dashboard settles what was remembered: an account or folder of a
+    // mailbox that is gone, and a message the inbox no longer has.
+    .onChange(of: store.dashboardUpdated, initial: true) {
+      store.validateRestoredView()
       store.restoreOpenMessage()
     }
   }

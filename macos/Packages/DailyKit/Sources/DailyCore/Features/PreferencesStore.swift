@@ -30,6 +30,7 @@ public final class PreferencesStore {
   @ObservationIgnored private let dashboard: DashboardStore
   @ObservationIgnored private let toasts: ToastCenter
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored private let scope: AccountScope
   /// The mirror key of the signed-in account; nil keeps changes in memory only.
   @ObservationIgnored private var account: String?
   /// Every appearance update and account switch takes a number; only the
@@ -44,23 +45,23 @@ public final class PreferencesStore {
     self.dashboard = dashboard
     self.toasts = toasts
     self.defaults = defaults
-    let account = defaults.string(forKey: Self.lastAccountKey)
+    let scope = AccountScope(prefix: Self.appearanceKey, lastAccountKey: Self.lastAccountKey, defaults: defaults)
+    self.scope = scope
+    let account = scope.lastAccount
     self.account = account
     appearance = account.map { Self.loadMirror(defaults, key: $0) } ?? Appearance()
   }
 
   /// Switches to the mirror of the account that just signed in.
   public func activate(server: URL, username: String) {
-    guard let origin = ServerOrigin(server) else {
+    guard let key = scope.activate(server: server, username: username) else {
       Logger.core.error("No appearance mirror for a server without an http(s) origin")
       deactivate()
       return
     }
-    let key = "\(Self.appearanceKey).\(origin.description)|\(username)"
     sequence += 1
     owners = [:]
     account = key
-    defaults.set(key, forKey: Self.lastAccountKey)
     appearance = Self.loadMirror(defaults, key: key)
   }
 
@@ -69,7 +70,7 @@ public final class PreferencesStore {
     sequence += 1
     owners = [:]
     account = nil
-    defaults.removeObject(forKey: Self.lastAccountKey)
+    scope.deactivate()
     appearance = Appearance()
   }
 

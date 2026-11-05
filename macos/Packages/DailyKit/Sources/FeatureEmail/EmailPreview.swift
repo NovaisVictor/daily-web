@@ -17,8 +17,7 @@ enum EmailPreview {
     )
     environment.dashboard.apply(PreviewFixtures.dashboard)
     return EmailStore(
-      client: environment.client, dashboard: environment.dashboard, toasts: environment.toasts,
-      navigator: environment.navigator)
+      client: environment.client, dashboard: environment.dashboard, navigator: environment.navigator)
   }
 
   private static var responses: [String: Data] {

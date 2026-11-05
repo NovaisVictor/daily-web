@@ -5,6 +5,11 @@ import Testing
 
 /// Spec 015 FR-015-01: each panel remembers its view per account and server.
 @Suite struct ViewStateStoreTests {
+  final class Owner {}
+  nonisolated enum Tab: String {
+    case first, second
+  }
+
   let defaults = Fixtures.defaults()
 
   nonisolated static let server = URL(string: "https://daily.example.com") ?? URL(filePath: "/")
@@ -61,6 +66,83 @@ import Testing
     store.set("y", module: "email", field: "query")
     store.set(nil, module: "email", field: "query")
     #expect(store.string(module: "email", field: "query") == nil)
+  }
+
+  /// The keys are on disk: moving the derivation into `AccountScope` must not
+  /// change them, or every account would forget its view and appearance.
+  @Test func keysKeepTheirFormat() {
+    let store = signedIn()
+    store.set("problemas", module: "jira", field: "tab")
+    let account = "io.github.novaisvictor.dailyweb.viewState.https://daily.example.com|ana"
+    #expect(defaults.string(forKey: "io.github.novaisvictor.dailyweb.viewStateAccount") == account)
+    #expect(defaults.string(forKey: "\(account).jira.tab") == "problemas")
+    #expect(
+      AccountScope.key(prefix: PreferencesStore.appearanceKey, server: Self.otherServer, username: "bia")
+        == "io.github.novaisvictor.dailyweb.appearance.https://outro.example.com:8443|bia")
+    #expect(AccountScope.key(prefix: "x", server: URL(filePath: "/tmp/daily"), username: "ana") == nil)
+  }
+
+  @Test func enumsAreKeptByTheirRawValue() {
+    let store = signedIn()
+    #expect(store.value(Tab.self, module: "jira", field: "tab") == nil)
+    store.set(Tab.second, module: "jira", field: "tab")
+    #expect(store.string(module: "jira", field: "tab") == "second")
+    #expect(store.value(Tab.self, module: "jira", field: "tab") == .second)
+    // A value no longer among the cases reads as nothing, not as a failure.
+    store.set("gone", module: "jira", field: "tab")
+    #expect(store.value(Tab.self, module: "jira", field: "tab") == nil)
+    store.set(Tab?.none, module: "jira", field: "tab")
+    #expect(store.string(module: "jira", field: "tab") == nil)
+  }
+
+  /// A store built while the session is checked read no account, or the last
+  /// one; the sign-in tells it to read the signed-in account's values.
+  @Test func signingInAsAnotherAccountTellsTheObservers() {
+    signedIn("ana").set("problemas", module: "jira", field: "tab")
+    let store = ViewStateStore(defaults: defaults)
+    store.deactivate()
+    let owner = Owner()
+    var restored: [String?] = []
+    store.observe(owner) { restored.append(store.string(module: "jira", field: "tab")) }
+
+    store.activate(server: Self.server, username: "ana")
+    #expect(restored == ["problemas"])
+    // The same account again: what was read still holds.
+    store.activate(server: Self.server, username: "ana")
+    #expect(restored == ["problemas"])
+    store.activate(server: Self.server, username: "bia")
+    #expect(restored == ["problemas", nil])
+    withExtendedLifetime(owner) {}
+  }
+
+  @Test func aReleasedObserverIsNotCalled() {
+    let store = ViewStateStore(defaults: defaults)
+    store.deactivate()
+    var owner: Owner? = Owner()
+    var calls = 0
+    if let owner { store.observe(owner) { calls += 1 } }
+    owner = nil
+    store.activate(server: Self.server, username: "ana")
+    #expect(calls == 0)
+    #expect(owner == nil)
+  }
+
+  @Test func rememberedValueReadsNowAndAfterEachAccountSwitch() {
+    signedIn("ana").set(Tab.second, module: "jira", field: "tab")
+    let store = ViewStateStore(defaults: defaults)
+    store.deactivate()
+    let owner = Owner()
+    let tab = RememberedValue<Tab>(store, module: "jira", field: "tab")
+    var applied: [Tab?] = []
+    tab.bind(owner) { applied.append($0) }
+    #expect(applied == [nil])
+
+    store.activate(server: Self.server, username: "ana")
+    #expect(applied == [nil, .second])
+    tab.save(.first)
+    #expect(tab.stored == .first)
+    #expect(RememberedValue<Tab>(nil, module: "jira", field: "tab").stored == nil)
+    withExtendedLifetime(owner) {}
   }
 
   @Test func aServerWithoutAnOriginRemembersNothing() {

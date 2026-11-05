@@ -56,7 +56,7 @@ nonisolated final class FakeServer: Sendable {
     client.respond { call throws(APIError) in try server.answer(call) }
     dashboard = DashboardStore(client: client, cache: nil, toasts: toasts)
     store = EmailStore(
-      client: client, dashboard: dashboard, toasts: toasts, navigator: navigator,
+      client: client, dashboard: dashboard, navigator: navigator,
       now: { localDate("2026-10-04T15:00:00") },
       timeZone: saoPaulo)
     dashboard.apply(Self.state())
@@ -203,6 +203,48 @@ nonisolated final class FakeServer: Sendable {
     #expect(store.isMoveSheetPresented)
     #expect(store.presentsDialogs(screen))
     #expect(!store.presentsDialogs(panel))
+  }
+
+  /// The right click's menu (`menuDoLote`, EM-16) speaks of the selection as
+  /// the click leaves it, even before that selection reaches the store.
+  @Test func contextMenuSummaryFollowsTheRightClickedRow() async {
+    server.route { call in
+      guard call.path == "/api/email/folders" else { return nil }
+      return FakeAPIClient.json(
+        EmailFoldersResponse(folders: call.query == "account=mail-2" ? ["Viagens"] : ["Arquivo"]))
+    }
+    await store.loadAccountFolders("mail-1")
+    await store.loadAccountFolders("mail-2")
+    let threads = store.listing.threads
+    guard let first = threads.first(where: { $0.id == "mail-1:1" }),
+      let second = threads.first(where: { $0.id == "mail-1:2" }),
+      let personal = threads.first(where: { $0.id == "mail-2:3" }),
+      let group = store.listing.groups.first
+    else {
+      Issue.record("Missing threads")
+      return
+    }
+    store.select(.click("mail-1:1"))
+    store.select(.click("mail-1:2", shift: true))
+
+    // Inside the selection: the menu acts on all of it.
+    let inside = store.contextMenuSummary(for: second, in: group)
+    #expect(inside == EmailContextMenuSummary(count: 2, moveFolders: ["Arquivo"], wholeGroup: false))
+    #expect(store.contextMenuSummary(for: first, in: group).count == 2)
+
+    // Outside: the clicked row alone, with its own account's folders, though
+    // the store still holds the old selection.
+    let outside = store.contextMenuSummary(for: personal, in: group)
+    #expect(outside == EmailContextMenuSummary(count: 1, moveFolders: ["Viagens"], wholeGroup: false))
+    #expect(store.selection.selected == ["mail-1:1", "mail-1:2"])
+
+    // What the right click then does to the store matches the summary.
+    store.select(.context(personal.id))
+    #expect(store.selection.selected == ["mail-2:3"])
+    #expect(store.moveFolders == outside.moveFolders)
+
+    store.select(.all)
+    #expect(store.contextMenuSummary(for: personal, in: group).wholeGroup)
   }
 
   @Test func moveSheetNeedsDestinations() async {

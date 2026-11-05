@@ -12,7 +12,7 @@ final class SlackStore {
     get { storedTab }
     set {
       storedTab = newValue
-      viewState?.set(newValue.rawValue, module: Self.viewStateModule, field: Self.tabField)
+      rememberedTab.save(newValue)
     }
   }
   private var storedTab: SlackTab = .mentions
@@ -20,7 +20,7 @@ final class SlackStore {
 
   @ObservationIgnored private let dashboard: DashboardStore
   @ObservationIgnored private let navigator: AppNavigator
-  @ObservationIgnored private let viewState: ViewStateStore?
+  @ObservationIgnored private let rememberedTab: RememberedValue<SlackTab>
 
   static let viewStateModule = "slack"
   static let tabField = "tab"
@@ -28,12 +28,8 @@ final class SlackStore {
   init(dashboard: DashboardStore, navigator: AppNavigator, viewState: ViewStateStore? = nil) {
     self.dashboard = dashboard
     self.navigator = navigator
-    self.viewState = viewState
-    if let raw = viewState?.string(module: Self.viewStateModule, field: Self.tabField),
-      let tab = SlackTab(rawValue: raw)
-    {
-      storedTab = tab
-    }
+    rememberedTab = RememberedValue(viewState, module: Self.viewStateModule, field: Self.tabField)
+    rememberedTab.bind(self) { [weak self] in self?.storedTab = $0 ?? .mentions }
   }
 
   static let storeKey = "slack"

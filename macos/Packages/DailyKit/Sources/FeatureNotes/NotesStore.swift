@@ -63,6 +63,9 @@ final class NotesStore {
   /// not any one view.
   @ObservationIgnored private var visibleViews = 0
   @ObservationIgnored private var isPollingSync = false
+  /// The `GET /api/notes` on its way. The screen, the Início panel, a pending
+  /// note and an e-mail turned note can all ask at once; they share one read.
+  @ObservationIgnored private var listRead: Task<Result<NotesResponse, APIError>, Never>?
 
   static let shutdownID = "notes"
 
@@ -146,18 +149,38 @@ final class NotesStore {
   // MARK: - Loading
 
   /// Reads the list. `activate` leaves that note open at the end; the draft only
-  /// changes when the open note does.
+  /// changes when the open note does. A call made while a read is on its way
+  /// waits for that read instead of starting another, and applies its own
+  /// `activate` over the same answer.
   func load(activate: String? = nil) async {
     var activate = activate
     // Unsaved text is never dropped to show another note: the open one stays.
     if activate != nil, !(await flushPending()) { activate = nil }
     defer { isLoading = false }
     let response: NotesResponse
-    do {
-      response = try await client.send(NotesEndpoints.list)
-    } catch {
-      fail("Load notes", error)
-      return
+    if let listRead {
+      // The read that started first reports its failure; this one only waits.
+      guard case .success(let shared) = await listRead.value else { return }
+      response = shared
+    } else {
+      let client = self.client
+      let read = Task { () -> Result<NotesResponse, APIError> in
+        do throws(APIError) {
+          return .success(try await client.send(NotesEndpoints.list))
+        } catch {
+          return .failure(error)
+        }
+      }
+      listRead = read
+      let result = await read.value
+      listRead = nil
+      switch result {
+      case .success(let fresh):
+        response = fresh
+      case .failure(let error):
+        fail("Load notes", error)
+        return
+      }
     }
     hasLoaded = true
     notes = response.notes

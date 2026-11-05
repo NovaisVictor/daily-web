@@ -55,6 +55,16 @@ nonisolated struct CreatedFromEmail: Equatable, Sendable {
   var id: String
 }
 
+/// The right-click menu's header and choices (`menuDoLote`).
+nonisolated struct EmailContextMenuSummary: Equatable, Sendable {
+  /// Conversations the menu acts on.
+  var count: Int
+  /// Where they can move: the folders of the accounts involved.
+  var moveFolders: [String]
+  /// Whether the clicked row's whole group is already marked.
+  var wholeGroup: Bool
+}
+
 /// The state and actions of the e-mail screen, the web's `EmailPanel` with
 /// `useMailboxGroups` and `useFolderMessages`.
 @Observable
@@ -67,8 +77,9 @@ final class EmailStore {
   var filters: EmailFilters {
     get { filterValues }
     set {
+      let old = filterValues
       filterValues = newValue
-      rememberFilters()
+      rememberFilters(changedFrom: old)
     }
   }
   private var filterValues = EmailFilters()
@@ -106,22 +117,20 @@ final class EmailStore {
   private(set) var dialogPresenter: UUID?
   /// The panel's "Tela cheia": folder tree, list and reader over the window
   /// (`view.maximized`, `EmailPanel.tsx:1713-1737`). Kept here so moving the
-  /// panel on Início does not close it. Remembered across launches.
-  var isFullScreen: Bool {
-    get { fullScreenValue }
-    set {
-      fullScreenValue = newValue
-      viewState?.set(newValue, module: Self.viewStateModule, field: Field.fullScreen)
-    }
-  }
-  private var fullScreenValue = false
+  /// panel on Início does not close it. Not remembered across launches: the
+  /// store is shared, so a restored full screen would open its sheet over
+  /// Início at launch even when only the e-mail screen was in use.
+  var isFullScreen = false
+  /// Bumped each time the remembered view is read, so the views read the
+  /// restored folder again after an account switch.
+  private(set) var restoreGeneration = 0
   var tagMenuThread: String?
 
   @ObservationIgnored let client: any APIClient
   @ObservationIgnored let dashboard: DashboardStore
-  @ObservationIgnored let toasts: ToastCenter
   @ObservationIgnored private let navigator: AppNavigator
   @ObservationIgnored private let now: Now
+  @ObservationIgnored private let sleep: Sleeper
   @ObservationIgnored private let timeZone: TimeZone
   @ObservationIgnored private var lastBatch: (action: EmailBatchAction, folder: String?)?
   @ObservationIgnored private var syncingAccounts: Set<String> = []
@@ -135,6 +144,14 @@ final class EmailStore {
   @ObservationIgnored private var restoredFolderPending = false
   /// The message open at the last launch, opened once its list arrives.
   @ObservationIgnored private var restoredOpenKey: String?
+  /// A restored account filter or folder not yet checked against the mailboxes.
+  @ObservationIgnored private var restoredNeedsValidation = false
+  /// The search written to disk once typing rests.
+  @ObservationIgnored private var queryWrite: Task<Void, Never>?
+
+  /// How long the search rests before it is remembered: every keystroke would
+  /// otherwise write to disk.
+  static let queryWriteDelay = Duration.milliseconds(400)
 
   static let viewStateModule = "email"
 
@@ -148,7 +165,6 @@ final class EmailStore {
     static let account = "account"
     static let sort = "sort"
     static let group = "group"
-    static let fullScreen = "maximized"
   }
 
   private struct ListingKey: Equatable {
@@ -162,31 +178,46 @@ final class EmailStore {
   init(
     client: any APIClient,
     dashboard: DashboardStore,
-    toasts: ToastCenter,
     navigator: AppNavigator,
     viewState: ViewStateStore? = nil,
     notesEvents: NotesEvents? = nil,
     now: @escaping Now = LiveTime.now,
+    sleep: @escaping Sleeper = LiveTime.sleep,
     timeZone: TimeZone = .current
   ) {
     self.client = client
     self.dashboard = dashboard
-    self.toasts = toasts
     self.navigator = navigator
     self.viewState = viewState
     self.notesEvents = notesEvents
     self.now = now
+    self.sleep = sleep
     self.timeZone = timeZone
     restoreViewState()
+    // Built before the sign-in, the store read another account's view, or none.
+    viewState?.observe(self) { [weak self] in self?.restoreViewState() }
   }
 
   // MARK: - Remembered view (spec 015 FR-015-01)
 
-  /// What the last launch left: folder, open message, filters and full screen.
-  /// Sets the backing values directly, so restoring writes nothing back.
+  /// What the last launch left: folder, open message and filters. Also runs
+  /// when another account signs in, so it replaces the whole view. Sets the
+  /// backing values directly, so restoring writes nothing back.
   private func restoreViewState() {
     guard let viewState else { return }
     let module = Self.viewStateModule
+    queryWrite?.cancel()
+    queryWrite = nil
+    bodyTask?.cancel()
+    bodyTask = nil
+    selection = .empty
+    openKey = nil
+    detail = nil
+    folderGeneration += 1
+    folderError = nil
+    folderLoading = false
+    folder = nil
+    restoredFolderPending = false
     var restored = EmailFilters()
     restored.query = viewState.string(module: module, field: Field.query) ?? ""
     restored.onlyUnread = viewState.bool(module: module, field: Field.onlyUnread) ?? false
@@ -198,7 +229,6 @@ final class EmailStore {
       restored.groupBy = group
     }
     filterValues = restored
-    fullScreenValue = viewState.bool(module: module, field: Field.fullScreen) ?? false
     if let account = viewState.string(module: module, field: Field.folderAccount),
       let path = viewState.string(module: module, field: Field.folder)
     {
@@ -208,18 +238,67 @@ final class EmailStore {
       folderLoading = true
     }
     restoredOpenKey = viewState.string(module: module, field: Field.open)
+    restoredNeedsValidation = restored.account != nil || folder != nil
+    restoreGeneration += 1
   }
 
-  private func rememberFilters() {
+  /// Writes only what changed: each field is its own key, and rewriting the
+  /// others would put back values another window changed meanwhile.
+  private func rememberFilters(changedFrom old: EmailFilters) {
     guard let viewState else { return }
     let module = Self.viewStateModule
     let value = filterValues
-    viewState.set(value.query, module: module, field: Field.query)
-    viewState.set(value.onlyUnread, module: module, field: Field.onlyUnread)
-    viewState.set(value.account, module: module, field: Field.account)
-    viewState.set(value.sort.rawValue, module: module, field: Field.sort)
-    viewState.set(value.groupBy.rawValue, module: module, field: Field.group)
+    if value.query != old.query { rememberQuery() }
+    if value.onlyUnread != old.onlyUnread {
+      viewState.set(value.onlyUnread, module: module, field: Field.onlyUnread)
+    }
+    if value.account != old.account { viewState.set(value.account, module: module, field: Field.account) }
+    if value.sort != old.sort { viewState.set(value.sort.rawValue, module: module, field: Field.sort) }
+    if value.groupBy != old.groupBy { viewState.set(value.groupBy.rawValue, module: module, field: Field.group) }
   }
+
+  /// The search goes to disk once typing rests for `queryWriteDelay`.
+  private func rememberQuery() {
+    queryWrite?.cancel()
+    let sleep = self.sleep
+    queryWrite = Task { [weak self] in
+      do {
+        try await sleep(Self.queryWriteDelay)
+      } catch {
+        // Cancelled: a newer keystroke, or another account's view, replaced this write.
+        return
+      }
+      guard !Task.isCancelled, let self else { return }
+      self.queryWrite = nil
+      self.viewState?.set(self.filterValues.query, module: Self.viewStateModule, field: Field.query)
+    }
+  }
+
+  /// Drops a remembered account filter or folder whose mailbox is gone, and
+  /// forgets it on disk too. Waits for the server's mailboxes: the cached state
+  /// may predate a mailbox added since.
+  func validateRestoredView() {
+    guard restoredNeedsValidation, dashboard.lastUpdated != nil, let state = dashboard.state else { return }
+    restoredNeedsValidation = false
+    let known = Set(state.mailboxes.map(\.id))
+    if let account = filterValues.account, !known.contains(account) {
+      filters.account = nil
+    }
+    if let folder, !known.contains(folder.account) {
+      Self.logger.info("Dropping a remembered folder of a mailbox that is gone")
+      self.folder = nil
+      rememberFolder()
+      restoredFolderPending = false
+      // Drops the answer of the folder that was asked for, as `loadFolder` does.
+      folderGeneration += 1
+      folderLoading = false
+      folderError = nil
+    }
+  }
+
+  /// When the server last answered the dashboard; the views follow it to
+  /// check and open what the last launch left.
+  var dashboardUpdated: Date? { dashboard.lastUpdated }
 
   private func rememberFolder() {
     viewState?.set(folder?.account, module: Self.viewStateModule, field: Field.folderAccount)
@@ -239,16 +318,30 @@ final class EmailStore {
   }
 
   /// Opens the message the last launch left open once its list is on screen.
-  /// Once the list arrived without it, the message is gone and is forgotten.
+  /// It is forgotten only once a list fresh from the server lacks it: an inbox
+  /// still loading, failing or read from the cache proves nothing.
   func restoreOpenMessage() {
     guard let key = restoredOpenKey else { return }
-    let arrived = folder.map { folderMessages[$0] != nil } ?? (dashboard.state != nil)
-    guard arrived else { return }
-    restoredOpenKey = nil
-    guard let message = all.first(where: { $0.key == key }) else {
-      rememberOpenKey()
+    let list: [EmailEnvelope]
+    let isFresh: Bool
+    if let folder {
+      // A folder's list only ever comes from the server.
+      guard let messages = folderMessages[folder] else { return }
+      list = messages
+      isFresh = true
+    } else {
+      guard let messages = inbox.data else { return }
+      list = messages
+      isFresh = dashboard.lastUpdated != nil && inbox.error == nil
+    }
+    guard let message = list.first(where: { $0.key == key }) else {
+      if isFresh {
+        restoredOpenKey = nil
+        rememberOpenKey()
+      }
       return
     }
+    restoredOpenKey = nil
     if let thread = listing.threads.first(where: { thread in thread.messages.contains { $0.key == key } }),
       thread.messages.count > 1
     {
@@ -360,6 +453,21 @@ final class EmailStore {
   func select(_ event: EmailSelection.Event) {
     selection = selection.reduced(event, order: listing.order)
     ensureFoldersForSelection()
+  }
+
+  /// What the right-click menu of `thread` speaks of: the selection as the
+  /// click leaves it (`.context`). Worked out from the event rather than read
+  /// back, so the menu is right even when it is built before the click's
+  /// selection reached the store.
+  func contextMenuSummary(for thread: EmailThread, in group: EmailThreadGroup) -> EmailContextMenuSummary {
+    let after = selection.reduced(.context(thread.id), order: listing.order)
+    let selected = Set(after.selected)
+    let accounts = orderedUnique(targets(ofThreads: selected).map(\.account))
+    return EmailContextMenuSummary(
+      count: after.selected.count,
+      moveFolders: orderedUnique(accounts.flatMap { accountFolders[$0] ?? [] }),
+      wholeGroup: group.threads.allSatisfy { selected.contains($0.id) }
+    )
   }
 
   /// The list changed under the selection: what is gone leaves it.
@@ -980,9 +1088,9 @@ final class EmailStore {
     isFullScreen = false
     switch created.kind {
     case .note:
-      let id = created.id.isEmpty ? nil : created.id
-      if let id { notesEvents?.post(NotesEvents.Change(activate: id)) }
-      navigator.open(.module(.notes), itemID: id)
+      // Only the navigation: the notes panel reveals the pending note with a
+      // read of its own, and `create` already told the notes once.
+      navigator.open(.module(.notes), itemID: created.id.isEmpty ? nil : created.id)
     case .task:
       navigator.open(.module(.tasks))
     }

@@ -8,8 +8,8 @@ extension EmailStore {
   static func shared(in environment: AppEnvironment) -> EmailStore {
     environment.featureStores.store("email") {
       EmailStore(
-        client: environment.client, dashboard: environment.dashboard, toasts: environment.toasts,
-        navigator: environment.navigator, viewState: environment.viewState, notesEvents: environment.notesEvents)
+        client: environment.client, dashboard: environment.dashboard, navigator: environment.navigator,
+        viewState: environment.viewState, notesEvents: environment.notesEvents)
     }
   }
 }
