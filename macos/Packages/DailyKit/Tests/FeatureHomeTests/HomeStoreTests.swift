@@ -23,7 +23,8 @@ private let parked: Sleeper = { _ in
     dashboard = DashboardStore(client: client, cache: nil, toasts: toasts)
     session = SessionStore(client: client, tokenStore: storage, settings: storage)
     let pomodoro = PomodoroController(client: client, dashboard: dashboard, sleep: parked)
-    store = HomeStore(session: session, dashboard: dashboard, pomodoro: pomodoro)
+    let layoutStore = DashboardLayoutStore(client: client, dashboard: dashboard, workspaceDirectory: nil)
+    store = HomeStore(session: session, dashboard: dashboard, pomodoro: pomodoro, layoutStore: layoutStore)
   }
 
   func timer(enabled: Bool = true, running: Bool, phase: PomodoroPhase = .focus) -> PomodoroState {
@@ -122,18 +123,5 @@ private let parked: Sleeper = { _ in
     let jira = try #require(store.panels(at: Fixtures.now)?.panels.first { $0.module == .jira })
     store.selectTab("gone", of: .jira)
     #expect(store.selectedTab(of: jira)?.id == jira.tabs.first?.id)
-  }
-}
-
-@Suite struct HomeGridTests {
-  @Test func columnsFollowTheWidth() {
-    #expect(HomeGrid.columnCount(width: 0) == 1)
-    #expect(HomeGrid.columnCount(width: HomeGrid.twoColumnWidth - 1) == 1)
-    #expect(HomeGrid.columnCount(width: HomeGrid.twoColumnWidth) == 2)
-  }
-
-  @Test func panelsAlternateLeftAndRight() {
-    #expect((0..<5).map { HomeGrid.column(of: $0, columns: 2) } == [0, 1, 0, 1, 0])
-    #expect((0..<3).map { HomeGrid.column(of: $0, columns: 1) } == [0, 0, 0])
   }
 }

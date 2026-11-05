@@ -3,15 +3,26 @@ import DailyDesign
 import DailyModels
 import SwiftUI
 
-/// The "Hoje" screen (`app/(app)/page.tsx`): greeting, pomodoro and clock on top
-/// (`components/NowBand.tsx`), then one panel per module that is on, in two
-/// columns when the window is wide enough. The panels are read-only previews of
-/// the web's panels; their rows open the module on the item they show.
+/// Início (`app/(app)/page.tsx`): greeting, pomodoro and clock on top
+/// (`components/NowBand.tsx`), the "Grade" / "Abas" switch, then the panels of
+/// the modules that are on, in the free grid (`DashboardGrid.tsx`), one at a
+/// time in a narrow window, or as tabs (`WorkspaceHome.tsx`). Each panel is the
+/// module's full panel from `modulePanels`; without one, a read-only summary
+/// whose rows open the module on the item they show.
 public struct HomeScreen: View {
+  /// The web gives the tabs `100dvh - 14rem`, at least 480 px (`WorkspaceHome.tsx`).
+  static let reservedHeight: CGFloat = 224
+  static let minimumTabsHeight: CGFloat = 480
+  /// Room for the narrow module bar under the last panel.
+  static let moduleBarHeight: CGFloat = 88
+
   @Environment(\.theme) private var theme
-  @State private var store: HomeStore
+  @Environment(\.modulePanels) private var modulePanels
+  private let store: HomeStore
   private let open: (AppRoute) -> Void
   private let navigator: AppNavigator
+  /// The height Início is given, for the panels that need a bounded one.
+  @State private var visibleHeight: CGFloat = 0
 
   /// A chosen panel moves the window through the app's navigator.
   public init(environment: AppEnvironment) {
@@ -19,127 +30,191 @@ public struct HomeScreen: View {
     self.init(environment: environment, open: { route in navigator.open(route) })
   }
 
-  /// - Parameter open: Called with `.module(id)` when a panel's "Abrir" is chosen.
+  /// - Parameter open: Called with `.module(id)` when a summary panel's "Abrir" is chosen.
   ///   A row that points at one item goes through the navigator, which reveals it.
   public init(environment: AppEnvironment, open: @escaping (AppRoute) -> Void) {
-    _store = State(initialValue: HomeStore(environment: environment))
+    self.init(store: HomeStore.shared(in: environment), navigator: environment.navigator, open: open)
+  }
+
+  init(store: HomeStore, navigator: AppNavigator, open: @escaping (AppRoute) -> Void) {
+    self.store = store
+    self.navigator = navigator
     self.open = open
-    navigator = environment.navigator
   }
 
   public var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 32) {
+      VStack(alignment: .leading, spacing: 16) {
         NowBand(store: store)
-        // Re-evaluated every minute so "hoje", ages and the upcoming events follow the clock.
-        TimelineView(.everyMinute) { context in
-          content(store.panels(at: context.date))
+        banners
+        if store.showsViewSwitch {
+          toolbar
         }
+        content
       }
       .padding(24)
+      .padding(.bottom, bottomInset)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     // No fill of its own: the glass panels sit on the window's backdrop (FR-013-03).
+    .overlay(alignment: .bottom) { bottomBar }
+    .background {
+      WindowSizeReader { size in store.updateWindowSize(size) }
+        .accessibilityHidden(true)
+    }
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.height
+    } action: { height in
+      visibleHeight = height
+    }
+    .onChange(of: store.modules) { store.reconcileWorkspace() }
+    .onExitCommand { store.discardArrangement() }
+    .onDisappear { store.discardArrangement() }
+  }
+
+  // MARK: - Top
+
+  @ViewBuilder
+  private var banners: some View {
+    if let error = store.layoutError {
+      ErrorState("Não deu para guardar a disposição", description: error)
+    }
+    if let error = store.viewError {
+      ErrorState("Não deu para trocar a disposição", description: error)
+    }
+  }
+
+  /// `page.tsx:113-125`.
+  private var toolbar: some View {
+    HStack(spacing: 8) {
+      // `HomeViewSwitch.tsx`.
+      SegmentedPills(
+        "Disposição do Início",
+        items: [
+          SegmentedPills<HomeView>.Item(id: HomeView.grid, label: "Grade"),
+          SegmentedPills<HomeView>.Item(id: HomeView.workspace, label: "Abas"),
+        ],
+        selection: Binding(
+          get: { store.showsTabs ? HomeView.workspace : HomeView.grid },
+          set: { view in Task { await store.chooseView(view) } }
+        ),
+        style: .toggle
+      )
+      .fixedSize()
+      Spacer(minLength: 8)
+      if store.showsTabs {
+        Button {
+          store.restoreWorkspace()
+        } label: {
+          Label("Restaurar abas", systemImage: "arrow.counterclockwise")
+        }
+        .pillButtonStyle(.outline, size: .small)
+      }
+    }
+  }
+
+  // MARK: - Panels
+
+  @ViewBuilder
+  private var content: some View {
+    if !store.hasState {
+      LoadingState()
+    } else if store.nothingOn {
+      NothingOnState(navigator: navigator)
+    } else if store.showsTabs {
+      WorkspaceTabsView(
+        modules: store.modules,
+        title: { HomeModuleInfo.tabTitle($0) },
+        panel: { panel(for: $0) },
+        layout: Binding(get: { store.workspace.layout }, set: { store.workspace.update($0) })
+      )
+      .frame(height: max(Self.minimumTabsHeight, visibleHeight - Self.reservedHeight))
+      .onAppear { store.loadWorkspace() }
+      .onChange(of: store.workspaceAccount) { store.loadWorkspace() }
+    } else if !store.isWindowMeasured {
+      // Without the window's size there is no layout to choose yet; showing
+      // another first would make the panels jump (`page.tsx:44-46`).
+      EmptyView()
+    } else if store.isNarrow {
+      NarrowDashboardView(
+        modules: store.narrowModules,
+        active: store.activeNarrowModule,
+        panelHeight: max(
+          Self.minimumTabsHeight, visibleHeight - Self.reservedHeight - Self.moduleBarHeight),
+        panel: { panel(for: $0) }
+      )
+    } else {
+      GridDashboardView(store: store, panel: { panel(for: $0) })
+    }
+  }
+
+  /// The module's full panel, else the read-only summary.
+  private func panel(for module: ModuleID) -> AnyView {
+    if let full = modulePanels.panel(for: module) { return full }
+    return AnyView(
+      SummaryPanel(store: store, module: module) { route, itemID in
+        if let itemID {
+          navigator.open(route, itemID: itemID)
+        } else {
+          open(route)
+        }
+      })
+  }
+
+  // MARK: - Bottom
+
+  private var showsModuleBar: Bool {
+    store.hasState && !store.nothingOn && !store.showsTabs && store.isNarrow
+      && NarrowDashboard.showsBar(modules: store.narrowModules)
+  }
+
+  private var bottomInset: CGFloat {
+    showsModuleBar ? Self.moduleBarHeight : 0
   }
 
   @ViewBuilder
-  private func content(_ home: HomePanels?) -> some View {
-    if let home {
-      if home.nothingOn {
-        NothingOnState(navigator: navigator)
-      } else {
-        grid(home.panels)
-      }
-    } else {
-      LoadingState()
-    }
-  }
-
-  /// One container whatever the column count, each panel keyed by its module, so
-  /// a resize that changes the columns moves the panels instead of rebuilding them.
-  private func grid(_ panels: [HomePanel]) -> some View {
-    HomeColumnsLayout(spacing: 16) {
-      ForEach(panels) { panel in
-        ModulePanel(
-          panel: panel,
-          tab: store.selectedTab(of: panel),
-          selectTab: { store.selectTab($0, of: panel.module) }
-        ) { route, itemID in
-          if let itemID {
-            navigator.open(route, itemID: itemID)
-          } else {
-            open(route)
-          }
-        }
-        .id(panel.module)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .topLeading)
-  }
-}
-
-/// Where each panel goes in the "Hoje" grid.
-nonisolated enum HomeGrid {
-  /// Below this width the panels stack in one column: two would squeeze each
-  /// row's title next to its lead column.
-  static let twoColumnWidth: CGFloat = 820
-
-  static func columnCount(width: CGFloat) -> Int {
-    width >= twoColumnWidth ? 2 : 1
-  }
-
-  /// Panels alternate left and right in the web's order.
-  static func column(of index: Int, columns: Int) -> Int {
-    index % columns
-  }
-}
-
-/// Independent columns (a short panel never leaves a gap under it) whose count
-/// follows the width it is offered, so the first pass already has the right count
-/// instead of measuring a zero width first.
-private struct HomeColumnsLayout: Layout {
-  let spacing: CGFloat
-
-  private struct Arrangement {
-    var columnWidth: CGFloat
-    var origins: [CGPoint]
-    var size: CGSize
-  }
-
-  private func arrange(width proposed: CGFloat?, subviews: Subviews) -> Arrangement {
-    let width: CGFloat
-    if let proposed, proposed.isFinite {
-      width = proposed
-    } else {
-      width = subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
-    }
-    let columns = HomeGrid.columnCount(width: width)
-    let columnWidth = max(0, (width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
-    var heights = Array(repeating: CGFloat(0), count: columns)
-    var origins: [CGPoint] = []
-    for (index, subview) in subviews.enumerated() {
-      let column = HomeGrid.column(of: index, columns: columns)
-      let height = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
-      let y = heights[column] == 0 ? 0 : heights[column] + spacing
-      origins.append(CGPoint(x: CGFloat(column) * (columnWidth + spacing), y: y))
-      heights[column] = y + height
-    }
-    return Arrangement(
-      columnWidth: columnWidth, origins: origins, size: CGSize(width: width, height: heights.max() ?? 0))
-  }
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    arrange(width: proposal.width, subviews: subviews).size
-  }
-
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    let arrangement = arrange(width: bounds.width, subviews: subviews)
-    for (subview, origin) in zip(subviews, arrangement.origins) {
-      subview.place(
-        at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
-        anchor: .topLeading,
-        proposal: ProposedViewSize(width: arrangement.columnWidth, height: nil)
+  private var bottomBar: some View {
+    if store.grid.isArranging {
+      GridArrangeBar(
+        windowSize: store.windowSize,
+        isSaving: store.grid.isSaving,
+        save: { Task { await store.saveArrangement() } },
+        discard: { store.discardArrangement() }
       )
+    } else if showsModuleBar {
+      GridModuleBar(
+        modules: store.narrowModules,
+        active: store.activeNarrowModule,
+        select: { store.selectNarrowModule($0) }
+      )
+    }
+  }
+}
+
+/// A module without a full panel: its summary, refreshed every minute so
+/// "hoje", ages and the upcoming events follow the clock.
+private struct SummaryPanel: View {
+  let store: HomeStore
+  let module: ModuleID
+  let open: (AppRoute, String?) -> Void
+
+  var body: some View {
+    TimelineView(.everyMinute) { context in
+      if let panel = store.panels(at: context.date)?.panels.first(where: { $0.module == module }) {
+        ScrollView {
+          ModulePanel(
+            panel: panel,
+            tab: store.selectedTab(of: panel),
+            selectTab: { store.selectTab($0, of: panel.module) },
+            open: open
+          )
+        }
+        .scrollIndicators(.automatic)
+      } else {
+        Text(HomePanels.offText)
+          .typeRole(.data)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+      }
     }
   }
 }
@@ -294,9 +369,7 @@ private struct ModulePanel: View {
         TabBody(tab: tab) { open(panel.route, $0.itemID) }
       }
     }
-    .padding(18)
     .frame(maxWidth: .infinity, alignment: .topLeading)
-    .glassSurface(.panel)
   }
 }
 
@@ -405,13 +478,26 @@ private struct NothingOnState: View {
   }
 }
 
-#Preview("Hoje") {
-  HomeScreen(environment: .preview())
-    .frame(width: 960, height: 720)
+/// Previews keep the tabs arrangement in memory.
+@MainActor
+private func previewScreen(_ environment: AppEnvironment) -> HomeScreen {
+  HomeScreen(
+    store: HomeStore.shared(in: environment, workspaceDirectory: nil), navigator: environment.navigator,
+    open: { _ in })
+}
+
+#Preview("Início") {
+  previewScreen(.preview())
+    .frame(width: 1280, height: 800)
+}
+
+#Preview("Início estreito") {
+  previewScreen(.preview())
+    .frame(width: 760, height: 720)
 }
 
 #Preview("Nenhum módulo") {
-  HomeScreen(environment: .preview(state: DashboardState(updatedAt: "2026-11-04T12:40:00.000Z", modules: [])))
+  previewScreen(.preview(state: DashboardState(updatedAt: "2026-11-04T12:40:00.000Z", modules: [])))
     .frame(width: 960, height: 520)
 }
 

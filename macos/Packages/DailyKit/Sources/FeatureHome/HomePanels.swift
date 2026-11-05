@@ -47,7 +47,7 @@ struct HomeTab: Identifiable, Equatable, Sendable {
   var emptyText: String?
 }
 
-/// One module's panel on the "Hoje" screen.
+/// One module's panel on Início.
 struct HomePanel: Identifiable, Equatable, Sendable {
   var module: ModuleID
   var title: String
@@ -58,7 +58,7 @@ struct HomePanel: Identifiable, Equatable, Sendable {
   var route: AppRoute { .module(module) }
 }
 
-/// The panels of the "Hoje" screen: one per module that is on, in the web's panel
+/// The panels of Início: one per module that is on, in the web's panel
 /// order (`components/dashboard/useDashboardPanels.tsx:50-141`), each with the rows
 /// its web panel would show first. Notes are left out: their list is not in
 /// `DashboardState` and the sidebar already opens them.
