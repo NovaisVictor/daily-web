@@ -102,4 +102,19 @@ import Testing
     draft.clipTitle()
     #expect(draft.title.utf16.count == TaskDraft.titleLimit)
   }
+
+  /// The quick-add field clips with the same rule: counted in UTF-16 as the
+  /// browser does, and never half an emoji. Cutting 255 characters instead
+  /// would keep up to twice the limit in UTF-16.
+  @Test func clippingCountsUTF16AndKeepsWholeEmoji() {
+    let emoji = String(repeating: "😀", count: 200)
+    let clipped = TaskDraft.clipped(emoji)
+    #expect(clipped.utf16.count == 254)
+    #expect(clipped.count == 127)
+    #expect(clipped.unicodeScalars.allSatisfy { $0 == "😀" })
+
+    let mixed = String(repeating: "a", count: 254) + "😀"
+    #expect(TaskDraft.clipped(mixed) == String(repeating: "a", count: 254))
+    #expect(TaskDraft.clipped("curta") == "curta")
+  }
 }

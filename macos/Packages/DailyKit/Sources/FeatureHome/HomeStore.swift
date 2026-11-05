@@ -9,29 +9,19 @@ import Observation
 /// the pomodoro goes through the shared `PomodoroController` and the
 /// arrangement through `DashboardLayoutStore`.
 ///
-/// One per session, so the app menu's "Organizar painéis" reaches the same
-/// store the screen shows.
+/// One per session: what every window shows alike. What one window does with
+/// it (its size, the arrange mode, the narrow grid's module) is that window's
+/// `HomeWindowState`, so two main windows never fight over it.
 @Observable
 public final class HomeStore {
   static let storeKey = "home"
-  /// Shared with whatever else needs the arrangement (Configuração → Disposição).
-  static let layoutStoreKey = "dashboardLayout"
 
   @ObservationIgnored private let session: SessionStore
   @ObservationIgnored private let dashboard: DashboardStore
   @ObservationIgnored private let pomodoro: PomodoroController
   @ObservationIgnored private let poller: Poller?
   @ObservationIgnored let layoutStore: DashboardLayoutStore
-  let grid: GridArrangement
   let workspace: HomeWorkspace
-
-  /// The window's content size, as the web's `window.innerWidth/innerHeight`.
-  private(set) var windowSize: CGSize = .zero
-  /// The size the grid layout is chosen for. It stays put while arranging, so
-  /// resizing the window then does not swap the layout under the draft.
-  private var layoutSize: CGSize = .zero
-  /// The module the narrow grid shows, as the web's `?modulo=`.
-  private var narrowSelection: ModuleID?
 
   init(
     session: SessionStore, dashboard: DashboardStore, pomodoro: PomodoroController,
@@ -42,15 +32,11 @@ public final class HomeStore {
     self.pomodoro = pomodoro
     self.poller = poller
     self.layoutStore = layoutStore
-    grid = GridArrangement(layoutStore: layoutStore)
     workspace = HomeWorkspace(store: layoutStore, sleep: sleep)
   }
 
   convenience init(environment: AppEnvironment, workspaceDirectory: URL?) {
-    let layoutStore = environment.featureStores.store(HomeStore.layoutStoreKey) {
-      DashboardLayoutStore(
-        client: environment.client, dashboard: environment.dashboard, workspaceDirectory: workspaceDirectory)
-    }
+    let layoutStore = DashboardLayoutStore.shared(in: environment, workspaceDirectory: workspaceDirectory)
     self.init(
       session: environment.session, dashboard: environment.dashboard, pomodoro: environment.pomodoro,
       layoutStore: layoutStore, poller: environment.poller)
@@ -138,88 +124,12 @@ public final class HomeStore {
   /// "Grade" / "Abas" (`page.tsx:78-95`): the screen changes at once and goes
   /// back with "Não deu para trocar a disposição" if the server refuses.
   func chooseView(_ view: HomeView) async {
-    if view != homeView { discardArrangement() }
     await layoutStore.setHomeView(view)
   }
 
   /// The grid's save failure, else the tabs' own.
   var layoutError: String? { layoutStore.layoutError ?? workspace.saveError }
   var viewError: String? { layoutStore.viewError }
-
-  // MARK: - Grid
-
-  func updateWindowSize(_ size: CGSize) {
-    guard size != windowSize else { return }
-    windowSize = size
-    if grid.isArranging, isNarrow {
-      // The narrow grid cannot be arranged; leaving the mode keeps nothing stuck.
-      grid.discard()
-    }
-    if !grid.isArranging { layoutSize = size }
-  }
-
-  var isWindowMeasured: Bool { windowSize.width > 0 && windowSize.height > 0 }
-  var isNarrow: Bool { NarrowDashboard.isNarrow(width: windowSize.width) }
-
-  /// Every panel's place for the current window (`page.tsx:47-50`): the layout
-  /// saved for the nearest size, else the legacy one, else the default; sanitized.
-  var fullLayout: [PanelPlacement] {
-    DashboardLayoutEngine.layout(
-      saved: layoutStore.layouts, legacy: layoutStore.layout,
-      width: Double(layoutSize.width), height: Double(layoutSize.height))
-  }
-
-  /// The panels of the modules that are on, as the grid draws them.
-  var shownLayout: [PanelPlacement] {
-    DashboardLayoutEngine.synchronize(DashboardLayoutEngine.layoutFor(fullLayout, enabled: modules))
-  }
-
-  /// What the grid draws now: the arrange draft, else `shownLayout`.
-  var gridLayout: [PanelPlacement] { grid.displayed(shownLayout) }
-
-  /// Whether "Organizar painéis" can start: the wide grid is on screen with panels.
-  public var canArrange: Bool {
-    !showsTabs && showsViewSwitch && isWindowMeasured && !isNarrow && !grid.isArranging
-  }
-
-  /// "Organizar painéis" in the View menu, and holding a panel for 0.5 s.
-  public func beginArranging() {
-    guard canArrange else { return }
-    grid.begin()
-  }
-
-  func movePanel(_ module: ModuleID, x: Int, y: Int) {
-    grid.move(module, x: x, y: y, shown: shownLayout)
-  }
-
-  func resizePanel(_ module: ModuleID, w: Int, h: Int) {
-    grid.resize(module, w: w, h: h, shown: shownLayout)
-  }
-
-  func discardArrangement() {
-    guard grid.isArranging else { return }
-    grid.discard()
-    layoutSize = windowSize
-  }
-
-  /// "Salvar para esta tela": saved for the window's size right now.
-  func saveArrangement() async {
-    await grid.save(full: fullLayout, viewport: windowSize)
-    layoutSize = windowSize
-  }
-
-  // MARK: - Narrow grid
-
-  /// The modules of the narrow grid, in reading order of the layout.
-  var narrowModules: [ModuleID] { NarrowDashboard.modules(shownLayout) }
-
-  var activeNarrowModule: ModuleID? {
-    NarrowDashboard.active(selected: narrowSelection, modules: narrowModules)
-  }
-
-  func selectNarrowModule(_ module: ModuleID) {
-    narrowSelection = module
-  }
 
   // MARK: - Abas
 
@@ -239,6 +149,6 @@ public final class HomeStore {
 
   /// "Restaurar abas".
   func restoreWorkspace() {
-    workspace.restore(modules: modules)
+    workspace.restore(account: workspaceAccount, modules: modules)
   }
 }

@@ -44,6 +44,16 @@ import Testing
     #expect(navigator.takeNotificationsRequest())
     #expect(!navigator.isNotificationsRequested)
   }
+
+  @Test func arrangeRequestIsTakenOnce() {
+    let navigator = AppNavigator()
+    #expect(!navigator.takeArrangeRequest())
+    navigator.requestArrange()
+    #expect(navigator.isArrangeRequested)
+    #expect(navigator.takeArrangeRequest())
+    #expect(!navigator.isArrangeRequested)
+    #expect(!navigator.takeArrangeRequest())
+  }
 }
 
 @Suite struct PrimaryWindowTests {

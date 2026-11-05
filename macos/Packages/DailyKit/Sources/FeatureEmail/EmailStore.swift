@@ -81,6 +81,10 @@ final class EmailStore {
   private(set) var dragging: String?
   var confirmation: ConfirmRequest?
   var isMoveSheetPresented = false
+  /// The view hosting the dialogs whose control asked for `confirmation` or the
+  /// move sheet. The screen and the Início panels, in any window, share this
+  /// store, so only that view presents them; nil lets any host.
+  private(set) var dialogPresenter: UUID?
   /// The panel's "Tela cheia": folder tree, list and reader over the window
   /// (`view.maximized`, `EmailPanel.tsx:1713-1737`). Kept here so moving the
   /// panel on Início does not close it.
@@ -468,10 +472,16 @@ final class EmailStore {
     await runBatch(lastBatch.action, folder: lastBatch.folder, only: targets)
   }
 
+  /// Whether the dialogs hosted by `presenter` show what the store asks.
+  func presentsDialogs(_ presenter: UUID) -> Bool {
+    dialogPresenter == nil || dialogPresenter == presenter
+  }
+
   /// E and the "Excluir" button: the same question as a single row's trash.
-  func requestDeleteSelected() {
+  func requestDeleteSelected(presenter: UUID? = nil) {
     let count = selectedTargets.count
     guard count > 0 else { return }
+    dialogPresenter = presenter
     confirmation = ConfirmRequest(
       title: count == 1 ? "Excluir este e-mail?" : "Excluir estes \(count) e-mails?",
       message: "Os enviados ficam: sua cópia do que escreveu não é lixo da caixa.",
@@ -482,9 +492,10 @@ final class EmailStore {
   }
 
   /// M opens the destination sheet instead of moving at once.
-  func requestMoveSelected() {
+  func requestMoveSelected(presenter: UUID? = nil) {
     guard !selection.selected.isEmpty, !moveFolders.isEmpty else { return }
     targetFolder = effectiveTargetFolder
+    dialogPresenter = presenter
     isMoveSheetPresented = true
   }
 
@@ -520,9 +531,10 @@ final class EmailStore {
   }
 
   /// The trash of one row asks with what will really go.
-  func requestDelete(_ thread: EmailThread) {
+  func requestDelete(_ thread: EmailThread, presenter: UUID? = nil) {
     let received = thread.received
     guard !received.isEmpty else { return }
+    dialogPresenter = presenter
     confirmation = ConfirmRequest(
       title: received.count == 1
         ? "Excluir este e-mail?" : "Excluir esta conversa (\(received.count) mensagens recebidas)?",
@@ -599,12 +611,13 @@ final class EmailStore {
 
   // MARK: - Folder read
 
-  func requestMarkFolderRead(account: String, node: MailboxNode) {
+  func requestMarkFolderRead(account: String, node: MailboxNode, presenter: UUID? = nil) {
     guard node.unread >= Self.confirmFolderReadAbove else {
       Task { await markFolderRead(account: account, node: node) }
       return
     }
     let name = node.name.isEmpty ? node.path : node.name
+    dialogPresenter = presenter
     confirmation = ConfirmRequest(
       title: "Marcar \(node.unread) mensagens como lidas?",
       message: "Vale para a pasta \(name) inteira, inclusive o que ainda não foi carregado aqui.",

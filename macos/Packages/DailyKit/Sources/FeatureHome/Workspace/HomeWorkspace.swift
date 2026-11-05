@@ -18,6 +18,8 @@ final class HomeWorkspace {
   static let saveDelay: Duration = .milliseconds(500)
   /// Shown under "Não deu para guardar a disposição" when the file cannot be written.
   static let saveFailure = "Falha ao guardar as abas neste Mac"
+  /// Shown when the saved arrangement cannot be removed by "Restaurar abas".
+  static let restoreFailure = "Falha ao restaurar as abas neste Mac"
 
   private(set) var layout = WorkspaceLayout(root: nil, nextID: 1)
   private(set) var saveError: String?
@@ -68,12 +70,26 @@ final class HomeWorkspace {
     update(layout.reconciled(with: modules))
   }
 
-  /// "Restaurar abas" (`page.tsx:97-100`): the default arrangement, written at once.
-  func restore(modules: [ModuleID]) {
+  /// "Restaurar abas" (`page.tsx:97-100`): forgets the saved arrangement and
+  /// shows the default, which is written only on the next change, as the web's
+  /// `clearWorkspaceLayout()`. Loads `account` first when it is not the loaded
+  /// one, so a change still waiting is written where it belongs and never
+  /// lands on top of the removal.
+  func restore(account: LayoutAccount?, modules: [ModuleID]) {
+    if !isLoaded || account != self.account {
+      load(account: account, modules: modules)
+    }
     pendingSave?.cancel()
     pendingSave = nil
     layout = WorkspaceLayout.makeDefault(modules: modules)
-    persist()
+    guard let account = self.account else { return }
+    do {
+      try store.removeWorkspace(account: account)
+      saveError = nil
+    } catch {
+      Logger.homeArrangement.error("Tabs arrangement removal failed: \(String(describing: error), privacy: .public)")
+      saveError = Self.restoreFailure
+    }
   }
 
   /// Waits for a scheduled write; tests use it to observe the debounce.

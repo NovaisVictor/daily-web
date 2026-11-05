@@ -209,4 +209,12 @@ nonisolated enum BoardTabs {
   static func columns(width: CGFloat, active: BoardColumn) -> [BoardColumn] {
     usesTabs(width: width) ? [active] : BoardColumn.allCases
   }
+
+  /// The tab once a move by button or keys ended: the note's new lane when
+  /// the server took the move, so the focus can follow it; else the tab the
+  /// note is still in. Switching before the answer would leave a refused move
+  /// on a tab without the note.
+  static func tab(afterMoveTo column: BoardColumn, moved: Bool, current: BoardColumn) -> BoardColumn {
+    moved ? column : current
+  }
 }

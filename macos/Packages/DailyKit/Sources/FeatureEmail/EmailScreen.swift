@@ -230,6 +230,7 @@ struct EmailListPane: View {
 struct EmailBatchBar: View {
   @Environment(\.theme) private var theme
   @Bindable var store: EmailStore
+  @Environment(\.emailPresenter) private var presenter
 
   var body: some View {
     let count = store.selection.selected.count
@@ -265,7 +266,9 @@ struct EmailBatchBar: View {
         }
         // The web fills this one (`IconAction variant="destructive"`, EmailPanel.tsx:993-998);
         // the app keeps one destructive glyph button, the danger-on-hover circle of the rows.
-        IconButton("Excluir", systemImage: "trash", variant: .destructive) { store.requestDeleteSelected() }
+        IconButton("Excluir", systemImage: "trash", variant: .destructive) {
+          store.requestDeleteSelected(presenter: presenter)
+        }
       }
     }
   }
@@ -316,20 +319,30 @@ struct EmailMoveSheet: View {
 
 extension View {
   /// The delete confirmation and the M move sheet. Only one presenter may own
-  /// them at a time: a second sheet on the same window would be refused.
+  /// them at a time: a second sheet on the same window would be refused, and
+  /// another window would show a question nobody asked there.
   func emailDialogs(_ store: EmailStore, isActive: Bool) -> some View {
     modifier(EmailDialogs(store: store, isActive: isActive))
   }
 }
 
+extension EnvironmentValues {
+  /// The `emailDialogs` host a control sits in; the control passes it with its
+  /// request so only that host presents the answer.
+  @Entry var emailPresenter: UUID? = nil
+}
+
 private struct EmailDialogs: ViewModifier {
   @Bindable var store: EmailStore
   let isActive: Bool
+  @State private var presenter = UUID()
 
   func body(content: Content) -> some View {
+    let owns = isActive && store.presentsDialogs(presenter)
     content
-      .confirmDialog(isActive ? $store.confirmation : .constant(nil))
-      .sheet(isPresented: isActive ? $store.isMoveSheetPresented : .constant(false)) {
+      .environment(\.emailPresenter, presenter)
+      .confirmDialog(owns ? $store.confirmation : .constant(nil))
+      .sheet(isPresented: owns ? $store.isMoveSheetPresented : .constant(false)) {
         EmailMoveSheet(store: store)
       }
   }

@@ -87,18 +87,30 @@ final class GridArrangement {
 
   /// "Salvar para esta tela" (`salvar`, `DashboardGrid.tsx:113-130`). Without
   /// a draft, pinning the layout on screen to this size is still a choice, so
-  /// `full` is saved; a draft is completed with the default places of the
-  /// panels it does not show, as the web's `parseLayout` does. The mode ends
-  /// either way; a failure is the store's `layoutError`.
+  /// `full` is saved; a draft is laid over `full`. The mode ends either way; a
+  /// failure is the store's `layoutError`.
   @discardableResult
   func save(full: [PanelPlacement], viewport: CGSize) async -> APIError? {
     guard isArranging, !isSaving else { return nil }
     isSaving = true
-    let layout = draft.map { DashboardLayoutEngine.parseLayout($0.map(\.layoutItem)) } ?? full
+    let layout = draft.map { Self.merge($0, over: full) } ?? full
     let error = await layoutStore.saveGrid(DashboardLayoutEngine.serializeLayout(layout), viewport: viewport)
     isSaving = false
     discard()
     return error
+  }
+
+  /// The draft's places over `full`. The web completes a draft with
+  /// `parseLayout`, which sends the panels of modules that are off back to
+  /// their default places; keeping their saved places means turning a module
+  /// back on finds it where it was.
+  static func merge(_ draft: [PanelPlacement], over full: [PanelPlacement]) -> [PanelPlacement] {
+    var moved: [ModuleID: PanelPlacement] = [:]
+    for placement in draft where moved[placement.i] == nil {
+      moved[placement.i] = placement
+    }
+    let merged = full.map { moved.removeValue(forKey: $0.i) ?? $0 }
+    return merged + draft.filter { moved[$0.i] != nil }
   }
 }
 

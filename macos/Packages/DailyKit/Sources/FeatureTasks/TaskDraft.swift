@@ -153,13 +153,19 @@ nonisolated struct TaskDraft: Equatable, Sendable {
 
   /// Clips the title to the browser's `maxLength`.
   mutating func clipTitle() {
-    guard title.utf16.count > Self.titleLimit else { return }
+    title = Self.clipped(title)
+  }
+
+  /// `title` cut to `titleLimit` UTF-16 units, as the browser's `maxLength`
+  /// counts, without splitting a character (an emoji counts two or more).
+  static func clipped(_ title: String) -> String {
+    guard title.utf16.count > titleLimit else { return title }
     var clipped = ""
     for character in title {
-      guard clipped.utf16.count + String(character).utf16.count <= Self.titleLimit else { break }
+      guard clipped.utf16.count + String(character).utf16.count <= titleLimit else { break }
       clipped.append(character)
     }
-    title = clipped
+    return clipped
   }
 
   /// `POST /api/tasks` from the form. `status` only for "Fazendo": the

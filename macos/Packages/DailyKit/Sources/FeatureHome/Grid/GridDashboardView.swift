@@ -13,7 +13,7 @@ struct GridDashboardView: View {
   /// never covers a resize handle.
   static let arrangingBottomPadding: CGFloat = 112
 
-  let store: HomeStore
+  let window: HomeWindowState
   let panel: (ModuleID) -> AnyView
 
   @State private var containerWidth: CGFloat = 0
@@ -21,8 +21,8 @@ struct GridDashboardView: View {
   @State private var gesture: GridGesture?
 
   var body: some View {
-    let layout = store.gridLayout
-    let arranging = store.grid.isArranging
+    let layout = window.gridLayout
+    let arranging = window.grid.isArranging
     GridDashboardLayout {
       if let gesture, gesture.kind == .move, let target = layout.first(where: { $0.i == gesture.module }) {
         GridPlaceholder()
@@ -34,9 +34,9 @@ struct GridDashboardView: View {
           content: panel(placement.i),
           index: index,
           arranging: arranging,
-          isActive: store.grid.activePanel == placement.i,
+          isActive: window.grid.activePanel == placement.i,
           offset: offset(of: placement),
-          begin: { store.beginArranging() },
+          begin: { window.beginArranging() },
           move: { value in move(placement, value) },
           resize: { value in resize(placement, value) },
           end: endGesture
@@ -65,7 +65,7 @@ struct GridDashboardView: View {
 
   private func start(_ kind: GridGesture.Kind, _ placement: PanelPlacement) -> GridGesture {
     if let gesture, gesture.module == placement.i, gesture.kind == kind { return gesture }
-    store.grid.setActive(placement.i)
+    window.grid.setActive(placement.i)
     let frame = DashboardLayoutEngine.frame(for: placement, containerWidth: containerWidth)
     return GridGesture(module: placement.i, kind: kind, startFrame: frame, translation: .zero)
   }
@@ -78,7 +78,7 @@ struct GridDashboardView: View {
       x: next.startFrame.minX + value.translation.width, y: next.startFrame.minY + value.translation.height)
     let cell = DashboardLayoutEngine.gridPosition(
       origin: origin, w: placement.w, h: placement.h, containerWidth: containerWidth)
-    store.movePanel(placement.i, x: cell.x, y: cell.y)
+    window.movePanel(placement.i, x: cell.x, y: cell.y)
   }
 
   private func resize(_ placement: PanelPlacement, _ value: DragGesture.Value) {
@@ -89,12 +89,12 @@ struct GridDashboardView: View {
       width: max(0, next.startFrame.width + value.translation.width),
       height: max(0, next.startFrame.height + value.translation.height))
     let cells = DashboardLayoutEngine.gridSize(size: size, x: placement.x, containerWidth: containerWidth)
-    store.resizePanel(placement.i, w: cells.w, h: cells.h)
+    window.resizePanel(placement.i, w: cells.w, h: cells.h)
   }
 
   private func endGesture() {
     gesture = nil
-    store.grid.setActive(nil)
+    window.grid.setActive(nil)
   }
 }
 

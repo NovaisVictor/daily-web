@@ -8,6 +8,7 @@ import SwiftUI
 /// M moves and Esc clears (`aoTeclar` in `EmailPanel.tsx`).
 struct EmailConversationList: View {
   @Environment(\.theme) private var theme
+  @Environment(\.emailPresenter) private var presenter
   let store: EmailStore
   let listing: EmailListing
   @FocusState private var focused: Bool
@@ -85,10 +86,10 @@ struct EmailConversationList: View {
     // E and M only act on what is marked: without a selection they do nothing,
     // so a delete is never confirmed for the wrong conversation by accident.
     case "e" where plain && !store.selection.selected.isEmpty:
-      store.requestDeleteSelected()
+      store.requestDeleteSelected(presenter: presenter)
       return .handled
     case "m" where plain && !store.selection.selected.isEmpty:
-      store.requestMoveSelected()
+      store.requestMoveSelected(presenter: presenter)
       return .handled
     default:
       return .ignored
@@ -134,6 +135,7 @@ struct EmailGroupHeader: View {
 /// One conversation (`<li>` of the web list), and its messages or body when open.
 struct EmailThreadRow: View {
   @Environment(\.theme) private var theme
+  @Environment(\.emailPresenter) private var presenter
   let store: EmailStore
   let thread: EmailThread
   let group: EmailThreadGroup
@@ -243,7 +245,7 @@ struct EmailThreadRow: View {
       }
       EmailTagButton(store: store, thread: thread, title: title)
       IconButton("excluir \(title)", systemImage: "trash", size: .small, variant: .destructive) {
-        store.requestDelete(thread)
+        store.requestDelete(thread, presenter: presenter)
       }
       EmailCreateMenu(store: store, thread: thread, title: title)
     }
@@ -307,6 +309,7 @@ struct EmailThreadRow: View {
 /// The right-click batch menu (`menuDoLote`). The clicked row joins the
 /// selection first, so every item acts on what is marked.
 struct EmailBatchContextMenu: View {
+  @Environment(\.emailPresenter) private var presenter
   let store: EmailStore
   let thread: EmailThread
   let group: EmailThreadGroup
@@ -335,7 +338,7 @@ struct EmailBatchContextMenu: View {
     Divider()
     Button("Excluir", systemImage: "trash", role: .destructive) {
       store.select(.context(thread.id))
-      store.requestDeleteSelected()
+      store.requestDeleteSelected(presenter: presenter)
     }
   }
 

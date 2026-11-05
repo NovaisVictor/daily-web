@@ -1,5 +1,4 @@
 import DailyCore
-import FeatureHome
 import FeatureSettings
 import FeatureShell
 import SwiftUI
@@ -47,6 +46,9 @@ struct AppCommands: Commands {
   let environment: AppEnvironment
   let opener: WindowOpener
   @Environment(\.openWindow) private var openWindow
+  /// The key window's shell: a main window moves itself, a module window
+  /// brings the main one forward.
+  @FocusedValue(\.shellMenu) private var shell
 
   var body: some Commands {
     CommandGroup(replacing: .newItem) {
@@ -55,12 +57,8 @@ struct AppCommands: Commands {
     }
     CommandGroup(after: .toolbar) {
       // Spec 010 FR-010-02: a keyboard path into arranging the Início grid.
-      Button("Organizar painéis") {
-        environment.navigator.open(.today)
-        opener.showMain(.menu)
-        HomeStore.shared(in: environment).beginArranging()
-      }
-      .disabled(!HomeStore.shared(in: environment).canArrange)
+      Button("Organizar painéis", action: organizePanels)
+        .disabled(!canOrganizePanels)
     }
     CommandGroup(replacing: .appSettings) {
       Button("Ajustes…") {
@@ -69,6 +67,25 @@ struct AppCommands: Commands {
       }
       .keyboardShortcut(",", modifiers: .command)
     }
+  }
+
+  /// Read from the session and the dashboard, which live as long as the app:
+  /// the Início store is replaced at sign-out, and its window may not be measured yet.
+  private var canOrganizePanels: Bool {
+    guard environment.session.user != nil else { return false }
+    return !(environment.dashboard.state?.modules.isEmpty ?? true)
+  }
+
+  /// Takes the key window (else the main one) to Início, whose screen answers
+  /// the request once it is key and measured.
+  private func organizePanels() {
+    if let shell {
+      shell.select(.today)
+    } else {
+      environment.navigator.open(.today)
+      opener.showMain(.menu)
+    }
+    environment.navigator.requestArrange()
   }
 }
 

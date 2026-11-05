@@ -87,6 +87,7 @@ struct EmailFullScreenToggle {
 /// The header's "…" menu (`ações dos e-mails`, `EmailPanel.tsx:1013-1118`). In a
 /// narrow pane it carries the batch actions and the filters the bar folds away.
 struct EmailPaneMenu: View {
+  @Environment(\.emailPresenter) private var presenter
   @Bindable var store: EmailStore
   let includesFilters: Bool
   let fullScreen: EmailFullScreenToggle?
@@ -143,7 +144,7 @@ struct EmailPaneMenu: View {
             }
           }
         }
-        Button("Excluir", role: .destructive) { store.requestDeleteSelected() }
+        Button("Excluir", role: .destructive) { store.requestDeleteSelected(presenter: presenter) }
       }
       Divider()
     }

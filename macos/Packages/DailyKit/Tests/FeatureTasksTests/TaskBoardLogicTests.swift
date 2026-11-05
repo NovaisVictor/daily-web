@@ -113,6 +113,14 @@ import Testing
     #expect(BoardTabs.columns(width: 700, active: .doing) == [.todo, .doing, .done])
   }
 
+  /// The narrow board follows a note to its new tab only after the server
+  /// took the move; while it waits, the new lane is not drawn.
+  @Test func theTabFollowsOnlyAMoveTheServerTook() {
+    #expect(BoardTabs.tab(afterMoveTo: .doing, moved: true, current: .todo) == .doing)
+    #expect(BoardTabs.tab(afterMoveTo: .doing, moved: false, current: .todo) == .todo)
+    #expect(!BoardTabs.columns(width: 420, active: .todo).contains(.doing))
+  }
+
   @Test func styleDescriptionsForAnnouncements() {
     #expect(NoteStylePatch(paper: .some(.pink)).description == "Papel rosa")
     #expect(NoteStylePatch(paper: .some(nil)).description == "Papel automático")

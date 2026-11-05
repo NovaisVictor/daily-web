@@ -167,6 +167,44 @@ nonisolated final class FakeServer: Sendable {
     #expect(store.confirmation == nil)
   }
 
+  /// The screen and the Início panels (any window) share the store: only the
+  /// host whose control asked presents the question.
+  @Test func onlyTheAskingHostPresentsTheDialogs() {
+    let screen = UUID()
+    let panel = UUID()
+    #expect(store.presentsDialogs(screen) && store.presentsDialogs(panel))
+
+    store.select(.click("mail-1:1"))
+    store.requestDeleteSelected(presenter: panel)
+    #expect(store.confirmation != nil)
+    #expect(store.presentsDialogs(panel))
+    #expect(!store.presentsDialogs(screen))
+
+    let big = MailboxNode(
+      path: "Arquivo", name: "Arquivo", delimiter: "/", parent: nil, specialUse: nil, total: 30, unread: 25)
+    store.requestMarkFolderRead(account: "mail-1", node: big, presenter: screen)
+    #expect(store.presentsDialogs(screen))
+    #expect(!store.presentsDialogs(panel))
+
+    // A request without a host lets any of them present it.
+    store.requestDeleteSelected()
+    #expect(store.presentsDialogs(screen) && store.presentsDialogs(panel))
+  }
+
+  @Test func theMoveSheetBelongsToTheAskingHost() async {
+    server.route { call in
+      call.path == "/api/email/folders" ? FakeAPIClient.json(EmailFoldersResponse(folders: ["Arquivo"])) : nil
+    }
+    let screen = UUID()
+    let panel = UUID()
+    store.select(.click("mail-1:1"))
+    await settle()
+    store.requestMoveSelected(presenter: screen)
+    #expect(store.isMoveSheetPresented)
+    #expect(store.presentsDialogs(screen))
+    #expect(!store.presentsDialogs(panel))
+  }
+
   @Test func moveSheetNeedsDestinations() async {
     server.route { call in
       call.path == "/api/email/folders"

@@ -26,7 +26,22 @@ public final class AppNavigator {
   /// popover and clears it.
   public var isNotificationsRequested = false
 
+  /// The View menu's "Organizar painéis": the Início of the key main window
+  /// starts arranging and clears it.
+  public private(set) var isArrangeRequested = false
+
   public init() {}
+
+  public func requestArrange() {
+    isArrangeRequested = true
+  }
+
+  /// True once per request; the Início of the key window calls it when it can
+  /// answer the request.
+  public func takeArrangeRequest() -> Bool {
+    defer { isArrangeRequested = false }
+    return isArrangeRequested
+  }
 
   public func requestNotifications() {
     isNotificationsRequested = true

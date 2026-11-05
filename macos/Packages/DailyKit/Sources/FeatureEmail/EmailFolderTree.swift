@@ -91,6 +91,7 @@ struct EmailFolderTree: View {
 
 struct EmailFolderRow: View {
   @Environment(\.theme) private var theme
+  @Environment(\.emailPresenter) private var presenter
   let store: EmailStore
   let account: MailboxRef
   let node: MailboxNode
@@ -133,7 +134,7 @@ struct EmailFolderRow: View {
       ZStack {
         if node.unread > 0 {
           Button {
-            store.requestMarkFolderRead(account: account.id, node: node)
+            store.requestMarkFolderRead(account: account.id, node: node, presenter: presenter)
           } label: {
             Image(systemName: "envelope.open")
           }
@@ -161,7 +162,7 @@ struct EmailFolderRow: View {
     .contextMenu {
       if node.unread > 0 {
         Button("Marcar a pasta como lida", systemImage: "envelope.open") {
-          store.requestMarkFolderRead(account: account.id, node: node)
+          store.requestMarkFolderRead(account: account.id, node: node, presenter: presenter)
         }
       }
     }

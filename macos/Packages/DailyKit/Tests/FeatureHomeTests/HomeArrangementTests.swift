@@ -89,6 +89,7 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
   let dashboard: DashboardStore
   let layoutStore: DashboardLayoutStore
   let store: HomeStore
+  let window: HomeWindowState
 
   /// Email spans the whole width at 1440 × 900 and half of it at 1920 × 1080.
   static let wideEmail = SavedLayout(width: 1440, height: 900, layout: [item(.email, x: 0, y: 0, w: 12, h: 14)])
@@ -103,6 +104,7 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     layoutStore = DashboardLayoutStore(client: client, dashboard: dashboard, workspaceDirectory: nil)
     store = HomeStore(
       session: session, dashboard: dashboard, pomodoro: pomodoro, layoutStore: layoutStore, sleep: immediate)
+    window = HomeWindowState(home: store)
   }
 
   func serve(layouts: [SavedLayout] = [], legacy: [LayoutItem] = []) {
@@ -118,18 +120,18 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
 
   @Test func theNearestSavedSizeWins() {
     serve(layouts: [Self.wideEmail, Self.halfEmail])
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    #expect(email(store.fullLayout)?.w == 12)
-    store.updateWindowSize(CGSize(width: 1900, height: 1000))
-    #expect(email(store.fullLayout)?.w == 6)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    #expect(email(window.fullLayout)?.w == 12)
+    window.updateWindowSize(CGSize(width: 1900, height: 1000))
+    #expect(email(window.fullLayout)?.w == 6)
   }
 
   @Test func withoutSizesTheLegacyLayoutThenTheDefault() {
     serve(legacy: [item(.email, x: 0, y: 0, w: 9, h: 14)])
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    #expect(email(store.fullLayout)?.w == 9)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    #expect(email(window.fullLayout)?.w == 9)
     serve()
-    #expect(store.fullLayout == DashboardLayoutEngine.defaultLayout())
+    #expect(window.fullLayout == DashboardLayoutEngine.defaultLayout())
   }
 
   @Test func shownLayoutIsSanitizedAndOnlyEnabledModules() {
@@ -137,71 +139,71 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     state.modules = [.email, .slack]
     state.layout = [item(.email, x: 11, y: 3, w: 50, h: 1)]
     dashboard.apply(state)
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    #expect(store.shownLayout.map(\.i) == [.email, .slack])
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    #expect(window.shownLayout.map(\.i) == [.email, .slack])
     // Clamped to 12 columns and 4 rows, then compacted to the top.
-    #expect(email(store.shownLayout) == PanelPlacement(i: .email, x: 0, y: 0, w: 12, h: 4))
+    #expect(email(window.shownLayout) == PanelPlacement(i: .email, x: 0, y: 0, w: 12, h: 4))
   }
 
   @Test func arrangingNeedsTheWideGrid() {
     serve()
-    #expect(!store.canArrange)
-    store.updateWindowSize(CGSize(width: 900, height: 700))
-    #expect(store.isNarrow)
-    store.beginArranging()
-    #expect(!store.grid.isArranging)
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    #expect(store.canArrange)
-    store.beginArranging()
-    #expect(store.grid.isArranging)
-    #expect(!store.canArrange)
+    #expect(!window.canArrange)
+    window.updateWindowSize(CGSize(width: 900, height: 700))
+    #expect(window.isNarrow)
+    window.beginArranging()
+    #expect(!window.grid.isArranging)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    #expect(window.canArrange)
+    window.beginArranging()
+    #expect(window.grid.isArranging)
+    #expect(!window.canArrange)
   }
 
   @Test func resizingTheWindowWhileArrangingKeepsTheLayout() {
     serve(layouts: [Self.wideEmail, Self.halfEmail])
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
-    store.updateWindowSize(CGSize(width: 1900, height: 1000))
-    #expect(email(store.gridLayout)?.w == 12)
-    #expect(store.windowSize == CGSize(width: 1900, height: 1000))
-    store.discardArrangement()
-    #expect(email(store.gridLayout)?.w == 6)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    window.updateWindowSize(CGSize(width: 1900, height: 1000))
+    #expect(email(window.gridLayout)?.w == 12)
+    #expect(window.windowSize == CGSize(width: 1900, height: 1000))
+    window.discardArrangement()
+    #expect(email(window.gridLayout)?.w == 6)
   }
 
   @Test func goingNarrowEndsTheArrangeMode() {
     serve()
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
-    store.movePanel(.agenda, x: 0, y: 0)
-    store.updateWindowSize(CGSize(width: 900, height: 700))
-    #expect(!store.grid.isArranging)
-    #expect(store.grid.draft == nil)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    window.movePanel(.agenda, x: 0, y: 0)
+    window.updateWindowSize(CGSize(width: 900, height: 700))
+    #expect(!window.grid.isArranging)
+    #expect(window.grid.draft == nil)
   }
 
   @Test func movingAndResizingGoThroughTheEngine() {
     serve()
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    let shown = store.shownLayout
-    store.movePanel(.agenda, x: 0, y: 0)
-    #expect(store.grid.draft == nil, "nothing moves outside the arrange mode")
-    store.beginArranging()
-    store.movePanel(.agenda, x: 0, y: 0)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    let shown = window.shownLayout
+    window.movePanel(.agenda, x: 0, y: 0)
+    #expect(window.grid.draft == nil, "nothing moves outside the arrange mode")
+    window.beginArranging()
+    window.movePanel(.agenda, x: 0, y: 0)
     let moved = DashboardLayoutEngine.move(shown, id: .agenda, x: 0, y: 0)
-    #expect(store.gridLayout == moved)
-    store.resizePanel(.agenda, w: 12, h: 6)
-    #expect(store.gridLayout == DashboardLayoutEngine.resize(moved, id: .agenda, w: 12, h: 6))
+    #expect(window.gridLayout == moved)
+    window.resizePanel(.agenda, w: 12, h: 6)
+    #expect(window.gridLayout == DashboardLayoutEngine.resize(moved, id: .agenda, w: 12, h: 6))
   }
 
   @Test func discardRestoresWithoutSaving() {
     serve()
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    let shown = store.gridLayout
-    store.beginArranging()
-    store.movePanel(.slack, x: 0, y: 0)
-    #expect(store.gridLayout != shown)
-    store.discardArrangement()
-    #expect(store.gridLayout == shown)
-    #expect(!store.grid.isArranging)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    let shown = window.gridLayout
+    window.beginArranging()
+    window.movePanel(.slack, x: 0, y: 0)
+    #expect(window.gridLayout != shown)
+    window.discardArrangement()
+    #expect(window.gridLayout == shown)
+    #expect(!window.grid.isArranging)
     #expect(client.calls.isEmpty)
   }
 
@@ -209,10 +211,10 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     serve()
     let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: [Self.wideEmail]))
     client.respond { _ in answer }
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
-    store.resizePanel(.email, w: 12, h: 14)
-    await store.saveArrangement()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    window.resizePanel(.email, w: 12, h: 14)
+    await window.saveArrangement()
 
     let call = try #require(client.calls.first)
     #expect(client.calls.count == 1)
@@ -222,8 +224,8 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     #expect(body.viewport == SaveBody.Viewport(width: 1500, height: 950))
     #expect(body.layout.count == ModuleID.known.count)
     #expect(body.layout.first { $0.i == "email" }?.w == 12)
-    #expect(!store.grid.isArranging)
-    #expect(store.grid.draft == nil)
+    #expect(!window.grid.isArranging)
+    #expect(window.grid.draft == nil)
     #expect(layoutStore.layouts == [Self.wideEmail])
   }
 
@@ -231,9 +233,9 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     serve()
     let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: []))
     client.respond { _ in answer }
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
-    await store.saveArrangement()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    await window.saveArrangement()
     let call = try #require(client.calls.first)
     let body = try JSONDecoder().decode(SaveBody.self, from: Data(try #require(call.body).utf8))
     #expect(body.layout == DashboardLayoutEngine.serializeLayout(DashboardLayoutEngine.defaultLayout()))
@@ -248,20 +250,20 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
       }
       return state
     }
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
-    await store.saveArrangement()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    await window.saveArrangement()
     #expect(store.layoutError == "Disposição inválida")
-    #expect(!store.grid.isArranging)
+    #expect(!window.grid.isArranging)
   }
 
   @Test func narrowModulesFollowTheShownLayout() {
     serve()
-    store.updateWindowSize(CGSize(width: 900, height: 700))
-    #expect(store.narrowModules == [.email, .agenda, .jira, .tasks, .pulls, .notes, .slack])
-    #expect(store.activeNarrowModule == .email)
-    store.selectNarrowModule(.jira)
-    #expect(store.activeNarrowModule == .jira)
+    window.updateWindowSize(CGSize(width: 900, height: 700))
+    #expect(window.narrowModules == [.email, .agenda, .jira, .tasks, .pulls, .notes, .slack])
+    #expect(window.activeNarrowModule == .email)
+    window.selectNarrowModule(.jira)
+    #expect(window.activeNarrowModule == .jira)
   }
 
   @Test func theSwitchShowsOnlyWithModulesOn() {
@@ -275,13 +277,13 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
 
   @Test func choosingTabsEndsTheArrangeModeAndPatchesTheView() async {
     serve()
-    store.updateWindowSize(CGSize(width: 1500, height: 950))
-    store.beginArranging()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
     let answer = FakeAPIClient.json(HomeViewResponse(homeView: .workspace))
     client.respond { _ in answer }
-    await store.chooseView(.workspace)
+    await window.chooseView(.workspace)
     #expect(store.showsTabs)
-    #expect(!store.grid.isArranging)
+    #expect(!window.grid.isArranging)
     let patch = FakeAPIClient.Call(method: "PATCH", path: "/api/preferences", body: #"{"homeView":"workspace"}"#)
     #expect(client.calls == [patch])
   }
@@ -291,9 +293,129 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     client.respond { _ throws(APIError) in
       throw .server(status: 500, message: "", code: nil, retry: nil)
     }
-    await store.chooseView(.workspace)
+    await window.chooseView(.workspace)
     #expect(!store.showsTabs)
     #expect(store.viewError == DashboardLayoutStore.homeViewFallback)
+  }
+
+  /// Two main windows share the session's layouts but not their size, arrange
+  /// mode or narrow module.
+  @Test func eachWindowArrangesApart() {
+    serve(layouts: [Self.wideEmail, Self.halfEmail])
+    let other = HomeWindowState(home: store)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    other.updateWindowSize(CGSize(width: 1900, height: 1000))
+    #expect(email(window.gridLayout)?.w == 12)
+    #expect(email(other.gridLayout)?.w == 6)
+    window.beginArranging()
+    #expect(window.grid.isArranging)
+    #expect(!other.grid.isArranging)
+    #expect(other.canArrange)
+    other.updateWindowSize(CGSize(width: 900, height: 700))
+    other.selectNarrowModule(.jira)
+    #expect(window.grid.isArranging, "the other window going narrow leaves this one arranging")
+    #expect(other.activeNarrowModule == .jira)
+  }
+
+  /// A module that is off keeps its saved place when the others are saved.
+  @Test func savingADraftKeepsThePlacesOfModulesThatAreOff() async throws {
+    var state = Fixtures.full
+    state.modules = [.email, .agenda]
+    state.layout = [item(.slack, x: 6, y: 50, w: 6, h: 10)]
+    state.layouts = []
+    dashboard.apply(state)
+    let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: []))
+    client.respond { _ in answer }
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    window.resizePanel(.email, w: 12, h: 14)
+    await window.saveArrangement()
+
+    let call = try #require(client.calls.first)
+    let body = try JSONDecoder().decode(SaveBody.self, from: Data(try #require(call.body).utf8))
+    #expect(body.layout.first { $0.i == "slack" } == item(.slack, x: 6, y: 50, w: 6, h: 10))
+    #expect(body.layout.first { $0.i == "email" }?.w == 12)
+    #expect(body.layout.count == ModuleID.known.count)
+  }
+
+  // MARK: - "Organizar painéis" from the menu
+
+  @Test func onlyTheKeyWindowAnswersTheMenu() {
+    serve()
+    let navigator = AppNavigator()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    navigator.requestArrange()
+    window.handleArrangeRequest(from: navigator, isKeyWindow: false)
+    #expect(!window.grid.isArranging)
+    #expect(navigator.isArrangeRequested)
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(window.grid.isArranging)
+    #expect(!navigator.isArrangeRequested)
+  }
+
+  @Test func theRequestWaitsForTheStateAndTheWindowSize() {
+    let navigator = AppNavigator()
+    navigator.requestArrange()
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(navigator.isArrangeRequested, "no state yet")
+    serve()
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(navigator.isArrangeRequested, "the window is not measured yet")
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(window.grid.isArranging)
+    #expect(!navigator.isArrangeRequested)
+  }
+
+  /// Where the grid cannot be arranged, the request is dropped rather than
+  /// left to start arranging later.
+  @Test func aNarrowWindowTakesTheRequestWithoutArranging() {
+    serve()
+    let navigator = AppNavigator()
+    window.updateWindowSize(CGSize(width: 900, height: 700))
+    navigator.requestArrange()
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(!navigator.isArrangeRequested)
+    #expect(!window.grid.isArranging)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(!window.grid.isArranging)
+  }
+
+  @Test func theTabsTakeTheRequestWithoutArranging() {
+    var state = Fixtures.full
+    state.homeView = .workspace
+    dashboard.apply(state)
+    let navigator = AppNavigator()
+    navigator.requestArrange()
+    window.handleArrangeRequest(from: navigator, isKeyWindow: true)
+    #expect(!navigator.isArrangeRequested)
+    #expect(!window.grid.isArranging)
+  }
+}
+
+@Suite struct GridArrangementMergeTests {
+  @Test func theDraftIsLaidOverTheFullLayout() {
+    let full = [
+      PanelPlacement(i: .email, x: 0, y: 0, w: 6, h: 10),
+      PanelPlacement(i: .slack, x: 6, y: 40, w: 6, h: 8),
+      PanelPlacement(i: .tasks, x: 0, y: 10, w: 6, h: 8),
+    ]
+    let draft = [
+      PanelPlacement(i: .tasks, x: 6, y: 0, w: 6, h: 8),
+      PanelPlacement(i: .email, x: 0, y: 0, w: 6, h: 12),
+    ]
+    let merged = GridArrangement.merge(draft, over: full)
+    #expect(merged.map(\.i) == [.email, .slack, .tasks])
+    #expect(merged[0] == draft[1])
+    #expect(merged[1] == full[1])
+    #expect(merged[2] == draft[0])
+  }
+
+  @Test func aDraftPanelMissingFromTheFullLayoutIsKept() {
+    let full = [PanelPlacement(i: .email, x: 0, y: 0, w: 6, h: 10)]
+    let draft = [PanelPlacement(i: .notes, x: 6, y: 0, w: 6, h: 8)]
+    #expect(GridArrangement.merge(draft, over: full) == full + draft)
   }
 }
 
@@ -369,21 +491,43 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     #expect(workspace.layout.views == [.email])
   }
 
-  @Test func restoreWritesTheDefaultAtOnce() throws {
-    let workspace = HomeWorkspace(store: layoutStore, sleep: idle)
+  /// `page.tsx:97-100`: the saved file goes and the default shows; a change
+  /// still waiting is dropped instead of writing over the removal.
+  @Test func restoreRemovesTheSavedArrangement() async throws {
+    let base = WorkspaceLayout.makeDefault(modules: [.email, .tasks])
+    let emailGroup = try #require(base.group(containing: .email))
+    try layoutStore.saveWorkspace(base.moving(.tasks, to: emailGroup.id).encoded(), account: account)
+    let workspace = HomeWorkspace(store: layoutStore, sleep: immediate)
     workspace.load(account: account, modules: [.email, .tasks])
-    let emailGroup = try #require(workspace.layout.group(containing: .email))
-    workspace.update(workspace.layout.moving(.tasks, to: emailGroup.id))
-    workspace.restore(modules: [.email, .tasks])
-    let fallback = WorkspaceLayout.makeDefault(modules: [.email, .tasks])
-    #expect(workspace.layout == fallback)
-    #expect(try saved() == fallback)
+    let tasksGroup = try #require(base.group(containing: .tasks))
+    workspace.update(base.moving(.email, to: tasksGroup.id))
+    workspace.restore(account: account, modules: [.email, .tasks])
+    await workspace.waitForPendingSave()
+    #expect(workspace.layout == base)
+    #expect(try saved() == nil)
+    #expect(workspace.saveError == nil)
+  }
+
+  /// Restoring before the tabs were read loads the account first, so the
+  /// removal reaches its file and later changes are written there.
+  @Test func restoreBeforeLoadingLoadsTheAccountFirst() async throws {
+    let base = WorkspaceLayout.makeDefault(modules: [.email, .tasks])
+    let emailGroup = try #require(base.group(containing: .email))
+    try layoutStore.saveWorkspace(base.moving(.tasks, to: emailGroup.id).encoded(), account: account)
+    let workspace = HomeWorkspace(store: layoutStore, sleep: immediate)
+    workspace.restore(account: account, modules: [.email, .tasks])
+    #expect(workspace.isLoaded)
+    #expect(workspace.layout == base)
+    #expect(try saved() == nil)
+    workspace.reconcile(modules: [.email, .tasks, .notes])
+    await workspace.waitForPendingSave()
+    #expect(try saved()?.views.contains(.notes) == true)
   }
 
   @Test func withoutAnAccountTheArrangementStaysInMemory() async {
     let workspace = HomeWorkspace(store: layoutStore, sleep: immediate)
     workspace.load(account: nil, modules: [.email, .tasks])
-    workspace.restore(modules: [.email])
+    workspace.restore(account: nil, modules: [.email])
     #expect(workspace.layout == WorkspaceLayout.makeDefault(modules: [.email]))
     #expect(workspace.saveError == nil)
   }

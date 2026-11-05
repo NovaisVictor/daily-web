@@ -105,10 +105,12 @@ public final class DashboardLayoutStore {
   public private(set) var viewError: String?
   /// The last "Restaurar disposição padrão" failure.
   public private(set) var resetError: String?
+  /// The last failure reading the server's default, shown by Configuração → Disposição.
+  public private(set) var checkError: String?
   public private(set) var isSavingGrid = false
   public private(set) var isResettingGrid = false
-  /// Whether the grid is in the default arrangement; nil until `checkDefaultGrid()` answers.
-  public private(set) var isDefaultGrid: Bool?
+  /// The server's default grid, once `checkDefaultGrid()` or `resetGrid()` brought it.
+  public private(set) var defaultLayout: [LayoutItem]?
 
   @ObservationIgnored private let client: any APIClient
   @ObservationIgnored private let dashboard: DashboardStore
@@ -122,6 +124,22 @@ public final class DashboardLayoutStore {
     self.workspaceDirectory = workspaceDirectory
   }
 
+  /// The session's store, shared by Início and Configuração → Disposição so
+  /// both see the same default check and the same saves.
+  ///
+  /// - Parameter workspaceDirectory: Where the "Abas" arrangement is kept; nil
+  ///   keeps it in memory (previews). Only the first call's value counts.
+  public static func shared(
+    in environment: AppEnvironment, workspaceDirectory: URL? = AppEnvironment.defaultCacheDirectory
+  ) -> DashboardLayoutStore {
+    environment.featureStores.store(storeKey) {
+      DashboardLayoutStore(
+        client: environment.client, dashboard: environment.dashboard, workspaceDirectory: workspaceDirectory)
+    }
+  }
+
+  static let storeKey = "dashboardLayout"
+
   // MARK: - What the server keeps
 
   /// The single legacy layout, used when no size was saved (`page.tsx:33`).
@@ -130,6 +148,15 @@ public final class DashboardLayoutStore {
   public var layouts: [SavedLayout] { dashboard.state?.layouts ?? [] }
   /// A state cached before this preference existed has none; the grid is the default (`page.tsx:29-30`).
   public var homeView: HomeView { dashboard.state?.homeView ?? .grid }
+
+  /// Whether the grid is in the default arrangement; nil until the default
+  /// arrived. It follows the dashboard, so a save from the grid shows at once.
+  /// Unlike the web, a layout saved for some window size also counts as a
+  /// change: since sizes are saved, the legacy layout alone stays default.
+  public var isDefaultGrid: Bool? {
+    guard let defaultLayout, dashboard.state != nil else { return nil }
+    return layout == defaultLayout && layouts.isEmpty
+  }
 
   // MARK: - Grid
 
@@ -158,17 +185,19 @@ public final class DashboardLayoutStore {
     }
   }
 
-  /// Asks the server for the default and compares (`LayoutPanel.tsx:18-37`).
-  /// Unlike the web, a layout saved for some window size also counts as a
-  /// change: since sizes are saved, the legacy layout alone stays default.
+  /// Asks the server for the default (`LayoutPanel.tsx:18-37`); the web asks
+  /// instead of duplicating `defaultLayout()` in the client.
   @discardableResult
   public func checkDefaultGrid() async -> APIError? {
     do {
-      let response = try await client.send(DashboardLayoutEndpoints.layoutDefault)
-      isDefaultGrid = layout == response.layout && layouts.isEmpty
+      defaultLayout = try await client.send(DashboardLayoutEndpoints.layoutDefault).layout
+      checkError = nil
       return nil
     } catch {
+      // Leaving the screen cancels the request; nothing failed.
+      if case .cancelled = error { return error }
       Logger.core.error("Default layout check failed: \(String(describing: error), privacy: .public)")
+      checkError = error.userMessage
       return error
     }
   }
@@ -186,7 +215,8 @@ public final class DashboardLayoutStore {
         $0.layout = response.layout
         $0.layouts = response.layouts
       }
-      isDefaultGrid = true
+      // The answer is the default (`resetDashboardLayout`).
+      defaultLayout = response.layout
       return nil
     } catch {
       Logger.core.error("Grid layout reset failed: \(String(describing: error), privacy: .public)")

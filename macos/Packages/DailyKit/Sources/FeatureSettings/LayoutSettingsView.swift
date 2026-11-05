@@ -7,18 +7,12 @@ import SwiftUI
 /// here and not on the Home screen because it is a rare action.
 struct LayoutSettingsView: View {
   @Environment(\.theme) private var theme
-  @State private var store: LayoutStore
-  private let dashboard: DashboardStore
+  /// The session's arrangement store, the one Início saves through, so a
+  /// layout saved for some window size shows here as a change at once.
+  private let store: DashboardLayoutStore
 
   init(environment: AppEnvironment) {
-    let dashboard = environment.dashboard
-    self.dashboard = dashboard
-    _store = State(initialValue: LayoutStore(client: environment.client) { await dashboard.reload() })
-  }
-
-  init(store: LayoutStore, dashboard: DashboardStore) {
-    _store = State(initialValue: store)
-    self.dashboard = dashboard
+    store = DashboardLayoutStore.shared(in: environment)
   }
 
   /// Spec 010 FR-010-02/03 and FR-010-11. The web's own copy names "Organizar" and
@@ -35,23 +29,23 @@ struct LayoutSettingsView: View {
         .foregroundStyle(theme.inkMid)
         .frame(maxWidth: 520, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
-      if let error = store.error { PanelError(error) }
-      switch store.status(current: dashboard.state?.layout) {
-      case .isDefault:
+      if let error = store.checkError ?? store.resetError { PanelError(error) }
+      switch store.isDefaultGrid {
+      case .some(true):
         Text("Os painéis estão na disposição padrão.")
           .typeRole(.caption)
           .foregroundStyle(theme.inkDim)
           .padding(.vertical, 24)
-      case .customized:
-        Button(store.isRestoring ? "Restaurando…" : "Restaurar disposição padrão") {
-          Task { await store.restore() }
+      case .some(false):
+        Button(store.isResettingGrid ? "Restaurando…" : "Restaurar disposição padrão") {
+          Task { await store.resetGrid() }
         }
         .pillButtonStyle(.outline, size: .small)
-        .disabled(store.isRestoring)
-      case .unknown:
+        .disabled(store.isResettingGrid)
+      case .none:
         EmptyView()
       }
     }
-    .task { await store.load() }
+    .task { await store.checkDefaultGrid() }
   }
 }

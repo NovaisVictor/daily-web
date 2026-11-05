@@ -53,6 +53,7 @@ struct TaskBoardView: View {
     }
     .onChange(of: tasks) { landPendingFocus() }
     .onChange(of: showAllDone) { landPendingFocus() }
+    .onChange(of: active) { landPendingFocus() }
   }
 
   private func lane(_ column: BoardColumn, list: [TodoTask]) -> some View {
@@ -135,13 +136,20 @@ struct TaskBoardView: View {
   }
 
   /// A move by button, menu or ⌘←/⌘→: the note's new lane is the one on
-  /// screen afterwards, and the focus follows it there.
+  /// screen afterwards, and the focus follows it there. The narrow board
+  /// changes tab only once the server took the move; a refused one puts the
+  /// focus back on the note, in the lane it never left.
   private func moveKeepingFocus(_ task: TodoTask, _ to: BoardColumn) {
     pendingFocus = PendingFocus(id: task.id, to: to)
-    active = to
     Task {
       let moved = await store.move(task, to: to)
-      if !moved, pendingFocus?.id == task.id { pendingFocus = nil }
+      active = BoardTabs.tab(afterMoveTo: to, moved: moved, current: active)
+      guard !moved else { return }
+      let wasPending = pendingFocus?.id == task.id
+      if wasPending { pendingFocus = nil }
+      // The rollback redraws the note in its old lane; the focus goes back to
+      // it unless the person has moved on to something else meanwhile.
+      if wasPending || focusedNote == nil || focusedNote == task.id { focusedNote = task.id }
     }
   }
 
@@ -152,6 +160,8 @@ struct TaskBoardView: View {
       return
     }
     guard TaskBoard.column(of: task) == pending.to else { return }
+    // A narrow board draws the new lane once its tab is chosen.
+    guard BoardTabs.columns(width: width, active: active).contains(pending.to) else { return }
     if pending.to == .done, !showAllDone,
       !(TaskBoard.byColumn(tasks)[.done] ?? []).prefix(TaskBoard.doneLimit).contains(where: { $0.id == task.id })
     {
@@ -526,7 +536,8 @@ struct AddNoteField: View {
           .onAppear { focus = .input }
           .onSubmit(submit)
           .onChange(of: title) { _, value in
-            if value.utf16.count > TaskDraft.titleLimit { title = String(value.prefix(TaskDraft.titleLimit)) }
+            let clipped = TaskDraft.clipped(value)
+            if clipped != value { title = clipped }
           }
           .onChange(of: focus) { _, now in
             // Leaving an empty field closes it; one with text stays, so a stray

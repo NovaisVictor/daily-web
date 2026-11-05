@@ -18,7 +18,12 @@ public struct HomeScreen: View {
 
   @Environment(\.theme) private var theme
   @Environment(\.modulePanels) private var modulePanels
+  /// Whether this window is the key one: only that Início answers the View
+  /// menu's "Organizar painéis".
+  @Environment(\.appearsActive) private var appearsActive
   private let store: HomeStore
+  /// This window's size, grid and arrange mode.
+  @State private var window: HomeWindowState
   private let open: (AppRoute) -> Void
   private let navigator: AppNavigator
   /// The height Início is given, for the panels that need a bounded one.
@@ -40,6 +45,7 @@ public struct HomeScreen: View {
     self.store = store
     self.navigator = navigator
     self.open = open
+    _window = State(initialValue: HomeWindowState(home: store))
   }
 
   public var body: some View {
@@ -59,7 +65,7 @@ public struct HomeScreen: View {
     // No fill of its own: the glass panels sit on the window's backdrop (FR-013-03).
     .overlay(alignment: .bottom) { bottomBar }
     .background {
-      WindowSizeReader { size in store.updateWindowSize(size) }
+      WindowSizeReader { size in window.updateWindowSize(size) }
         .accessibilityHidden(true)
     }
     .onGeometryChange(for: CGFloat.self) { proxy in
@@ -68,8 +74,21 @@ public struct HomeScreen: View {
       visibleHeight = height
     }
     .onChange(of: store.modules) { store.reconcileWorkspace() }
-    .onExitCommand { store.discardArrangement() }
-    .onDisappear { store.discardArrangement() }
+    // Another window may switch to the tabs; this one's draft has no grid then.
+    .onChange(of: store.showsTabs) { if store.showsTabs { window.discardArrangement() } }
+    .onChange(of: arrangeRequestInputs, initial: true) {
+      window.handleArrangeRequest(from: navigator, isKeyWindow: appearsActive)
+    }
+    .onExitCommand { window.discardArrangement() }
+    .onDisappear { window.discardArrangement() }
+  }
+
+  /// Everything that can let a pending "Organizar painéis" be answered.
+  private var arrangeRequestInputs: [Bool] {
+    [
+      navigator.isArrangeRequested, appearsActive, store.hasState, window.isWindowMeasured,
+      store.showsTabs,
+    ]
   }
 
   // MARK: - Top
@@ -96,7 +115,7 @@ public struct HomeScreen: View {
         ],
         selection: Binding(
           get: { store.showsTabs ? HomeView.workspace : HomeView.grid },
-          set: { view in Task { await store.chooseView(view) } }
+          set: { view in Task { await window.chooseView(view) } }
         ),
         style: .toggle
       )
@@ -131,20 +150,20 @@ public struct HomeScreen: View {
       .frame(height: max(Self.minimumTabsHeight, visibleHeight - Self.reservedHeight))
       .onAppear { store.loadWorkspace() }
       .onChange(of: store.workspaceAccount) { store.loadWorkspace() }
-    } else if !store.isWindowMeasured {
+    } else if !window.isWindowMeasured {
       // Without the window's size there is no layout to choose yet; showing
       // another first would make the panels jump (`page.tsx:44-46`).
       EmptyView()
-    } else if store.isNarrow {
+    } else if window.isNarrow {
       NarrowDashboardView(
-        modules: store.narrowModules,
-        active: store.activeNarrowModule,
+        modules: window.narrowModules,
+        active: window.activeNarrowModule,
         panelHeight: max(
           Self.minimumTabsHeight, visibleHeight - Self.reservedHeight - Self.moduleBarHeight),
         panel: { panel(for: $0) }
       )
     } else {
-      GridDashboardView(store: store, panel: { panel(for: $0) })
+      GridDashboardView(window: window, panel: { panel(for: $0) })
     }
   }
 
@@ -164,8 +183,8 @@ public struct HomeScreen: View {
   // MARK: - Bottom
 
   private var showsModuleBar: Bool {
-    store.hasState && !store.nothingOn && !store.showsTabs && store.isNarrow
-      && NarrowDashboard.showsBar(modules: store.narrowModules)
+    store.hasState && !store.nothingOn && !store.showsTabs && window.isNarrow
+      && NarrowDashboard.showsBar(modules: window.narrowModules)
   }
 
   private var bottomInset: CGFloat {
@@ -174,18 +193,18 @@ public struct HomeScreen: View {
 
   @ViewBuilder
   private var bottomBar: some View {
-    if store.grid.isArranging {
+    if window.grid.isArranging {
       GridArrangeBar(
-        windowSize: store.windowSize,
-        isSaving: store.grid.isSaving,
-        save: { Task { await store.saveArrangement() } },
-        discard: { store.discardArrangement() }
+        windowSize: window.windowSize,
+        isSaving: window.grid.isSaving,
+        save: { Task { await window.saveArrangement() } },
+        discard: { window.discardArrangement() }
       )
     } else if showsModuleBar {
       GridModuleBar(
-        modules: store.narrowModules,
-        active: store.activeNarrowModule,
-        select: { store.selectNarrowModule($0) }
+        modules: window.narrowModules,
+        active: window.activeNarrowModule,
+        select: { window.selectNarrowModule($0) }
       )
     }
   }

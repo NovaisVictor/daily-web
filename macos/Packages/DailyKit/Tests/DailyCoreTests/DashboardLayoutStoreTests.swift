@@ -163,10 +163,59 @@ import Testing
     #expect(store.isDefaultGrid == false)
   }
 
-  @Test func checkFailureLeavesTheAnswerUnknown() async {
+  @Test func checkFailureLeavesTheAnswerUnknownAndShowsTheError() async {
     client.respond { _ throws(APIError) in throw .offline }
     let store = makeStore()
     #expect(await store.checkDefaultGrid() == .offline)
+    #expect(store.isDefaultGrid == nil)
+    #expect(store.checkError == "Sem conexão com o servidor.")
+    client.respond { _ in FakeAPIClient.json(LayoutDefaultResponse(layout: [Self.email])) }
+    await store.checkDefaultGrid()
+    #expect(store.checkError == nil)
+  }
+
+  @Test func aCancelledCheckIsNoFailure() async {
+    client.respond { _ throws(APIError) in throw .cancelled }
+    let store = makeStore()
+    #expect(await store.checkDefaultGrid() == .cancelled)
+    #expect(store.checkError == nil)
+  }
+
+  /// The web compares the JSON strings (`LayoutPanel.tsx:30`), so the order counts too.
+  @Test func anotherOrderIsNotTheDefault() async {
+    let tasks = LayoutItem(i: "tasks", x: 7, y: 0, w: 5, h: 12)
+    var state = Fixtures.state()
+    state.layout = [tasks, Self.email]
+    dashboard.apply(state)
+    client.respond { _ in FakeAPIClient.json(LayoutDefaultResponse(layout: [Self.email, tasks])) }
+    let store = makeStore()
+    await store.checkDefaultGrid()
+    #expect(store.isDefaultGrid == false)
+  }
+
+  /// Configuração → Disposição stays open while a window saves its grid: the
+  /// restore must show without asking the server again.
+  @Test func aSaveForSomeSizeAfterTheCheckIsNoLongerTheDefault() async {
+    var state = Fixtures.state()
+    state.layout = [Self.email]
+    state.layouts = []
+    dashboard.apply(state)
+    client.respond { _ in FakeAPIClient.json(LayoutDefaultResponse(layout: [Self.email])) }
+    let store = makeStore()
+    await store.checkDefaultGrid()
+    #expect(store.isDefaultGrid == true)
+    let saved = [SavedLayout(width: 1440, height: 900, layout: [Self.movedEmail])]
+    client.respond { _ in FakeAPIClient.json(LayoutResponse(layout: [Self.email], layouts: saved)) }
+    await store.saveGrid([Self.movedEmail], viewport: CGSize(width: 1440, height: 900))
+    #expect(store.isDefaultGrid == false)
+    #expect(client.calls.count == 2)
+  }
+
+  @Test func withoutTheDashboardTheAnswerIsUnknown() async {
+    client.respond { _ in FakeAPIClient.json(LayoutDefaultResponse(layout: [Self.email])) }
+    let store = makeStore()
+    await store.checkDefaultGrid()
+    dashboard.clear()
     #expect(store.isDefaultGrid == nil)
   }
 
