@@ -45,7 +45,15 @@ enum JiraSyncTarget: Equatable {
 final class PullsStore {
   static let noFilterMatch = "Nenhum resultado para os filtros."
 
-  var tab: PullsTab = .tracked
+  /// Remembered per account across launches (spec 015 FR-015-01).
+  var tab: PullsTab {
+    get { storedTab }
+    set {
+      storedTab = newValue
+      viewState?.set(newValue.rawValue, module: Self.viewStateModule, field: Self.tabField)
+    }
+  }
+  private var storedTab: PullsTab = .tracked
   var filters = PullFilterState()
   /// The row a notification pointed at, highlighted until the next one.
   var highlighted: String?
@@ -70,20 +78,33 @@ final class PullsStore {
   @ObservationIgnored let dashboard: DashboardStore
   @ObservationIgnored let focus: FocusScheduler?
   @ObservationIgnored let now: Now
+  @ObservationIgnored private let viewState: ViewStateStore?
   @ObservationIgnored private let logger = Logger(
     subsystem: "io.github.novaisvictor.dailyweb", category: "FeaturePulls")
 
+  static let viewStateModule = "pulls"
+  static let tabField = "tab"
+
   init(
-    client: any APIClient, dashboard: DashboardStore, focus: FocusScheduler? = nil, now: @escaping Now = LiveTime.now
+    client: any APIClient, dashboard: DashboardStore, focus: FocusScheduler? = nil,
+    viewState: ViewStateStore? = nil, now: @escaping Now = LiveTime.now
   ) {
     self.client = client
     self.dashboard = dashboard
     self.focus = focus
+    self.viewState = viewState
     self.now = now
+    if let raw = viewState?.string(module: Self.viewStateModule, field: Self.tabField),
+      let tab = PullsTab(rawValue: raw)
+    {
+      storedTab = tab
+    }
   }
 
   convenience init(environment: AppEnvironment) {
-    self.init(client: environment.client, dashboard: environment.dashboard, focus: environment.focus)
+    self.init(
+      client: environment.client, dashboard: environment.dashboard, focus: environment.focus,
+      viewState: environment.viewState)
   }
 
   static let storeKey = "pulls"

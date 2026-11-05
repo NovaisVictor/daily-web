@@ -227,25 +227,11 @@ struct EmailActionDropTargets: View {
 
   var body: some View {
     let noun = count == 1 ? "conversa" : "conversas"
-    HStack(spacing: 8) {
-      HStack(spacing: 6) {
-        Text("\(count)")
-          .padding(.horizontal, 6)
-          .background(theme.brandTint, in: .capsule)
-          .overlay { Capsule().strokeBorder(theme.brandEdge) }
-        Text(noun)
-      }
-      .typeRole(.caption)
-      .monospacedDigit()
-      .foregroundStyle(theme.brand)
-      ForEach(targets) { target in
-        EmailDropTargetButton(
-          label: target.label, text: target.text, hint: target.hint, symbol: target.symbol,
-          destructive: target.destructive
-        ) {
-          Task { await store.dropOnAction(target.action) }
-        }
-      }
+    // `flex flex-wrap`: one line filling the strip when it fits, otherwise the
+    // targets wrap at their minimum width (`ActionDropTargets.tsx:80`, EM-21).
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) { items(noun: noun, fills: true) }
+      FlowLayout(spacing: 8) { items(noun: noun, fills: false) }
     }
     .padding(8)
     .background(theme.brandTint.opacity(0.4), in: .rect(cornerRadius: Radius.small))
@@ -256,6 +242,29 @@ struct EmailActionDropTargets: View {
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Soltar \(count) \(noun) em uma ação")
   }
+
+  @ViewBuilder
+  private func items(noun: String, fills: Bool) -> some View {
+    HStack(spacing: 6) {
+      Text("\(count)")
+        .padding(.horizontal, 6)
+        .background(theme.brandTint, in: .capsule)
+        .overlay { Capsule().strokeBorder(theme.brandEdge) }
+      Text(noun)
+    }
+    .typeRole(.caption)
+    .monospacedDigit()
+    .foregroundStyle(theme.brand)
+    .frame(minHeight: 28)
+    ForEach(targets) { target in
+      EmailDropTargetButton(
+        label: target.label, text: target.text, hint: target.hint, symbol: target.symbol,
+        destructive: target.destructive, fills: fills
+      ) {
+        Task { await store.dropOnAction(target.action) }
+      }
+    }
+  }
 }
 
 private struct EmailDropTargetButton: View {
@@ -265,17 +274,33 @@ private struct EmailDropTargetButton: View {
   let hint: String
   let symbol: String
   let destructive: Bool
+  /// Takes the spare width of a one-line strip (`flex-1`); wrapped, it keeps its own.
+  let fills: Bool
   let action: () -> Void
   @State private var targeted = false
+
+  /// `min-w-[7.5rem]`.
+  private static let minWidth: CGFloat = 120
 
   var body: some View {
     let tint = destructive ? theme.danger : theme.brand
     Button(action: action) {
       HStack(spacing: 8) {
         Image(systemName: symbol)
-        Text(targeted ? hint : text).lineLimit(1)
+        // Sized by the short text and truncating the hint (`truncate`), so
+        // hovering never changes the strip's layout under the cursor.
+        Text(text)
+          .lineLimit(1)
+          .hidden()
+          .frame(maxWidth: fills ? .infinity : nil)
+          .overlay {
+            Text(targeted ? hint : text)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
       }
-      .frame(maxWidth: .infinity, minHeight: 28)
+      .padding(.horizontal, 12)
+      .frame(minWidth: Self.minWidth, maxWidth: fills ? .infinity : nil, minHeight: 28)
       .foregroundStyle(targeted ? tint : theme.inkMid)
       .background(targeted ? tint.opacity(0.1) : .clear, in: .rect(cornerRadius: 6))
       .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(targeted ? tint : theme.lineStrong) }

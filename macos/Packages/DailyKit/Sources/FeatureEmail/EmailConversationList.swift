@@ -14,6 +14,7 @@ struct EmailConversationList: View {
   @FocusState private var focused: Bool
 
   var body: some View {
+    let stack = DragStackLookup(store: store, order: listing.order)
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 0) {
@@ -22,11 +23,15 @@ struct EmailConversationList: View {
               EmailGroupHeader(store: store, group: group)
             }
             ForEach(Array(group.threads.enumerated()), id: \.element.id) { index, thread in
+              let placement = stack.placement(of: thread.id)
+              // The cursor ring stays without focus (`cursorAqui`, EM-9): it is
+              // where the arrows resume and what the batch menu acts on.
               EmailThreadRow(
                 store: store, thread: thread, group: group, index: index,
-                isCursor: focused && store.selection.cursor == thread.id
+                isCursor: store.selection.cursor == thread.id, stack: placement
               )
               .id(thread.id)
+              .zIndex(placement?.zIndex ?? 0)
               .simultaneousGesture(TapGesture().onEnded { focused = true })
             }
           }
@@ -97,6 +102,32 @@ struct EmailConversationList: View {
   }
 }
 
+/// Where each selected row sits in the "maço" of the drag under way.
+private struct DragStackLookup {
+  let selected: Set<String>
+  let positions: [String: Int]
+  let dragged: Int?
+
+  init(store: EmailStore, order: [String]) {
+    guard let dragging = store.dragging else {
+      selected = []
+      positions = [:]
+      dragged = nil
+      return
+    }
+    selected = Set(store.selection.selected)
+    var positions: [String: Int] = [:]
+    for (index, id) in order.enumerated() where positions[id] == nil { positions[id] = index }
+    self.positions = positions
+    dragged = positions[dragging]
+  }
+
+  func placement(of id: String) -> EmailDragStack.Placement? {
+    guard selected.contains(id), let index = positions[id] else { return nil }
+    return EmailDragStack.placement(index: index, dragged: dragged)
+  }
+}
+
 /// The header of a group, with its tri-state checkbox.
 struct EmailGroupHeader: View {
   @Environment(\.theme) private var theme
@@ -142,6 +173,9 @@ struct EmailThreadRow: View {
   /// Position in the group, for the zebra of `ListRow`.
   let index: Int
   let isCursor: Bool
+  /// Where the row goes in the "maço" while the selection is dragged; nil otherwise.
+  var stack: EmailDragStack.Placement?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var title: String { thread.subject.isEmpty ? "(sem assunto)" : thread.subject }
   private var single: EmailEnvelope? { thread.messages.count == 1 ? thread.messages.first : nil }
@@ -165,6 +199,11 @@ struct EmailThreadRow: View {
       }
     }
     .background(isOpen ? theme.brandTint : .clear)
+    // Who asked for less motion keeps the selection by colour and ring only
+    // (`EmailPanel.tsx:1305-1309`).
+    .scaleEffect(reduceMotion ? 1 : (stack?.scale ?? 1) as CGFloat)
+    .offset(y: reduceMotion ? 0 : (stack?.offsetY ?? 0) as CGFloat)
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: stack)
   }
 
   private var row: some View {
@@ -251,6 +290,15 @@ struct EmailThreadRow: View {
     }
     .modifier(EmailRowShell(index: index, isOpen: isOpen, isSelected: isSelected, isCursor: isCursor))
     .opacity(store.dragging != nil && isSelected ? 0.7 : 1)
+    // `shadow-e2` of a row in the "maço". Drawn on a clear shape behind the
+    // row so the shadow never darkens the text, and always present so the
+    // dragged row keeps its identity mid-drag.
+    .background {
+      Rectangle().fill(.clear)
+        .elevation(.e2, in: Rectangle())
+        .opacity(store.dragging != nil && isSelected ? 1 : 0)
+        .allowsHitTesting(false)
+    }
     .onHover { inside in
       // The tag menu and the move destinations need the account's folders.
       if inside, let account = thread.messages.first?.account {
@@ -322,6 +370,9 @@ struct EmailBatchContextMenu: View {
     let ids = group.threads.map(\.id)
     let wholeGroup = ids.allSatisfy { store.selection.selected.contains($0) }
     Text("\(count) \(count == 1 ? "conversa" : "conversas")")
+      // The right click marks the row before the menu shows (`onContextMenu`
+      // dispatching `context`, EM-16): the menu speaks of what is marked.
+      .onAppear { store.select(.context(thread.id)) }
     Button("Marcar lido", systemImage: "envelope.open") { run(.read) }
     Button("Marcar não lido", systemImage: "envelope.badge") { run(.unread) }
     Menu("Mover para", systemImage: "folder") {
@@ -425,51 +476,84 @@ struct EmailTagButton: View {
 }
 
 /// "Criar a partir deste e-mail" (`components/email/CreateFromEmailMenu.tsx`).
-/// The note folder is a submenu instead of a select inside the menu.
+/// A popover rather than a menu: the note folder is chosen inline before
+/// creating, as the web's select inside the dropdown (EM-30), and the folders
+/// load when it opens instead of once per row.
 struct EmailCreateMenu: View {
   let store: EmailStore
   let thread: EmailThread
   let title: String
+  @State private var isOpen = false
 
   var body: some View {
-    Menu {
-      Section("Criar a partir deste e-mail") {
-        Menu("Criar nota", systemImage: "note.text.badge.plus") {
-          Section("Pasta da nota") {
-            Button("Sem pasta") { create(.note, folderId: nil) }
-            ForEach(store.noteFolders) { folder in
-              Button(folder.name) { create(.note, folderId: folder.id) }
-            }
-          }
-        }
-        Button("Criar tarefa", systemImage: "checklist") { create(.task, folderId: nil) }
-      }
+    Button {
+      isOpen.toggle()
     } label: {
       Image(systemName: "ellipsis")
     }
-    .menuStyle(.button)
-    .menuIndicator(.hidden)
-    .iconButtonStyle(size: .small)
-    .fixedSize()
-    .disabled(store.creating != nil)
+    .iconButtonStyle(size: .small, isActive: isOpen)
     .help("Ações de \(title)")
     .accessibilityLabel("Ações de \(title)")
-  }
-
-  private func create(_ kind: CreateKind, folderId: String?) {
-    Task { await store.create(kind, from: thread, noteFolderId: folderId) }
+    .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+      EmailCreatePopover(store: store) { kind, folderId in
+        isOpen = false
+        Task { await store.create(kind, from: thread, noteFolderId: folderId) }
+      }
+      .task { await store.loadNoteFolders() }
+    }
   }
 }
 
-/// What follows the cursor: the top subject and how many go along.
+/// The popover's content: the note folder, then the two creations.
+struct EmailCreatePopover: View {
+  @Environment(\.theme) private var theme
+  let store: EmailStore
+  let onCreate: (CreateKind, String?) -> Void
+  /// nil is "Sem pasta".
+  @State private var folderId: String?
+
+  var body: some View {
+    let busy = store.creating != nil
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Criar a partir deste e-mail")
+        .typeRole(.caption)
+        .foregroundStyle(theme.inkDim)
+        .accessibilityAddTraits(.isHeader)
+      Picker("Pasta da nota", selection: $folderId) {
+        Text("Sem pasta").tag(String?.none)
+        ForEach(store.noteFolders) { folder in
+          Text(folder.name).tag(String?.some(folder.id))
+        }
+      }
+      .pickerStyle(.menu)
+      Divider()
+      Button("Criar nota", systemImage: "note.text.badge.plus") { onCreate(.note, folderId) }
+        .disabled(busy)
+      Button("Criar tarefa", systemImage: "checklist") { onCreate(.task, nil) }
+        .disabled(busy)
+    }
+    .buttonStyle(.borderless)
+    .padding(12)
+    .frame(width: 256, alignment: .leading)
+  }
+}
+
+/// What follows the cursor: the "maço", the top subject on a card with the
+/// sheets below it peeking out and how many go along (`mocoDeArraste`,
+/// `EmailPanel.tsx:140-182`).
 struct EmailDragPreview: View {
   @Environment(\.theme) private var theme
   let title: String
   let count: Int
 
+  /// The offsets of the two sheets under the card, deepest first. Each is
+  /// inset by a third of its offset (`6px 6px 0 -2px`, `12px 12px 0 -4px`).
+  private static let sheetOffsets: [CGFloat] = [12, 6]
+
   var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 10)
     HStack(spacing: 8) {
-      Text(title).lineLimit(1)
+      Text(title).lineLimit(1).truncationMode(.tail)
       if count > 1 {
         Text("\(count)")
           .font(.daily(size: 12).monospacedDigit())
@@ -477,14 +561,34 @@ struct EmailDragPreview: View {
           .padding(.horizontal, 8)
           .padding(.vertical, 1)
           .background(theme.brand, in: .capsule)
+          .fixedSize()
       }
     }
     .font(.daily(size: 13, weight: .medium))
+    .foregroundStyle(theme.ink)
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .frame(maxWidth: 320)
-    .background(theme.surface2, in: .rect(cornerRadius: 10))
-    .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(theme.brandEdge) }
+    // `max-width: 20rem`.
+    .frame(maxWidth: 320, alignment: .leading)
+    .background(theme.surface2, in: shape)
+    .overlay { shape.strokeBorder(theme.brandEdge) }
+    .background {
+      ZStack {
+        ForEach(Self.sheetOffsets, id: \.self) { offset in
+          shape
+            .fill(theme.surface2)
+            .overlay { shape.strokeBorder(theme.brandEdge) }
+            .padding(offset / 3)
+            .offset(x: offset, y: offset)
+        }
+      }
+    }
+    .shadow(color: .black.opacity(0.18), radius: 12, y: 10)
+    // Room for the sheets and the shadow: the preview is a snapshot of these bounds.
+    .padding(.trailing, 16)
+    .padding(.bottom, 24)
+    .padding([.top, .leading], 4)
+    .accessibilityHidden(true)
   }
 }
 

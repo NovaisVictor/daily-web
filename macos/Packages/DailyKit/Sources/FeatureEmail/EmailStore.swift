@@ -46,6 +46,15 @@ nonisolated enum CreateKind: Sendable, Equatable {
   case task
 }
 
+/// What "Criar nota" / "Criar tarefa" just made, for the notice above the list
+/// (`criado`, `EmailPanel.tsx:1191-1212`).
+nonisolated struct CreatedFromEmail: Equatable, Sendable {
+  var kind: CreateKind
+  var title: String
+  /// The note or task id; empty when the server did not say.
+  var id: String
+}
+
 /// The state and actions of the e-mail screen, the web's `EmailPanel` with
 /// `useMailboxGroups` and `useFolderMessages`.
 @Observable
@@ -54,7 +63,15 @@ final class EmailStore {
   /// by message (`CONFIRMA_ACIMA_DE`).
   static let confirmFolderReadAbove = 20
 
-  var filters = EmailFilters()
+  /// Remembered per account (spec 015 FR-015-01), as the web keeps them in the URL.
+  var filters: EmailFilters {
+    get { filterValues }
+    set {
+      filterValues = newValue
+      rememberFilters()
+    }
+  }
+  private var filterValues = EmailFilters()
   /// nil shows the dashboard inbox (`state.email`).
   private(set) var folder: FolderSelection?
   private(set) var selection = EmailSelection.empty
@@ -69,6 +86,8 @@ final class EmailStore {
   private(set) var noteFolders: [NoteFolder] = []
   /// The message whose note or task is being created.
   private(set) var creating: String?
+  /// The notice of what was just created, until dismissed or replaced.
+  private(set) var created: CreatedFromEmail?
   /// `GET /api/email/folders` per account: tag menu and move destinations.
   private(set) var accountFolders: [String: [String]] = [:]
   private(set) var accountFoldersError: [String: String] = [:]
@@ -87,8 +106,15 @@ final class EmailStore {
   private(set) var dialogPresenter: UUID?
   /// The panel's "Tela cheia": folder tree, list and reader over the window
   /// (`view.maximized`, `EmailPanel.tsx:1713-1737`). Kept here so moving the
-  /// panel on Início does not close it.
-  var isFullScreen = false
+  /// panel on Início does not close it. Remembered across launches.
+  var isFullScreen: Bool {
+    get { fullScreenValue }
+    set {
+      fullScreenValue = newValue
+      viewState?.set(newValue, module: Self.viewStateModule, field: Field.fullScreen)
+    }
+  }
+  private var fullScreenValue = false
   var tagMenuThread: String?
 
   @ObservationIgnored let client: any APIClient
@@ -103,6 +129,27 @@ final class EmailStore {
   @ObservationIgnored private var folderGeneration = 0
   @ObservationIgnored private var bodyTask: Task<Void, Never>?
   @ObservationIgnored private var listingCache: (key: ListingKey, value: EmailListing)?
+  @ObservationIgnored private let viewState: ViewStateStore?
+  @ObservationIgnored private let notesEvents: NotesEvents?
+  /// The folder restored at launch, read once a view asks for it.
+  @ObservationIgnored private var restoredFolderPending = false
+  /// The message open at the last launch, opened once its list arrives.
+  @ObservationIgnored private var restoredOpenKey: String?
+
+  static let viewStateModule = "email"
+
+  /// The `ViewStateStore` fields: the web's `useEmailView` keys.
+  enum Field {
+    static let folderAccount = "folderAccount"
+    static let folder = "folder"
+    static let open = "open"
+    static let query = "query"
+    static let onlyUnread = "onlyUnread"
+    static let account = "account"
+    static let sort = "sort"
+    static let group = "group"
+    static let fullScreen = "maximized"
+  }
 
   private struct ListingKey: Equatable {
     var all: [EmailEnvelope]
@@ -117,6 +164,8 @@ final class EmailStore {
     dashboard: DashboardStore,
     toasts: ToastCenter,
     navigator: AppNavigator,
+    viewState: ViewStateStore? = nil,
+    notesEvents: NotesEvents? = nil,
     now: @escaping Now = LiveTime.now,
     timeZone: TimeZone = .current
   ) {
@@ -124,8 +173,88 @@ final class EmailStore {
     self.dashboard = dashboard
     self.toasts = toasts
     self.navigator = navigator
+    self.viewState = viewState
+    self.notesEvents = notesEvents
     self.now = now
     self.timeZone = timeZone
+    restoreViewState()
+  }
+
+  // MARK: - Remembered view (spec 015 FR-015-01)
+
+  /// What the last launch left: folder, open message, filters and full screen.
+  /// Sets the backing values directly, so restoring writes nothing back.
+  private func restoreViewState() {
+    guard let viewState else { return }
+    let module = Self.viewStateModule
+    var restored = EmailFilters()
+    restored.query = viewState.string(module: module, field: Field.query) ?? ""
+    restored.onlyUnread = viewState.bool(module: module, field: Field.onlyUnread) ?? false
+    restored.account = viewState.string(module: module, field: Field.account)
+    if let raw = viewState.string(module: module, field: Field.sort), let sort = EmailSort(rawValue: raw) {
+      restored.sort = sort
+    }
+    if let raw = viewState.string(module: module, field: Field.group), let group = EmailGroupBy(rawValue: raw) {
+      restored.groupBy = group
+    }
+    filterValues = restored
+    fullScreenValue = viewState.bool(module: module, field: Field.fullScreen) ?? false
+    if let account = viewState.string(module: module, field: Field.folderAccount),
+      let path = viewState.string(module: module, field: Field.folder)
+    {
+      folder = FolderSelection(account: account, path: path)
+      restoredFolderPending = true
+      // The list shows "carregando" instead of an empty folder until the read.
+      folderLoading = true
+    }
+    restoredOpenKey = viewState.string(module: module, field: Field.open)
+  }
+
+  private func rememberFilters() {
+    guard let viewState else { return }
+    let module = Self.viewStateModule
+    let value = filterValues
+    viewState.set(value.query, module: module, field: Field.query)
+    viewState.set(value.onlyUnread, module: module, field: Field.onlyUnread)
+    viewState.set(value.account, module: module, field: Field.account)
+    viewState.set(value.sort.rawValue, module: module, field: Field.sort)
+    viewState.set(value.groupBy.rawValue, module: module, field: Field.group)
+  }
+
+  private func rememberFolder() {
+    viewState?.set(folder?.account, module: Self.viewStateModule, field: Field.folderAccount)
+    viewState?.set(folder?.path, module: Self.viewStateModule, field: Field.folder)
+  }
+
+  private func rememberOpenKey() {
+    viewState?.set(openKey, module: Self.viewStateModule, field: Field.open)
+  }
+
+  /// Reads the folder the last launch left open; later calls do nothing.
+  func loadRestoredFolder() async {
+    guard restoredFolderPending else { return }
+    restoredFolderPending = false
+    await loadFolder()
+    restoreOpenMessage()
+  }
+
+  /// Opens the message the last launch left open once its list is on screen.
+  /// Once the list arrived without it, the message is gone and is forgotten.
+  func restoreOpenMessage() {
+    guard let key = restoredOpenKey else { return }
+    let arrived = folder.map { folderMessages[$0] != nil } ?? (dashboard.state != nil)
+    guard arrived else { return }
+    restoredOpenKey = nil
+    guard let message = all.first(where: { $0.key == key }) else {
+      rememberOpenKey()
+      return
+    }
+    if let thread = listing.threads.first(where: { thread in thread.messages.contains { $0.key == key } }),
+      thread.messages.count > 1
+    {
+      expanded.insert(thread.id)
+    }
+    open(message)
   }
 
   // MARK: - Derived
@@ -303,6 +432,8 @@ final class EmailStore {
     self.selection = .empty
     closeMessage()
     folder = isDashboardInbox ? nil : selection
+    rememberFolder()
+    restoredFolderPending = false
     await loadFolder()
   }
 
@@ -347,13 +478,14 @@ final class EmailStore {
     }
   }
 
-  /// The notes folders, fetched once for every menu on screen.
+  /// The notes folders, read each time "Criar a partir deste e-mail" opens
+  /// (`onOpen` of `CreateFromEmailMenu.tsx`): a folder made in the notes panel
+  /// meanwhile shows up. What was read before stays while the new list comes.
   func loadNoteFolders() async {
-    guard noteFolders.isEmpty else { return }
     do {
       noteFolders = try await client.send(EmailEndpoints.noteFolders).folders
     } catch {
-      // The menu still offers "Sem pasta"; the log keeps why the rest is missing.
+      // The picker still offers "Sem pasta"; the log keeps why the rest is missing.
       Self.logger.error("Note folders failed: \(String(describing: error), privacy: .public)")
     }
   }
@@ -662,6 +794,8 @@ final class EmailStore {
     if folder != nil {
       selection = .empty
       folder = nil
+      rememberFolder()
+      restoredFolderPending = false
       // Drops the answer of the folder that was open, as `loadFolder` does.
       folderGeneration += 1
       folderLoading = false
@@ -703,7 +837,9 @@ final class EmailStore {
 
   func open(_ message: EmailEnvelope) {
     bodyTask?.cancel()
+    restoredOpenKey = nil
     openKey = message.key
+    rememberOpenKey()
     detail = EmailDetailState(key: message.key)
     bodyTask = Task { await loadBody(message) }
   }
@@ -711,7 +847,9 @@ final class EmailStore {
   func closeMessage() {
     bodyTask?.cancel()
     bodyTask = nil
+    restoredOpenKey = nil
     openKey = nil
+    rememberOpenKey()
     detail = nil
   }
 
@@ -813,25 +951,19 @@ final class EmailStore {
     creating = message.key
     defer { creating = nil }
     batchError = nil
+    created = nil
     let title = message.subject.isEmpty ? "(sem assunto)" : message.subject
     do {
       switch kind {
       case .note:
         let noteId = try await client.send(EmailEndpoints.toNote(message, noteFolderId: noteFolderId)).noteId
-        // `EmailPanel.tsx:1196-1203`: the notice opens what was created.
-        let navigator = self.navigator
-        toasts.show(.success, "Nota criada a partir de “\(title)”.", actionTitle: "Abrir a nota") { [weak self] in
-          // Full screen would cover what was created (`abrirPainelDoCriado`).
-          self?.isFullScreen = false
-          navigator.open(.module(.notes), itemID: noteId.isEmpty ? nil : noteId)
-        }
+        created = CreatedFromEmail(kind: .note, title: title, id: noteId)
+        // The notes panel reads its list once: without the notice the note
+        // would only show after a manual reload (FR-015-07, NT-19).
+        notesEvents?.post(NotesEvents.Change(activate: noteId.isEmpty ? nil : noteId))
       case .task:
-        _ = try await client.send(EmailEndpoints.toTask(message))
-        let navigator = self.navigator
-        toasts.show(.success, "Tarefa criada a partir de “\(title)”.", actionTitle: "Abrir tarefas") { [weak self] in
-          self?.isFullScreen = false
-          navigator.open(.module(.tasks))
-        }
+        let taskId = try await client.send(EmailEndpoints.toTask(message)).taskId
+        created = CreatedFromEmail(kind: .task, title: title, id: taskId)
         // The task joins the tasks list from the dashboard state.
         await dashboard.reload()
       }
@@ -839,6 +971,26 @@ final class EmailStore {
       Self.logger.error("Create from e-mail failed: \(String(describing: error), privacy: .public)")
       batchError = error.userMessage
     }
+  }
+
+  /// "Abrir a nota" / "Abrir tarefas" of the notice (`abrirPainelDoCriado`).
+  func openCreated() {
+    guard let created else { return }
+    // Full screen would cover what was created.
+    isFullScreen = false
+    switch created.kind {
+    case .note:
+      let id = created.id.isEmpty ? nil : created.id
+      if let id { notesEvents?.post(NotesEvents.Change(activate: id)) }
+      navigator.open(.module(.notes), itemID: id)
+    case .task:
+      navigator.open(.module(.tasks))
+    }
+  }
+
+  /// The notice's "dispensar".
+  func dismissCreated() {
+    created = nil
   }
 
   // MARK: - Filters

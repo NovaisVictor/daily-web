@@ -7,15 +7,33 @@ import Observation
 /// messages come from `state.slack` and open in Slack.
 @Observable
 final class SlackStore {
-  var tab: SlackTab = .mentions
+  /// Remembered per account across launches (spec 015 FR-015-01).
+  var tab: SlackTab {
+    get { storedTab }
+    set {
+      storedTab = newValue
+      viewState?.set(newValue.rawValue, module: Self.viewStateModule, field: Self.tabField)
+    }
+  }
+  private var storedTab: SlackTab = .mentions
   var selection: String?
 
   @ObservationIgnored private let dashboard: DashboardStore
   @ObservationIgnored private let navigator: AppNavigator
+  @ObservationIgnored private let viewState: ViewStateStore?
 
-  init(dashboard: DashboardStore, navigator: AppNavigator) {
+  static let viewStateModule = "slack"
+  static let tabField = "tab"
+
+  init(dashboard: DashboardStore, navigator: AppNavigator, viewState: ViewStateStore? = nil) {
     self.dashboard = dashboard
     self.navigator = navigator
+    self.viewState = viewState
+    if let raw = viewState?.string(module: Self.viewStateModule, field: Self.tabField),
+      let tab = SlackTab(rawValue: raw)
+    {
+      storedTab = tab
+    }
   }
 
   static let storeKey = "slack"
@@ -24,7 +42,8 @@ final class SlackStore {
   /// both show the same tab and selection (spec 011 FR-011-10).
   static func shared(in environment: AppEnvironment) -> SlackStore {
     environment.featureStores.store(storeKey) {
-      SlackStore(dashboard: environment.dashboard, navigator: environment.navigator)
+      SlackStore(
+        dashboard: environment.dashboard, navigator: environment.navigator, viewState: environment.viewState)
     }
   }
 

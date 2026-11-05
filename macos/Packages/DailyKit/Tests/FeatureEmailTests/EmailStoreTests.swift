@@ -565,7 +565,7 @@ nonisolated final class FakeServer: Sendable {
 
   // MARK: - Note and task
 
-  @Test func createsNoteAndTask() async {
+  @Test func createsNoteAndTaskWithAnInlineNotice() async {
     server.route { call in
       switch call.path {
       case "/api/email/to-note": FakeAPIClient.json(EmailToNoteResponse(noteId: "n1"))
@@ -575,28 +575,33 @@ nonisolated final class FakeServer: Sendable {
     }
     let message = Self.inbox[0]
     await store.create(.note, from: message, noteFolderId: "f1")
+    // The notice lives in the panel, not in a toast (FR-015-06, EM-31).
+    #expect(store.created == CreatedFromEmail(kind: .note, title: "Relatório", id: "n1"))
+    #expect(toasts.toasts.isEmpty)
+
+    // Opening what was created leaves full screen, which would cover it.
+    store.isFullScreen = true
+    store.openCreated()
+    #expect(navigator.route == .module(.notes))
+    #expect(navigator.pendingItem(for: .module(.notes)) == "n1")
+    #expect(!store.isFullScreen)
+
     await store.create(.task, from: message, noteFolderId: nil)
+    #expect(store.created == CreatedFromEmail(kind: .task, title: "Relatório", id: "t1"))
     #expect(
       client.actionCalls.map(\.body) == [
         #"{"account":"mail-1","folder":"INBOX","folderId":"f1","id":"1"}"#,
         #"{"account":"mail-1","folder":"INBOX","id":"1"}"#,
       ])
-    #expect(
-      toasts.toasts.map(\.text) == ["Nota criada a partir de “Relatório”.", "Tarefa criada a partir de “Relatório”."])
-    #expect(toasts.toasts.map(\.actionTitle) == ["Abrir a nota", "Abrir tarefas"])
     #expect(store.creating == nil)
-
-    // Opening what was created leaves full screen, which would cover it.
     store.isFullScreen = true
-    toasts.toasts[0].action?()
-    #expect(navigator.route == .module(.notes))
-    #expect(navigator.pendingItem(for: .module(.notes)) == "n1")
-    #expect(!store.isFullScreen)
-    store.isFullScreen = true
-    toasts.toasts[1].action?()
+    store.openCreated()
     #expect(navigator.route == .module(.tasks))
     #expect(!store.isFullScreen)
     #expect(navigator.pending == nil)
+
+    store.dismissCreated()
+    #expect(store.created == nil)
 
     server.route { call throws(APIError) in
       if call.path == "/api/email/to-task" {
@@ -606,6 +611,18 @@ nonisolated final class FakeServer: Sendable {
     }
     await store.create(.task, from: message, noteFolderId: nil)
     #expect(store.batchError == "mensagem não encontrada")
+    #expect(store.created == nil)
+  }
+
+  @Test func noteFoldersAreReadEachTimeTheCreateMenuOpens() async {
+    let folder = NoteFolder(id: "f1", name: "Projetos", parentId: nil, position: 0, updatedAt: "")
+    server.route { call in
+      call.path == "/api/notes/folders" ? FakeAPIClient.json(NoteFoldersResponse(folders: [folder])) : nil
+    }
+    await store.loadNoteFolders()
+    await store.loadNoteFolders()
+    #expect(store.noteFolders == [folder])
+    #expect(client.actionCalls.filter { $0.path == "/api/notes/folders" }.count == 2)
   }
 
   // MARK: - Filters

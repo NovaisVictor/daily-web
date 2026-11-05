@@ -67,18 +67,25 @@ final class NotesStore {
   static let shutdownID = "notes"
 
   init(
-    client: any APIClient, poller: Poller, shutdown: ShutdownTasks, sleep: @escaping Sleeper = LiveTime.sleep
+    client: any APIClient, poller: Poller, shutdown: ShutdownTasks, events: NotesEvents? = nil,
+    sleep: @escaping Sleeper = LiveTime.sleep
   ) {
     self.client = client
     self.poller = poller
     self.shutdown = shutdown
     self.sleep = sleep
+    events?.observe(self) { [weak self] change in
+      guard let self else { return }
+      Task { await self.notesChanged(change) }
+    }
   }
 
   /// The one store the notes screen and the Início panel share (spec 011 FR-011-10).
   static func shared(in environment: AppEnvironment) -> NotesStore {
     environment.featureStores.store("notes") {
-      NotesStore(client: environment.client, poller: environment.poller, shutdown: environment.shutdown)
+      NotesStore(
+        client: environment.client, poller: environment.poller, shutdown: environment.shutdown,
+        events: environment.notesEvents)
     }
   }
 
@@ -173,6 +180,12 @@ final class NotesStore {
       query = ""
       expanded.insert(target.folderId ?? NoteTreeRow.noneKey)
     }
+  }
+
+  /// A note changed outside this panel, as one created from an e-mail
+  /// (FR-015-07, NT-19): the list is read again and that note opens.
+  func notesChanged(_ change: NotesEvents.Change) async {
+    await load(activate: change.activate)
   }
 
   // MARK: - Editing

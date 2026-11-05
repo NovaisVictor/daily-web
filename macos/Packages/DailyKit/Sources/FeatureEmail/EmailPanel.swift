@@ -9,7 +9,7 @@ extension EmailStore {
     environment.featureStores.store("email") {
       EmailStore(
         client: environment.client, dashboard: environment.dashboard, toasts: environment.toasts,
-        navigator: environment.navigator)
+        navigator: environment.navigator, viewState: environment.viewState, notesEvents: environment.notesEvents)
     }
   }
 }
@@ -58,7 +58,6 @@ public struct EmailPanel: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .task { await store.loadNoteFolders() }
     .emailDialogs(store, isActive: !store.isFullScreen)
     .sheet(isPresented: $store.isFullScreen) {
       EmailFullScreen(store: store)

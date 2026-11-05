@@ -35,7 +35,6 @@ public struct EmailScreen: View {
     .glassSurface(.panel)
     .padding(16)
     .task(id: store.mailboxes.map(\.id)) { await store.loadMailboxes() }
-    .task { await store.loadNoteFolders() }
     // A clicked notification: shown now, or once the inbox arrives.
     .task { revealPending() }
     .onChange(of: store.pendingItemID) { revealPending() }
@@ -95,7 +94,15 @@ struct EmailListPane: View {
     } action: { narrow in
       isNarrow = narrow
     }
-    .onChange(of: listing.order) { store.syncSelection() }
+    .onChange(of: listing.order) {
+      store.syncSelection()
+      store.restoreOpenMessage()
+    }
+    // What the last launch left open (spec 015 FR-015-01).
+    .task {
+      await store.loadRestoredFolder()
+      store.restoreOpenMessage()
+    }
   }
 
   @ViewBuilder
@@ -186,6 +193,13 @@ struct EmailListPane: View {
     if let error = store.batchError {
       PanelError(error)
     }
+    if let created = store.created {
+      EmailCreatedNotice(created: created) {
+        store.openCreated()
+      } onDismiss: {
+        store.dismissCreated()
+      }
+    }
     if !store.unprocessed.isEmpty {
       HStack(alignment: .firstTextBaseline) {
         PanelError(unprocessedText)
@@ -223,6 +237,38 @@ struct EmailListPane: View {
     } else {
       Spacer(minLength: 0)
     }
+  }
+}
+
+/// "Nota criada a partir de …" with the way to what was created
+/// (`EmailPanel.tsx:1191-1212`). Inline, as on the web: a toast would vanish
+/// before the person decides to open it.
+struct EmailCreatedNotice: View {
+  @Environment(\.theme) private var theme
+  let created: CreatedFromEmail
+  let onOpen: () -> Void
+  let onDismiss: () -> Void
+
+  var body: some View {
+    let isNote = created.kind == .note
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text("\(isNote ? "Nota criada" : "Tarefa criada") a partir de “\(created.title)”.")
+        .fixedSize(horizontal: false, vertical: true)
+      Button(isNote ? "Abrir a nota" : "Abrir tarefas", action: onOpen)
+        .linkButtonStyle()
+      Spacer(minLength: 8)
+      Button("dispensar", action: onDismiss)
+        .linkButtonStyle()
+        .foregroundStyle(theme.inkDim)
+    }
+    .font(.daily(size: 14))
+    .foregroundStyle(theme.brand)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(theme.brandTint, in: .rect(cornerRadius: Radius.small))
+    .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(theme.brandEdge) }
+    .accessibilityElement(children: .contain)
   }
 }
 
