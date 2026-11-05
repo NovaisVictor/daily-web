@@ -70,14 +70,14 @@ private struct NowBand: View {
         Spacer(minLength: 24)
         HStack(alignment: .bottom, spacing: 40) {
           PomodoroCard(store: store)
-          ClockView()
+          ClockView(ticking: store.isOnScreen)
         }
       }
       VStack(alignment: .leading, spacing: 24) {
         greeting
         HStack(alignment: .bottom, spacing: 40) {
           PomodoroCard(store: store)
-          ClockView()
+          ClockView(ticking: store.isOnScreen)
         }
       }
     }
@@ -99,10 +99,11 @@ private struct NowBand: View {
 
 /// `components/Clock.tsx`: ticks every second.
 private struct ClockView: View {
+  let ticking: Bool
   @Environment(\.theme) private var theme
 
   var body: some View {
-    TimelineView(.periodic(from: .now, by: 1)) { context in
+    TimelineView(ClockSchedule(ticking: ticking)) { context in
       VStack(alignment: .leading, spacing: 4) {
         Text(ClockText.time(context.date))
           .typeRole(.display)
@@ -275,4 +276,24 @@ private struct NothingOnState: View {
 #Preview("Nenhum módulo") {
   HomeScreen(environment: .preview(state: DashboardState(updatedAt: "2026-11-04T12:40:00.000Z", modules: [])))
     .frame(width: 960, height: 520)
+}
+
+/// Every second while on screen; a single entry (no redraws) while hidden.
+private struct ClockSchedule: TimelineSchedule {
+  let ticking: Bool
+
+  func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+    guard ticking else {
+      var done = false
+      return AnyIterator {
+        defer { done = true }
+        return done ? nil : startDate
+      }
+    }
+    var next = startDate
+    return AnyIterator {
+      defer { next = next.addingTimeInterval(1) }
+      return next
+    }
+  }
 }

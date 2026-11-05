@@ -12,15 +12,25 @@ final class HomeStore {
   @ObservationIgnored private let dashboard: DashboardStore
   @ObservationIgnored private let pomodoro: PomodoroController
 
-  init(session: SessionStore, dashboard: DashboardStore, pomodoro: PomodoroController) {
+  @ObservationIgnored private let poller: Poller?
+
+  init(session: SessionStore, dashboard: DashboardStore, pomodoro: PomodoroController, poller: Poller? = nil) {
     self.session = session
     self.dashboard = dashboard
     self.pomodoro = pomodoro
+    self.poller = poller
   }
 
   convenience init(environment: AppEnvironment) {
-    self.init(session: environment.session, dashboard: environment.dashboard, pomodoro: environment.pomodoro)
+    self.init(
+      session: environment.session, dashboard: environment.dashboard, pomodoro: environment.pomodoro,
+      poller: environment.poller)
   }
+
+  /// Whether some window of the app is on screen (the app delegate feeds the
+  /// poller from the occlusion state). The clock stops ticking otherwise: a
+  /// per-second redraw of a hidden window cost ~2.7% CPU (NFR-001).
+  var isOnScreen: Bool { poller?.isForeground ?? true }
 
   /// `GET /api/me` does not say how many times the person signed in, so the app
   /// cannot tell a first visit (`welcomeKind` in `lib/preferences.ts:220-223`).
