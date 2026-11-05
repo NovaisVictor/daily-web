@@ -39,6 +39,14 @@ public enum DailyFonts {
     }
   }
 
+  /// Patrick Hand (SIL OFL 1.1, PatrickHand-OFL.txt), the web's `--font-hand`
+  /// (app/layout.tsx:5,13, globals.css:32), used only for board note titles.
+  public static let handPostScriptName = "PatrickHand-Regular"
+  static let handFileName = "PatrickHand-Regular.ttf"
+
+  /// Every bundled file, registered together.
+  static var fileNames: [String] { Family.allCases.map(\.fileName) + [handFileName] }
+
   /// The OpenType `wght` axis tag.
   static let weightAxis = 0x7767_6874
 
@@ -121,7 +129,7 @@ public enum DailyFonts {
     return match.1
   }
 
-  private static func ensureRegistered() {
+  static func ensureRegistered() {
     // Reading the static runs the one-time registration. A failure is logged there and
     // returned by `register()`; a view body cannot throw, so Core Text then substitutes
     // the system face.
@@ -130,16 +138,16 @@ public enum DailyFonts {
 
   private static func performRegistration() -> Result<Void, FontRegistrationError> {
     guard let folder = Bundle.module.url(forResource: "Fonts", withExtension: nil) else {
-      logger.fault("Geist fonts folder missing from the DailyDesign bundle")
+      logger.fault("Fonts folder missing from the DailyDesign bundle")
       return .failure(.resourcesMissing)
     }
-    for family in Family.allCases {
-      let url = folder.appending(path: family.fileName)
+    for fileName in fileNames {
+      let url = folder.appending(path: fileName)
       var unmanagedError: Unmanaged<CFError>?
       guard !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &unmanagedError) else { continue }
       guard let cfError = unmanagedError?.takeRetainedValue() else {
-        logger.fault("Registering \(family.fileName, privacy: .public) failed without an error")
-        return .failure(.registrationFailed(file: family.fileName, code: 0, description: "unknown"))
+        logger.fault("Registering \(fileName, privacy: .public) failed without an error")
+        return .failure(.registrationFailed(file: fileName, code: 0, description: "unknown"))
       }
       let code = CFErrorGetCode(cfError)
       // Already registered (a second process-scope call, or the app registering the
@@ -149,9 +157,9 @@ public enum DailyFonts {
       }
       let description = CFErrorCopyDescription(cfError) as String
       logger.fault(
-        "Registering \(family.fileName, privacy: .public) failed (\(code)): \(description, privacy: .public)"
+        "Registering \(fileName, privacy: .public) failed (\(code)): \(description, privacy: .public)"
       )
-      return .failure(.registrationFailed(file: family.fileName, code: code, description: description))
+      return .failure(.registrationFailed(file: fileName, code: code, description: description))
     }
     return .success(())
   }
@@ -172,5 +180,11 @@ extension Font {
   /// Geist Mono, the web's `--font-mono` (globals.css:697), for code and identifiers.
   public static func dailyMono(size: CGFloat, weight: Font.Weight = .regular) -> Font {
     DailyFonts.font(.mono, size: size, weight: weight)
+  }
+
+  /// Patrick Hand, the handwriting face of the board's note titles (globals.css:1661-1668).
+  public static func dailyHand(size: CGFloat) -> Font {
+    DailyFonts.ensureRegistered()
+    return .custom(DailyFonts.handPostScriptName, fixedSize: size)
   }
 }

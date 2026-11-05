@@ -97,3 +97,11 @@ private func effectiveWeight(_ font: CTFont) throws -> Double {
   let axis = try #require(axes.first { ($0[kCTFontVariationAxisIdentifierKey] as? Int) == DailyFonts.weightAxis })
   return try #require(axis[kCTFontVariationAxisDefaultValueKey] as? Double)
 }
+
+@Suite struct HandFontTests {
+  @Test func patrickHandRegistersAndResolves() throws {
+    try DailyFonts.register()
+    let font = CTFontCreateWithName(DailyFonts.handPostScriptName as CFString, 17, nil)
+    #expect(CTFontCopyPostScriptName(font) as String == DailyFonts.handPostScriptName)
+  }
+}
