@@ -29,6 +29,7 @@ struct MainWindow: View {
     ) {
       NotificationsBell(environment: environment)
     }
+    .environment(\.modulePanels, .app(environment: environment, opener: opener))
   }
 
   private var account: ShellAccount {

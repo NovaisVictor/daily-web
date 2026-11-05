@@ -1,4 +1,5 @@
 import DailyCore
+import FeatureHome
 import FeatureSettings
 import FeatureShell
 import SwiftUI
@@ -51,6 +52,15 @@ struct AppCommands: Commands {
     CommandGroup(replacing: .newItem) {
       Button("Nova janela") { openWindow(id: SceneID.extraMain) }
         .keyboardShortcut("n", modifiers: .command)
+    }
+    CommandGroup(after: .toolbar) {
+      // Spec 010 FR-010-02: a keyboard path into arranging the Início grid.
+      Button("Organizar painéis") {
+        environment.navigator.open(.today)
+        opener.showMain(.menu)
+        HomeStore.shared(in: environment).beginArranging()
+      }
+      .disabled(!HomeStore.shared(in: environment).canArrange)
     }
     CommandGroup(replacing: .appSettings) {
       Button("Ajustes…") {

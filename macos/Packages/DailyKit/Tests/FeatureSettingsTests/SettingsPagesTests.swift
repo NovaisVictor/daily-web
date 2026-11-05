@@ -46,8 +46,8 @@ import Testing
 
   @Test func theLayoutTextDoesNotSendYouToButtonsThatDoNotExist() {
     #expect(!LayoutSettingsView.explanation.contains("Concluir"))
-    // The native Início cannot be arranged until spec 010; the text must not promise it.
-    #expect(!LayoutSettingsView.explanation.contains("segure um painel"))
+    #expect(LayoutSettingsView.explanation.contains("segure um painel"))
+    #expect(LayoutSettingsView.explanation.contains("Organizar painéis"))
     #expect(LayoutSettingsView.explanation.contains("navegador"))
   }
 }
