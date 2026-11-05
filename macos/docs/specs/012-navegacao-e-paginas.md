@@ -1,9 +1,10 @@
-# Spec 012: Navegação em pílula, Kanban, Ferramentas e Configuração
+# Spec 012: Navegação pela barra lateral, Kanban, Ferramentas e Configuração
 
-**Lacunas:** SH-1, SH-5, SH-7, KB-1 a KB-6, TL-1, CF-1 e H-21
+**Lacunas:** SH-5, SH-7, KB-1 a KB-6, TL-1, CF-1 e H-21
 ([../gaps.md](../gaps.md#shell-kanban-páginas-e-tema-sh-kb-tl-cf-th)).
-**Depende de:** a 013 (cabeçalho de vidro e controles em pílula).
-**Decisão pendente:** DP-1.
+**Depende de:** a 013 (Liquid Glass e controles em pílula).
+**Decisão:** DP-1 manteve a barra lateral. A pílula do topo do web (SH-1) não
+será reproduzida, e isso fica registrado como divergência intencional.
 
 ## Problema
 
@@ -14,18 +15,21 @@ não tem as páginas Ferramentas e Configuração.
 
 ## Objetivo
 
-A mesma estrutura de navegação do web, com o vocabulário do web. Os atalhos e
-janelas do Mac continuam (⌘K, ⌘1…⌘9, barra de menus, janelas avulsas).
+Barra lateral nativa com a estrutura e o vocabulário do web: as páginas
+principais primeiro e os módulos depois. Os atalhos e janelas do Mac continuam
+(⌘K, ⌘1…⌘9, barra de menus, janelas avulsas).
 
 ## Requisitos
 
-- **FR-012-01 · Cabeçalho.**
-  - Do lado esquerdo vai o ponto da marca com "daily-web"; no centro, a
-    navegação em pílula **Início**, **Kanban** e **Ferramentas**, com ícones e a
-    pílula ativa destacada (`components/shell/Header.tsx:61-105`, `nav-items.ts:17-19`).
-  - Do lado direito ficam busca, atualizar, sino e avatar.
-  - Ele ocupa a área da barra de título, com as setas do semáforo à esquerda.
-  - Com DP-1(a), a barra lateral sai.
+- **FR-012-01 · Barra lateral.** Três seções, na ordem do web (`nav-items.ts:17-33`):
+  1. sem título: **Início**, **Kanban** e **Ferramentas**;
+  2. "Módulos": E-mail, Tarefas, Notas rápidas, Agenda, Jira, GitHub e Slack,
+     só os ligados;
+  3. "Ajustes": Acesso dos agentes e Configuração.
+
+  A barra de ferramentas da janela mantém busca, atualizar, sino e avatar, sobre
+  Liquid Glass (spec 013). Os módulos continuam com tela própria na barra lateral
+  **e** com painel no Início (spec 011).
 - **FR-012-02 · Kanban.**
   - Vira página principal com o título "Kanban de tarefas", sem as abas
     Tarefas/Sessões, que são do `/agents` (KB-1 a KB-3, `AgentBoard.tsx:58-66`).
@@ -50,37 +54,31 @@ janelas do Mac continuam (⌘K, ⌘1…⌘9, barra de menus, janelas avulsas).
   marcáveis, e Sair (`AccountMenu.tsx:136-181`). "Novidades" depende da DP-6.
 - **FR-012-07 · Paleta.** O "Ir para" lista as páginas do web: Início, Kanban,
   Ferramentas, Acesso dos agentes, Configuração e Perfil (`nav-items.ts:17-33`).
-  Atalhos: ⌘1 Início, ⌘2 Kanban, ⌘3 Ferramentas.
-- **FR-012-08 · Módulos fora do Início.** Sem barra lateral, cada módulo abre a
-  partir do painel dele no Início (menu "…" → "Abrir em nova janela"), da paleta
-  ("Ir para → E-mail" etc.) ou da barra de menus. As notificações levam ao
-  painel do módulo no Início e destacam o item.
-
+  Atalhos: ⌘1 Início, ⌘2 Kanban, ⌘3 Ferramentas; os módulos vêm em seguida, na
+  ordem da barra lateral.
 ## Abordagem técnica
 
-- Janela com `.windowStyle(.hiddenTitleBar)` e um cabeçalho próprio em SwiftUI,
-  que fica na área do título. A área de arrastar a janela é preservada nas
-  partes livres do cabeçalho.
-- O `AppRoute` passa a ter `.inicio`, `.kanban`, `.ferramentas`,
-  `.configuracao`, `.perfil`, `.acesso` e `.agentes`. Os módulos deixam de ser
-  rotas da janela principal e viram rotas de janela avulsa ou de destaque no
-  Início.
-- O `FeatureShell` troca o `NavigationSplitView` por um contêiner com cabeçalho
-  e conteúdo. Navegação, menus e testes de atalhos são atualizados.
+- Continua o `NavigationSplitView`. O `SidebarModel` ganha a seção principal e a
+  seção "Módulos", e o `AppRoute` ganha `.kanban`, `.ferramentas`,
+  `.configuracao` e `.perfil` (o `.agents` continua para o modo de trabalho).
+- Configuração e Perfil viram telas da janela principal. A cena `Settings` (⌘,)
+  abre a Configuração.
+- A barra lateral usa o material de barra lateral do macOS 26, que já é Liquid
+  Glass, para o fundo do app aparecer por trás (spec 013).
 
 ## Critérios de aceite
 
-- **SC-012-1:** a navegação, os títulos e o menu do avatar têm os mesmos itens e
-  textos do web.
+- **SC-012-1:** a barra lateral, os títulos e o menu do avatar têm os mesmos
+  itens e textos do web.
 - **SC-012-2:** ⌘1, ⌘2 e ⌘3 e a paleta levam às mesmas páginas do web.
-- **SC-012-3:** clicar numa notificação leva ao item certo sem barra lateral.
-- **SC-012-4:** você confere o cabeçalho ao lado do web, pelo roteiro.
+- **SC-012-3:** clicar numa notificação continua levando ao item certo.
+- **SC-012-4:** você confere a navegação ao lado do web, pelo roteiro.
 
 ## Tarefas (Onda A, depois da base da 013)
 
 | Id | Tarefa | Dono |
 |---|---|---|
-| T012-1 | Novas rotas, cabeçalho em pílula, sem barra lateral, atalhos e paleta | FeatureShell, DailyCore (rotas), App |
+| T012-1 | Novas rotas, seções da barra lateral, atalhos e paleta | FeatureShell, DailyCore (rotas), App |
 | T012-2 | Página Kanban (título, sem abas, colunas responsivas, "Ativar avisos") | FeatureAgents |
 | T012-3 | Páginas Ferramentas, Configuração (com Disposição) e Perfil | FeatureSettings |
 | T012-4 | Menu do avatar com Tema, Densidade e Fundo | FeatureShell |

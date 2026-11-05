@@ -3,7 +3,7 @@
 **Lacunas:** TH-1, TH-3, TH-4, TH-6, TH-7, TH-8 e CF-7, mais as diferenças de
 linha e controle de todos os módulos: JR-01, JR-14, JR-18, GH-15, GH-18, SL-07,
 EM-7, EM-8, EM-24, NT-8, NT-10, NT-26 e AG-5 ([../gaps.md](../gaps.md)).
-**Decisões pendentes:** DP-4 (fonte) e DP-5 (vidro).
+**Decisões:** DP-4 (embutir a Geist) e DP-5 (Liquid Glass do macOS 26).
 **É base para todas as outras specs.**
 
 ## Problema
@@ -32,15 +32,22 @@ origem.
   Patrick Hand vai só nos títulos do quadro (spec 014), depois de confirmada a
   licença. A escala de tipos (`TypeRole`) já tem os tamanhos do web; troca só a
   família.
-- **FR-013-02 · Superfícies de vidro (DP-5a).**
-  - Componente `GlassSurface`, equivalente a `.glass` do web: fundo `--glass`
-    com desfoque de 20 px e saturação de 150%, e borda de 1 px em `--glass-line`
-    (`app/globals.css:919-925`; tokens `:98-100` no claro e `:211-213` no escuro).
-  - Os painéis do Início, o cabeçalho, os menus, o popover do sino, a paleta e o
-    cartão de login usam esse componente.
-- **FR-013-03 · Fundo.** O gradiente (mesh, Catppuccin, Dracula, WezTerm) passa
-  a ficar visível atrás de toda a janela. Sem a barra lateral (DP-1), nada mais
-  o cobre (`globals.css:908-917`).
+- **FR-013-02 · Superfícies em Liquid Glass (DP-5).** O vidro do web
+  (`.glass`, `app/globals.css:919-925`) vira o **Liquid Glass** do macOS 26
+  (`glassEffect`), que é o equivalente nativo. Os painéis do Início, a barra de
+  ferramentas, os menus, o popover do sino, a paleta e o cartão de login usam o
+  componente `GlassSurface`:
+  - `glassEffect` com o formato do componente (cantos de 0.75rem, pílula nos
+    controles);
+  - tinta leve com a superfície do tema atual, para manter as cores de cada fundo;
+  - `GlassEffectContainer` onde há vários elementos de vidro próximos (cabeçalhos
+    de painel, grupos de pílulas).
+
+  É uma divergência intencional do visual do web: segue a linguagem do macOS 26
+  no lugar do desfoque CSS.
+- **FR-013-03 · Fundo.** O gradiente (mesh, Catppuccin, Dracula, WezTerm) fica
+  visível atrás de toda a janela, inclusive atrás da barra lateral, que no macOS
+  26 também é de vidro (`globals.css:908-917`).
 - **FR-013-04 · Sombras.** Tokens `e1` a `e5` com os valores de
   `globals.css:798-820`, aplicados onde o web aplica: cartões, menus, diálogos e
   a paleta.
@@ -82,9 +89,9 @@ origem.
 
 - **Fontes:** os arquivos ficam nos recursos do target do app, registrados com
   `ATSApplicationFontsPath`. Um `Font.daily(_:)` no DailyDesign escolhe a família.
-- **Vidro:** `.background(.ultraThinMaterial)` com uma camada do token `--glass`
-  por cima, e borda e sombra, calibrados lado a lado com o web nos quatro fundos.
-  O Liquid Glass do macOS 26 (`glassEffect`) é opção para o cabeçalho (DP-5).
+- **Vidro:** `glassEffect(.regular.tint(...), in: shape)` e `GlassEffectContainer`
+  do macOS 26, calibrados nos quatro fundos e nos dois esquemas. O app já exige
+  macOS 26, então não há caminho alternativo a manter.
 - **Galeria:** a galeria do DailyDesign ganha uma página por componente novo,
   nos dois esquemas e nos quatro fundos, para a conferência visual.
 
