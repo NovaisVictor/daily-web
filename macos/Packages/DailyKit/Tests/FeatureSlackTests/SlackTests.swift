@@ -41,25 +41,6 @@ private let digest = SlackDigest(
     JSISODate.string(from: now.addingTimeInterval(offset))
   }
 
-  @Test func followsTheWebSteps() throws {
-    #expect(try #require(SlackDates.relativeParts(iso(-30), now: now)) == (.second, -30))
-    #expect(try #require(SlackDates.relativeParts(iso(-5 * 60), now: now)) == (.minute, -5))
-    #expect(try #require(SlackDates.relativeParts(iso(-3 * 3600), now: now)) == (.hour, -3))
-    #expect(try #require(SlackDates.relativeParts(iso(-86_400), now: now)) == (.day, -1))
-    #expect(try #require(SlackDates.relativeParts(iso(-14 * 86_400), now: now)) == (.weekOfMonth, -2))
-    #expect(try #require(SlackDates.relativeParts(iso(-400 * 86_400), now: now)) == (.year, -1))
-  }
-
-  /// `Math.round(-2.5)` is -2 in JavaScript.
-  @Test func roundsHalvesUpLikeJavaScript() throws {
-    #expect(try #require(SlackDates.relativeParts(iso(-150), now: now)) == (.minute, -2))
-  }
-
-  @Test func readsDatesWithoutMilliseconds() {
-    #expect(SlackDates.parse("2026-11-04T12:00:00Z") != nil)
-    #expect(SlackDates.parse("2026-11-04T12:00:00.123Z") != nil)
-  }
-
   @Test func unreadableDateIsADash() {
     #expect(SlackDates.relative("", now: now) == "—")
     #expect(SlackDates.relative("ontem", now: now) == "—")

@@ -1,3 +1,4 @@
+import AppKit
 import DailyModels
 import Testing
 
@@ -96,5 +97,24 @@ func notice(_ id: String, _ source: NotificationSource, read: Bool = false, url:
     #expect(NotificationsLogic.emailItemID(notice("email:<m@x>", .email), inbox: inbox) == "mail-1:42")
     #expect(NotificationsLogic.emailItemID(notice("email:mail-2:7", .email), inbox: inbox) == "mail-2:7")
     #expect(NotificationsLogic.emailItemID(notice("email:<gone@x>", .email), inbox: inbox) == nil)
+  }
+}
+
+@MainActor
+@Suite struct NotificationsBellScreenTests {
+  @Test func withoutAWindowThereIsNoCap() {
+    #expect(NotificationsBellScreen.popoverMaxHeight(for: nil) == nil)
+  }
+
+  /// The cap follows the bell window's own screen, whichever display it is on.
+  @Test func capsAtTheWindowsScreen() throws {
+    for screen in NSScreen.screens {
+      let window = NSWindow(
+        contentRect: NSRect(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY, width: 100, height: 100),
+        styleMask: [.borderless], backing: .buffered, defer: true)
+      window.isReleasedWhenClosed = false
+      let height = try #require(window.screen).visibleFrame.height
+      #expect(NotificationsBellScreen.popoverMaxHeight(for: window) == (height * 0.7).rounded(.down))
+    }
   }
 }

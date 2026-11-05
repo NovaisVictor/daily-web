@@ -12,8 +12,10 @@ public final class Poller {
   /// Scope ids the app registers.
   public enum ScopeID {
     public static let state = "state"
+    /// Prefix of each agents screen's own scope (one per store, see `AgentsStore.scopeID`).
     public static let agents = "agents"
-    /// The minute check for agent tasks waiting on the user, off while `agents` runs.
+    /// The minute check for agent tasks waiting on the user; it skips its read while an
+    /// agents screen has reported recently (`AlertEngine.lastScreenAgentsReport`).
     public static let agentAttention = "agentAttention"
     public static let notesSync = "notesSync"
     public static let reminders = "alertReminders"

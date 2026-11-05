@@ -27,6 +27,9 @@ final class AgentLiveStore {
   private(set) var isSending = false
   private(set) var notice: Notice?
 
+  /// Per instance, like `AgentsStore.scopeID`: two open tasks in two screens each poll
+  /// their own session.
+  @ObservationIgnored let scopeID = "agentsLive.\(UUID().uuidString)"
   @ObservationIgnored private let client: any APIClient
   @ObservationIgnored private let poller: Poller
   @ObservationIgnored private(set) var isPolling = false
@@ -41,7 +44,7 @@ final class AgentLiveStore {
   func start() {
     guard !isPolling else { return }
     isPolling = true
-    poller.register(AgentsStore.liveScope, foreground: Poller.Cadence.agents, background: nil) { [weak self] in
+    poller.register(scopeID, foreground: Poller.Cadence.agents, background: nil) { [weak self] in
       await self?.load()
     }
   }
@@ -49,7 +52,7 @@ final class AgentLiveStore {
   func stop() {
     guard isPolling else { return }
     isPolling = false
-    poller.unregister(AgentsStore.liveScope)
+    poller.unregister(scopeID)
   }
 
   func load() async {

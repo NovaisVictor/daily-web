@@ -10,6 +10,9 @@ public struct NotificationsBell: View {
   @Environment(\.theme) private var theme
   @State private var store: NotificationsStore
   @State private var isOpen = false
+  /// Measured on the bell's own window when the popover opens, not on every render.
+  @State private var popoverMaxHeight: CGFloat?
+  @State private var anchor = WindowAnchor()
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let navigator: AppNavigator
 
@@ -26,7 +29,7 @@ public struct NotificationsBell: View {
 
   public var body: some View {
     Button {
-      isOpen.toggle()
+      if isOpen { isOpen = false } else { present() }
     } label: {
       Image(systemName: store.unreadCount > 0 ? "bell.badge" : "bell")
     }
@@ -48,8 +51,9 @@ public struct NotificationsBell: View {
     .help("Notificações")
     .accessibilityLabel(NotificationsLogic.bellLabel(unread: store.unreadCount))
     .accessibilityValue(isOpen ? "aberta" : "fechada")
+    .background(WindowAnchorView(anchor: anchor))
     .popover(isPresented: $isOpen, arrowEdge: .bottom) {
-      NotificationCenterView(store: store) { isOpen = false }
+      NotificationCenterView(store: store, maxHeight: popoverMaxHeight) { isOpen = false }
     }
     // The menu bar's "Abrir notificações" asks for the popover; the request may
     // come before this window rendered (onAppear) or while it is shown (onChange).
@@ -61,7 +65,39 @@ public struct NotificationsBell: View {
   /// bell too, and the request targets the window the menu bar brings forward.
   private func takeRequest() {
     guard isPrimaryWindow else { return }
-    if navigator.takeNotificationsRequest() { isOpen = true }
+    if navigator.takeNotificationsRequest() { present() }
+  }
+
+  private func present() {
+    popoverMaxHeight = NotificationsBellScreen.popoverMaxHeight(for: anchor.view?.window)
+    isOpen = true
+  }
+}
+
+/// The popover's height cap comes from the screen of the window that holds the bell,
+/// which is not `NSScreen.main` (the key window's) when the window sits on another display.
+enum NotificationsBellScreen {
+  static func popoverMaxHeight(for window: NSWindow?) -> CGFloat? {
+    NotificationsLogic.popoverMaxHeight(screenHeight: window?.screen?.visibleFrame.height)
+  }
+}
+
+/// A reference to an AppKit view inside the bell, to reach its window when needed.
+final class WindowAnchor {
+  weak var view: NSView?
+}
+
+private struct WindowAnchorView: NSViewRepresentable {
+  let anchor: WindowAnchor
+
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    anchor.view = view
+    return view
+  }
+
+  func updateNSView(_ view: NSView, context: Context) {
+    anchor.view = view
   }
 }
 
@@ -70,6 +106,8 @@ struct NotificationCenterView: View {
   @Environment(\.theme) private var theme
   @Environment(\.openURL) private var openURL
   @Bindable var store: NotificationsStore
+  /// 70% of the bell window's screen; nil lets the popover take its content's height.
+  var maxHeight: CGFloat?
   let close: () -> Void
 
   var body: some View {
@@ -87,7 +125,7 @@ struct NotificationCenterView: View {
       }
     }
     .frame(width: NotificationsLogic.popoverWidth)
-    .frame(maxHeight: NotificationsLogic.popoverMaxHeight(screenHeight: NSScreen.main?.visibleFrame.height))
+    .frame(maxHeight: maxHeight)
     // The web's popover is `bg-glass-strong … shadow-e4` (NotificationsBell.tsx:248); the
     // system popover chrome gives way to the same glass the menus use.
     .glassSurface(.popover)

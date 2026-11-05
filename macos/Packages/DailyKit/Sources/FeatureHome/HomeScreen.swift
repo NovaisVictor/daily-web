@@ -10,13 +10,8 @@ import SwiftUI
 public struct HomeScreen: View {
   @Environment(\.theme) private var theme
   @State private var store: HomeStore
-  @State private var gridWidth: CGFloat = 0
   private let open: (AppRoute) -> Void
   private let navigator: AppNavigator
-
-  /// Below this width the panels stack in one column: two would squeeze each
-  /// row's title next to its lead column.
-  private static let twoColumnWidth: CGFloat = 820
 
   /// A chosen panel moves the window through the app's navigator.
   public init(environment: AppEnvironment) {
@@ -53,46 +48,99 @@ public struct HomeScreen: View {
       if home.nothingOn {
         NothingOnState(navigator: navigator)
       } else {
-        columns(home.panels)
-          .frame(maxWidth: .infinity, alignment: .topLeading)
-          .onGeometryChange(for: CGFloat.self) {
-            $0.size.width
-          } action: {
-            gridWidth = $0
-          }
+        grid(home.panels)
       }
     } else {
       LoadingState()
     }
   }
 
-  /// Two independent columns (panels alternate left and right in the web's
-  /// order), so a short panel never leaves a gap under it.
-  @ViewBuilder
-  private func columns(_ panels: [HomePanel]) -> some View {
-    if gridWidth >= Self.twoColumnWidth {
-      HStack(alignment: .top, spacing: 16) {
-        column(panels.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element))
-        column(panels.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element))
-      }
-    } else {
-      column(panels)
-    }
-  }
-
-  private func column(_ panels: [HomePanel]) -> some View {
-    VStack(spacing: 16) {
+  /// One container whatever the column count, each panel keyed by its module, so
+  /// a resize that changes the columns moves the panels instead of rebuilding them.
+  private func grid(_ panels: [HomePanel]) -> some View {
+    HomeColumnsLayout(spacing: 16) {
       ForEach(panels) { panel in
-        ModulePanel(panel: panel) { route, itemID in
+        ModulePanel(
+          panel: panel,
+          tab: store.selectedTab(of: panel),
+          selectTab: { store.selectTab($0, of: panel.module) }
+        ) { route, itemID in
           if let itemID {
             navigator.open(route, itemID: itemID)
           } else {
             open(route)
           }
         }
+        .id(panel.module)
       }
     }
-    .frame(maxWidth: .infinity, alignment: .top)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+  }
+}
+
+/// Where each panel goes in the "Hoje" grid.
+nonisolated enum HomeGrid {
+  /// Below this width the panels stack in one column: two would squeeze each
+  /// row's title next to its lead column.
+  static let twoColumnWidth: CGFloat = 820
+
+  static func columnCount(width: CGFloat) -> Int {
+    width >= twoColumnWidth ? 2 : 1
+  }
+
+  /// Panels alternate left and right in the web's order.
+  static func column(of index: Int, columns: Int) -> Int {
+    index % columns
+  }
+}
+
+/// Independent columns (a short panel never leaves a gap under it) whose count
+/// follows the width it is offered, so the first pass already has the right count
+/// instead of measuring a zero width first.
+private struct HomeColumnsLayout: Layout {
+  let spacing: CGFloat
+
+  private struct Arrangement {
+    var columnWidth: CGFloat
+    var origins: [CGPoint]
+    var size: CGSize
+  }
+
+  private func arrange(width proposed: CGFloat?, subviews: Subviews) -> Arrangement {
+    let width: CGFloat
+    if let proposed, proposed.isFinite {
+      width = proposed
+    } else {
+      width = subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
+    }
+    let columns = HomeGrid.columnCount(width: width)
+    let columnWidth = max(0, (width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+    var heights = Array(repeating: CGFloat(0), count: columns)
+    var origins: [CGPoint] = []
+    for (index, subview) in subviews.enumerated() {
+      let column = HomeGrid.column(of: index, columns: columns)
+      let height = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
+      let y = heights[column] == 0 ? 0 : heights[column] + spacing
+      origins.append(CGPoint(x: CGFloat(column) * (columnWidth + spacing), y: y))
+      heights[column] = y + height
+    }
+    return Arrangement(
+      columnWidth: columnWidth, origins: origins, size: CGSize(width: width, height: heights.max() ?? 0))
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    arrange(width: proposal.width, subviews: subviews).size
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    let arrangement = arrange(width: bounds.width, subviews: subviews)
+    for (subview, origin) in zip(subviews, arrangement.origins) {
+      subview.place(
+        at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+        anchor: .topLeading,
+        proposal: ProposedViewSize(width: arrangement.columnWidth, height: nil)
+      )
+    }
   }
 }
 
@@ -206,13 +254,11 @@ private struct PomodoroCard: View {
 private struct ModulePanel: View {
   @Environment(\.theme) private var theme
   let panel: HomePanel
+  /// The selected tab, held by `HomeStore` so it outlives this view.
+  let tab: HomeTab?
+  let selectTab: (String) -> Void
   /// The route and, for a row that points at one item, the item to reveal.
   let open: (AppRoute, String?) -> Void
-  @State private var selectedTab: String?
-
-  private var tab: HomeTab? {
-    panel.tabs.first { $0.id == selectedTab } ?? panel.tabs.first
-  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -237,7 +283,7 @@ private struct ModulePanel: View {
           SegmentedPills(
             "abas de \(panel.title)",
             items: panel.tabs.map { .init(id: $0.id, label: $0.label, count: $0.count) },
-            selection: Binding(get: { tab.id }, set: { selectedTab = $0 })
+            selection: Binding(get: { tab.id }, set: { selectTab($0) })
           )
           .fixedSize()
           .padding(4)

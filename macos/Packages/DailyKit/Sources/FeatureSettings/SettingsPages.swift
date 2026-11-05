@@ -7,16 +7,6 @@ import SwiftUI
 public enum SettingsPage: String, CaseIterable, Hashable, Sendable {
   case ferramentas, configuracao, perfil
 
-  /// Where an old Settings tab request lands now: the integrations moved to
-  /// Ferramentas, the profile to Perfil, and the rest lives in Configuração.
-  public init(_ destination: SettingsDestination) {
-    switch destination {
-    case .integrations: self = .ferramentas
-    case .profile: self = .perfil
-    case .appearance, .users, .general: self = .configuracao
-    }
-  }
-
   /// The page title (`PageHeader title`).
   public var title: String {
     switch self {

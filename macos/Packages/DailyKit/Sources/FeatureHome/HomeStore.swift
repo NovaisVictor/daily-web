@@ -54,6 +54,19 @@ final class HomeStore {
   var timerError: String? { pomodoro.errorMessage }
   var timerBusy: Bool { pomodoro.isBusy }
 
+  /// Each panel's chosen tab, by module. Kept here and not in the panel's view so it
+  /// survives the grid going from one column to two and the panel's view being rebuilt.
+  private var selectedTabs: [ModuleID: String] = [:]
+
+  /// The chosen tab while the panel still has it, else the panel's first tab.
+  func selectedTab(of panel: HomePanel) -> HomeTab? {
+    panel.tabs.first { $0.id == selectedTabs[panel.module] } ?? panel.tabs.first
+  }
+
+  func selectTab(_ tabID: String, of module: ModuleID) {
+    selectedTabs[module] = tabID
+  }
+
   func toggleTimer() async { await pomodoro.toggle() }
   func resetTimer() async { await pomodoro.reset() }
 }

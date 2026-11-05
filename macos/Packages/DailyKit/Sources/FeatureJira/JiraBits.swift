@@ -1,3 +1,4 @@
+import DailyCore
 import DailyDesign
 import DailyModels
 import SwiftUI
@@ -12,7 +13,7 @@ struct JiraStatusLabel: View {
     let (glyph, tone) = Self.style(issue.statusCategory)
     HStack(spacing: 6) {
       Text(glyph.rawValue).accessibilityHidden(true)
-      Text(JiraText.normalizeStatus(issue.status))
+      Text(JiraFormat.normalizeStatus(issue.status))
     }
     .font(.daily(size: 12))
     .foregroundStyle(theme.color(for: tone))

@@ -1,3 +1,4 @@
+import DailyCore
 import Foundation
 
 /// Date reading and the short relative time, as the web does them
@@ -49,19 +50,8 @@ nonisolated enum EmailDates {
   /// "agora", "5min", "3h", "ontem", "4d", then "dd/MM"; empty when unreadable.
   static func relativeTime(_ iso: String, now: Date, timeZone: TimeZone) -> String {
     guard let then = parse(iso, timeZone: timeZone) else { return "" }
-    let minutes = Int((now.timeIntervalSince(then) / 60).rounded(.down))
-    if minutes < 1 { return "agora" }
-    if minutes < 60 { return "\(minutes)min" }
-    let hours = minutes / 60
-    if hours < 24 { return "\(hours)h" }
-    let days = hours / 24
-    if days == 1 { return "ontem" }
-    if days < 7 { return "\(days)d" }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = timeZone
-    let parts = calendar.dateComponents([.day, .month], from: then)
-    let day = String(format: "%02d", parts.day ?? 0)
-    let month = String(format: "%02d", parts.month ?? 0)
-    return "\(day)/\(month)"
+    return RelativeTime.short(then, now: now, calendar: calendar)
   }
 }

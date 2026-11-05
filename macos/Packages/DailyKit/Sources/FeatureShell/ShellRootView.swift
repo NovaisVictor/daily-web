@@ -120,7 +120,11 @@ public struct ShellRootView<Accessory: View>: View {
 
   @ViewBuilder private var detail: some View {
     if let selection, let entry = sidebar.entry(for: selection) {
+      // Several routes can build the same screen type (Kanban and "Agentes e atividades"
+      // are both AgentsScreen); without a per-route identity SwiftUI would keep the
+      // first route's @State store when the selection changes.
       entry.makeView()
+        .id(selection)
     } else {
       ContentUnavailableView("Escolha uma tela na barra lateral", systemImage: "sidebar.left")
         .foregroundStyle(theme.inkMid)

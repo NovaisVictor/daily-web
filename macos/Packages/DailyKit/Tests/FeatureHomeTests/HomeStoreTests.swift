@@ -99,4 +99,41 @@ private let parked: Sleeper = { _ in
     #expect(store.timer?.running == false)
     #expect(!store.timerBusy)
   }
+
+  /// The tab lives in the store, so rebuilding the panels (a new state, the clock's
+  /// minute or the grid switching columns) keeps it.
+  @Test func selectedTabSurvivesThePanelsBeingRebuilt() throws {
+    serve(timer(running: false))
+    let jira = try #require(store.panels(at: Fixtures.now)?.panels.first { $0.module == .jira })
+    #expect(store.selectedTab(of: jira)?.id == jira.tabs.first?.id)
+    let second = try #require(jira.tabs.dropFirst().first)
+    store.selectTab(second.id, of: .jira)
+    serve(timer(running: true))
+    let rebuilt = try #require(
+      store.panels(at: Fixtures.now.addingTimeInterval(60))?.panels.first { $0.module == .jira })
+    #expect(store.selectedTab(of: rebuilt)?.id == second.id)
+    // Another module's panel keeps its own first tab.
+    let pulls = try #require(store.panels(at: Fixtures.now)?.panels.first { $0.module == .pulls })
+    #expect(store.selectedTab(of: pulls)?.id == pulls.tabs.first?.id)
+  }
+
+  @Test func aTabThePanelNoLongerHasFallsBackToTheFirst() throws {
+    serve(timer(running: false))
+    let jira = try #require(store.panels(at: Fixtures.now)?.panels.first { $0.module == .jira })
+    store.selectTab("gone", of: .jira)
+    #expect(store.selectedTab(of: jira)?.id == jira.tabs.first?.id)
+  }
+}
+
+@Suite struct HomeGridTests {
+  @Test func columnsFollowTheWidth() {
+    #expect(HomeGrid.columnCount(width: 0) == 1)
+    #expect(HomeGrid.columnCount(width: HomeGrid.twoColumnWidth - 1) == 1)
+    #expect(HomeGrid.columnCount(width: HomeGrid.twoColumnWidth) == 2)
+  }
+
+  @Test func panelsAlternateLeftAndRight() {
+    #expect((0..<5).map { HomeGrid.column(of: $0, columns: 2) } == [0, 1, 0, 1, 0])
+    #expect((0..<3).map { HomeGrid.column(of: $0, columns: 1) } == [0, 0, 0])
+  }
 }

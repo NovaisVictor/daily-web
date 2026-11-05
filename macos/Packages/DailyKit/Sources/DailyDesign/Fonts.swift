@@ -1,6 +1,7 @@
 import CoreText
 import Foundation
 import SwiftUI
+import Synchronization
 import os
 
 /// Why the bundled Geist files could not be registered.
@@ -54,21 +55,63 @@ public enum DailyFonts {
     try registration.get()
   }
 
-  /// The Core Text font for a family at a size and CSS weight (100-900).
+  private struct CacheKey: Hashable {
+    let family: Family
+    let size: CGFloat
+    let weight: Int
+  }
+
+  private struct CacheEntry {
+    let ctFont: CTFont
+    let font: Font
+  }
+
+  /// View bodies ask for the same few faces on every render; building a variable-font
+  /// descriptor each time is wasted work. A lock and not the main actor: `ctFont` is
+  /// also read off the main thread (text measuring, tests).
+  private static let cache = Mutex<[CacheKey: CacheEntry]>([:])
+
+  /// The Core Text font for a family at a size and CSS weight (100-900), built once
+  /// per combination.
   public static func ctFont(_ family: Family, size: CGFloat, weight: Font.Weight) -> CTFont {
+    entry(family, size: size, weight: weight).ctFont
+  }
+
+  /// The SwiftUI font over `ctFont`, cached with it.
+  public static func font(_ family: Family, size: CGFloat, weight: Font.Weight) -> Font {
+    entry(family, size: size, weight: weight).font
+  }
+
+  private static func entry(_ family: Family, size: CGFloat, weight: Font.Weight) -> CacheEntry {
+    let key = CacheKey(family: family, size: size, weight: cssWeight(weight))
+    if let cached = cache.withLock({ $0[key] }) { return cached }
+    let ctFont = makeCTFont(family, size: size, cssWeight: key.weight)
+    let made = CacheEntry(ctFont: ctFont, font: Font(ctFont))
+    // Two threads may build the same key at once; the first one stored wins, so
+    // every caller gets the same instance afterwards.
+    return cache.withLock { cache in
+      if let existing = cache[key] { return existing }
+      cache[key] = made
+      return made
+    }
+  }
+
+  private static func makeCTFont(_ family: Family, size: CGFloat, cssWeight: Int) -> CTFont {
     ensureRegistered()
     let attributes: [CFString: Any] = [
       kCTFontNameAttribute: family.regularPostScriptName,
-      kCTFontVariationAttribute: [weightAxis: cssWeight(weight)],
+      kCTFontVariationAttribute: [weightAxis: cssWeight],
     ]
     let descriptor = CTFontDescriptorCreateWithAttributes(attributes as CFDictionary)
     return CTFontCreateWithFontDescriptor(descriptor, size, nil)
   }
 
   /// The CSS `font-weight` number of a SwiftUI weight, the value of the `wght` axis.
+  /// SwiftUI orders `ultraLight` below `thin`, so they take 100 and 200 to keep the
+  /// mapping monotonic (the web only uses 400-700).
   public static func cssWeight(_ weight: Font.Weight) -> Int {
     let table: [(Font.Weight, Int)] = [
-      (.ultraLight, 200), (.thin, 100), (.light, 300), (.regular, 400), (.medium, 500),
+      (.ultraLight, 100), (.thin, 200), (.light, 300), (.regular, 400), (.medium, 500),
       (.semibold, 600), (.bold, 700), (.heavy, 800), (.black, 900),
     ]
     guard let match = table.first(where: { $0.0 == weight }) else {
@@ -123,11 +166,11 @@ extension Font {
   /// and bracketed sizes such as `text-[11px]`). Unlike a `TypeRole`, it sets no
   /// tracking, leading or tabular digits.
   public static func daily(size: CGFloat, weight: Font.Weight = .regular) -> Font {
-    Font(DailyFonts.ctFont(.sans, size: size, weight: weight))
+    DailyFonts.font(.sans, size: size, weight: weight)
   }
 
   /// Geist Mono, the web's `--font-mono` (globals.css:697), for code and identifiers.
   public static func dailyMono(size: CGFloat, weight: Font.Weight = .regular) -> Font {
-    Font(DailyFonts.ctFont(.mono, size: size, weight: weight))
+    DailyFonts.font(.mono, size: size, weight: weight)
   }
 }

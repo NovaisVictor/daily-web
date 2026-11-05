@@ -32,6 +32,25 @@ struct FontsTests {
     #expect(DailyFonts.cssWeight(.bold) == 700)
   }
 
+  @Test("CSS weights rise with SwiftUI's weight order")
+  func weightsAreMonotonic() {
+    // SwiftUI's own order, lightest first: ultraLight is lighter than thin.
+    let ordered: [Font.Weight] = [.ultraLight, .thin, .light, .regular, .medium, .semibold, .bold, .heavy, .black]
+    let css = ordered.map(DailyFonts.cssWeight)
+    #expect(css == [100, 200, 300, 400, 500, 600, 700, 800, 900])
+    #expect(zip(css, css.dropFirst()).allSatisfy { $0 < $1 })
+  }
+
+  @Test("the same family, size and weight return the cached font")
+  func cacheHit() {
+    let first = DailyFonts.ctFont(.mono, size: 17, weight: .semibold)
+    let second = DailyFonts.ctFont(.mono, size: 17, weight: .semibold)
+    #expect(first === second)
+    #expect(DailyFonts.font(.mono, size: 17, weight: .semibold) == DailyFonts.font(.mono, size: 17, weight: .semibold))
+    #expect(DailyFonts.ctFont(.mono, size: 17, weight: .bold) !== first)
+    #expect(DailyFonts.ctFont(.sans, size: 17, weight: .semibold) !== first)
+  }
+
   @Test(
     "the wght axis carries the CSS weight",
     arguments: DailyFonts.Family.allCases, [Font.Weight.regular, .medium, .semibold, .bold]

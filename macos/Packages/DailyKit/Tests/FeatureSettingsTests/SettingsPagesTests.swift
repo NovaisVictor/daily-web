@@ -5,14 +5,6 @@ import Testing
 @testable import FeatureSettings
 
 @Suite struct SettingsPagesTests {
-  @Test func everyOldTabLandsOnItsPage() {
-    #expect(SettingsPage(.integrations) == .ferramentas)
-    #expect(SettingsPage(.profile) == .perfil)
-    #expect(SettingsPage(.appearance) == .configuracao)
-    #expect(SettingsPage(.users) == .configuracao)
-    #expect(SettingsPage(.general) == .configuracao)
-  }
-
   @Test func titlesAndDescriptionsAreTheWebs() {
     #expect(SettingsPage.ferramentas.title == "Ferramentas")
     #expect(SettingsPage.ferramentas.description == nil)
@@ -54,6 +46,8 @@ import Testing
 
   @Test func theLayoutTextDoesNotSendYouToButtonsThatDoNotExist() {
     #expect(!LayoutSettingsView.explanation.contains("Concluir"))
-    #expect(LayoutSettingsView.explanation.contains("segure um painel por meio segundo"))
+    // The native Início cannot be arranged until spec 010; the text must not promise it.
+    #expect(!LayoutSettingsView.explanation.contains("segure um painel"))
+    #expect(LayoutSettingsView.explanation.contains("navegador"))
   }
 }

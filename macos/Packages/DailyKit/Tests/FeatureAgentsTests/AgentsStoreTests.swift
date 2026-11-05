@@ -140,31 +140,52 @@ final class Reports {
   @Test func pollingScopeFollowsVisibility() async {
     poller.start()
     store.setVisible(true)
-    #expect(poller.registeredScopes.contains(Poller.ScopeID.agents))
+    #expect(poller.registeredScopes.contains(store.scopeID))
     await settle()
     // Registering runs at once: reappearing reloads immediately.
     #expect(boardCalls.count == 1)
     store.setVisible(false)
-    #expect(!poller.registeredScopes.contains(Poller.ScopeID.agents))
+    #expect(!poller.registeredScopes.contains(store.scopeID))
     store.setVisible(true)
     await settle()
     #expect(boardCalls.count == 2)
     poller.stop()
   }
 
-  @Test func liveScopeRunsOnlyWhileATaskWithASessionIsOpenAndVisible() async {
+  @Test func liveScopeRunsOnlyWhileATaskWithASessionIsOpenAndVisible() async throws {
     server.setDetail(detail(Self.waiting))
     store.setVisible(true)
     store.openTask("w")
     await settle()
     #expect(store.detail?.live?.sessionID == "s")
-    #expect(poller.registeredScopes.contains(AgentsStore.liveScope))
+    let liveScope = try #require(store.detail?.live?.scopeID)
+    #expect(poller.registeredScopes.contains(liveScope))
     store.setVisible(false)
-    #expect(!poller.registeredScopes.contains(AgentsStore.liveScope))
+    #expect(!poller.registeredScopes.contains(liveScope))
     store.setVisible(true)
-    #expect(poller.registeredScopes.contains(AgentsStore.liveScope))
+    #expect(poller.registeredScopes.contains(liveScope))
     store.closeTask()
-    #expect(!poller.registeredScopes.contains(AgentsStore.liveScope))
+    #expect(!poller.registeredScopes.contains(liveScope))
+  }
+
+  /// Kanban and "Agentes e atividades" are separate stores; one going away must not
+  /// stop the other's polling.
+  @Test func twoStoresPollIndependently() {
+    let kanban = AgentsStore(client: client, poller: poller, mode: .kanban, sleep: { _ in })
+    let workspace = AgentsStore(client: client, poller: poller, mode: .workspace, sleep: { _ in })
+    let otherKanban = AgentsStore(client: client, poller: poller, mode: .kanban, sleep: { _ in })
+    #expect(Set([kanban.scopeID, workspace.scopeID, otherKanban.scopeID]).count == 3)
+    kanban.setVisible(true)
+    workspace.setVisible(true)
+    otherKanban.setVisible(true)
+    kanban.setVisible(false)
+    #expect(!poller.registeredScopes.contains(kanban.scopeID))
+    #expect(poller.registeredScopes.contains(workspace.scopeID))
+    #expect(poller.registeredScopes.contains(otherKanban.scopeID))
+    workspace.setVisible(false)
+    #expect(poller.registeredScopes.contains(otherKanban.scopeID))
+    otherKanban.setVisible(false)
+    #expect(poller.registeredScopes.isEmpty)
   }
 
   @Test func pollReloadsTheOpenDetail() async {
@@ -343,8 +364,8 @@ final class Reports {
 
   @Test func startAndStopTheScope() {
     store.start()
-    #expect(poller.registeredScopes.contains(AgentsStore.liveScope))
+    #expect(poller.registeredScopes.contains(store.scopeID))
     store.stop()
-    #expect(!poller.registeredScopes.contains(AgentsStore.liveScope))
+    #expect(!poller.registeredScopes.contains(store.scopeID))
   }
 }

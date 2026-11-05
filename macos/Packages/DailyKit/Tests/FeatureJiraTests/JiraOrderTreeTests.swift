@@ -122,33 +122,6 @@ import Testing
     #expect(JiraText.issueMarker(makeIssue("A-1", kind: "Subtarefa", subtask: true)) == "[s]")
     #expect(JiraText.issueMarker(makeIssue("A-1", kind: "Bug")) == "[?]")
   }
-
-  @Test func normalizedStatus() {
-    #expect(JiraText.normalizeStatus("  Em Andamento ") == "Em andamento")
-    #expect(JiraText.normalizeStatus("") == "")
-  }
-
-  @Test func dueLabels() {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .gmt
-    let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 22, hour: 15)) ?? .now
-    #expect(JiraText.dueLabel("2026-09-20", now: now, calendar: calendar) == "venceu há 2d")
-    #expect(JiraText.dueLabel("2026-09-22", now: now, calendar: calendar) == "vence hoje")
-    #expect(JiraText.dueLabel("2026-09-23", now: now, calendar: calendar) == "vence amanhã")
-    #expect(JiraText.dueLabel("2026-09-25", now: now, calendar: calendar) == "vence em 3d")
-    #expect(JiraText.dueLabel("2026-09-30", now: now, calendar: calendar) == "vence 30/09")
-    #expect(JiraText.dueLabel("", now: now, calendar: calendar) == nil)
-    #expect(JiraText.isOverdue("2026-09-21", now: now, calendar: calendar))
-    #expect(!JiraText.isOverdue("2026-09-22", now: now, calendar: calendar))
-  }
-
-  @Test func staleness() {
-    let now = Date(timeIntervalSince1970: 1_790_000_000)
-    let fresh = makeIssue("A-1", updatedAt: JiraText.isoForTest(now.addingTimeInterval(-4.9 * 86_400)))
-    let old = makeIssue("A-2", updatedAt: JiraText.isoForTest(now.addingTimeInterval(-6.5 * 86_400)))
-    #expect(JiraText.stalenessLabel(fresh, now: now) == nil)
-    #expect(JiraText.stalenessLabel(old, now: now) == "parado há 6d")
-  }
 }
 
 extension JiraText {

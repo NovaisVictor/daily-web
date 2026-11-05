@@ -1,7 +1,7 @@
 # Auditoria de paridade e qualidade (T502)
 
 Data: 2026-11-04. Base: commit `6fa7aa1` mais as mudanças ainda não commitadas da T501
-(`App/`, `FeatureShell`, `FeatureSettings/SettingsScreen.swift`), que estavam na árvore
+(`App/`, `FeatureShell`, `FeatureSettings/MacSettingsView.swift`), que estavam na árvore
 durante a auditoria. O build Release medido inclui esse trabalho em andamento.
 
 Auditoria só de leitura do código. Caminhos Swift relativos a

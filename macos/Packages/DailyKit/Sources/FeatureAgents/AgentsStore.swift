@@ -38,8 +38,10 @@ final class AgentsStore {
   @ObservationIgnored private var generation = 0
   @ObservationIgnored private var searchTask: Task<Void, Never>?
 
-  /// The live panel's own scope, polled only while a task with a session is open.
-  static let liveScope = "agentsLive"
+  /// This store's own poller scope. Kanban and "Agentes e atividades" are two stores
+  /// (and each window holds its own), so a shared id would let one screen going away
+  /// unregister the other's polling.
+  @ObservationIgnored let scopeID: String
   /// `SEARCH_DEBOUNCE_MS` (`BoardViews.tsx:89`).
   static let searchDebounce = Duration.milliseconds(250)
 
@@ -53,6 +55,7 @@ final class AgentsStore {
     reportWaiting: @escaping @MainActor ([DailyCore.AgentAttention]) async -> Void = { _ in }
   ) {
     self.mode = mode
+    self.scopeID = "\(Poller.ScopeID.agents).\(mode.rawValue).\(UUID().uuidString)"
     self.alerts = alerts
     self.client = client
     self.poller = poller
@@ -98,11 +101,11 @@ final class AgentsStore {
     guard visible != isVisible else { return }
     isVisible = visible
     if visible {
-      poller.register(Poller.ScopeID.agents, foreground: Poller.Cadence.agents, background: nil) { [weak self] in
+      poller.register(scopeID, foreground: Poller.Cadence.agents, background: nil) { [weak self] in
         await self?.poll()
       }
     } else {
-      poller.unregister(Poller.ScopeID.agents)
+      poller.unregister(scopeID)
     }
     detail?.isVisible = visible
   }

@@ -65,7 +65,7 @@ public enum TypeRole: String, Sendable, CaseIterable {
   public var lineSpacing: CGFloat { max(0, size * (lineHeight - Self.naturalLineHeight)) }
 
   public var font: Font {
-    let font = Font(DailyFonts.ctFont(.sans, size: size, weight: weight))
+    let font = DailyFonts.font(.sans, size: size, weight: weight)
     // `type-data` sets tabular-nums (:894); numbers use the body face, never mono.
     return self == .data ? font.monospacedDigit() : font
   }

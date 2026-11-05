@@ -215,9 +215,9 @@ import Testing
     #expect(jira.tabs[1].isOff)
   }
 
-  @Test func statusIsNormalized() {
-    #expect(HomePanels.normalizeStatus(" EM ANDAMENTO ") == "Em andamento")
-    #expect(HomePanels.normalizeStatus("") == "")
+  @Test func panelTitlesAreTheSidebars() throws {
+    #expect(try panel(.pulls).title == "GitHub")
+    #expect(try panel(.jira).title == "Jira")
   }
 
   // MARK: - Pull requests

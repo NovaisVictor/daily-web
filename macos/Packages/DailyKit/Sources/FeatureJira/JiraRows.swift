@@ -82,9 +82,9 @@ struct JiraRowView: View {
   var toggle: (() -> Void)?
 
   var body: some View {
-    let stale = JiraText.stalenessLabel(issue, now: actions.now)
-    let due = issue.dueDate.isEmpty ? nil : JiraText.dueLabel(issue.dueDate, now: actions.now)
-    let overdue = !issue.dueDate.isEmpty && JiraText.isOverdue(issue.dueDate, now: actions.now)
+    let stale = JiraFormat.stalenessLabel(updatedAt: issue.updatedAt, now: actions.now)
+    let due = issue.dueDate.isEmpty ? nil : JiraFormat.dueLabel(issue.dueDate, now: actions.now)
+    let overdue = !issue.dueDate.isEmpty && JiraFormat.isOverdue(issue.dueDate, now: actions.now)
     HStack(alignment: .top, spacing: 12) {
       if depth > 0 {
         // A branch tick reads as hierarchy without drawing a full tree of guides.
@@ -257,7 +257,7 @@ struct JiraProblemRowView: View {
           TransitionPicker(issue: issue.item, store: store)
           JiraPriorityLabel(issue: issue.item)
           ForEach(issue.problems, id: \.self) { problem in
-            JiraRoleBadge(text: JiraText.problemLabel(problem), tone: .warning)
+            JiraRoleBadge(text: JiraFormat.problemLabel(problem), tone: .warning)
           }
         }
         .accessibilityElement(children: .contain)
@@ -284,8 +284,8 @@ struct JiraWatchedRowView: View {
   let unwatch: () -> Void
 
   var body: some View {
-    let stale = JiraText.stalenessLabel(issue, now: actions.now)
-    let due = issue.dueDate.isEmpty ? nil : JiraText.dueLabel(issue.dueDate, now: actions.now)
+    let stale = JiraFormat.stalenessLabel(updatedAt: issue.updatedAt, now: actions.now)
+    let due = issue.dueDate.isEmpty ? nil : JiraFormat.dueLabel(issue.dueDate, now: actions.now)
     HStack(alignment: .top, spacing: 12) {
       Text(JiraText.issueMarker(issue)).typeRole(.caption).foregroundStyle(theme.inkDim).accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 3) {
@@ -298,7 +298,7 @@ struct JiraWatchedRowView: View {
           if let stale { Text(stale).font(.daily(size: 12)).foregroundStyle(theme.warning) }
           if let due {
             Text(due).font(.daily(size: 12))
-              .foregroundStyle(JiraText.isOverdue(issue.dueDate, now: actions.now) ? theme.danger : theme.inkDim)
+              .foregroundStyle(JiraFormat.isOverdue(issue.dueDate, now: actions.now) ? theme.danger : theme.inkDim)
           }
         }
       }

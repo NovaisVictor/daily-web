@@ -39,7 +39,10 @@ struct ModuleWindow: View {
     switch environment.session.phase {
     case .signedIn:
       if let entry {
+        // Per-route identity, as in the main window's detail: a screen type shared by
+        // several routes must not keep another route's @State store.
         entry.makeView()
+          .id(entry.route)
       } else {
         ContentUnavailableView(
           "Tela indisponível",

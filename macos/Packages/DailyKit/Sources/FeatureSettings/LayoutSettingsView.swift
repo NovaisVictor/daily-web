@@ -21,15 +21,15 @@ struct LayoutSettingsView: View {
     self.dashboard = dashboard
   }
 
-  /// The web tells you to click "Organizar" and "Concluir", which the grid
-  /// never had; this follows how the native grid is arranged (spec 010
-  /// FR-010-02/03 and FR-010-11).
-  // TODO(spec 010): add back "(ou use Visualizar → Organizar painéis)" after "meio segundo"
-  // once that menu item exists (FR-010-02).
+  /// The saved arrangement is the web's grid; the native Início keeps a fixed layout
+  /// until spec 010, so the text only promises what restoring does today.
+  // TODO(spec 010): once the native grid can be arranged, go back to the hold-to-arrange
+  // instruction ("No Início, segure um painel por meio segundo para movê-lo arrastando e
+  // redimensioná-lo pelo canto…", FR-010-02/03 and FR-010-11) and add
+  // "(ou use Visualizar → Organizar painéis)" once that menu item exists.
   static let explanation =
-    "No Início, segure um painel por meio segundo para "
-    + "movê-lo arrastando e redimensioná-lo pelo canto. Salvar guarda a disposição para o tamanho "
-    + "da janela."
+    "A disposição dos painéis é a da grade do Início no navegador; este app ainda usa uma "
+    + "disposição fixa. Restaurar volta a grade do navegador ao padrão."
 
   var body: some View {
     SettingsSection("Disposição dos painéis") {

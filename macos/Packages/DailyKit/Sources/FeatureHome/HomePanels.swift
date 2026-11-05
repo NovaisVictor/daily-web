@@ -213,18 +213,6 @@ struct HomePanels: Equatable, Sendable {
 
   // MARK: - Jira
 
-  /// `PROBLEM_LABEL` in `lib/parsers/jiraProblems.ts:68-74`.
-  static func problemLabel(_ problem: JiraProblem) -> String {
-    switch problem {
-    case .storyInProgressWithoutStart: "em andamento sem data de início"
-    case .storyDoneWithoutStart: "concluída sem data de início"
-    case .storyWithoutEpic: "sem épico"
-    case .epicWithoutStories: "sem histórias"
-    case .epicInProgressWithoutActiveStory: "em andamento sem história em andamento"
-    default: problem.rawValue
-    }
-  }
-
   /// The four tabs of `components/JiraPanel.tsx:709-724`, with the closed lists on
   /// the web's default "hoje" period (`JiraPanel.tsx:303,534`).
   static func jira(_ state: DashboardState, clock: HomeClock) -> HomePanel {
@@ -246,7 +234,7 @@ struct HomePanels: Equatable, Sendable {
     if let items = state.jiraProblems.data {
       let rows = items.map { problem in
         var row = jiraRow(problem.item, clock: clock)
-        row.meta = [problem.problems.map(problemLabel).joined(separator: ", ")]
+        row.meta = [problem.problems.map(JiraFormat.problemLabel).joined(separator: ", ")]
         return row
       }
       problems.fill(rows, empty: "Nenhuma história ou épico com problema.")
@@ -256,7 +244,7 @@ struct HomePanels: Equatable, Sendable {
 
   /// The row of `components/JiraPanel.tsx:1420-1440`: status, priority, stalled, due.
   static func jiraRow(_ issue: JiraItem, clock: HomeClock) -> HomeRow {
-    let status = normalizeStatus(issue.status)
+    let status = JiraFormat.normalizeStatus(issue.status)
     var pills: [HomePill] = []
     if !status.isEmpty {
       let (glyph, tone): (StatusGlyph, StatusTone) =
@@ -275,14 +263,6 @@ struct HomePanels: Equatable, Sendable {
       pills: pills,
       meta: meta.compactMap(\.self).filter { !$0.isEmpty },
       itemID: issue.key)
-  }
-
-  /// `normalizeStatus` in `lib/parsers/jira.ts:152-157`: "EM ANDAMENTO" → "Em andamento".
-  static func normalizeStatus(_ status: String) -> String {
-    let trimmed = status.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let first = trimmed.first else { return "" }
-    let locale = Locale(identifier: "pt_BR")
-    return String(first).uppercased(with: locale) + trimmed.dropFirst().lowercased(with: locale)
   }
 
   // MARK: - Pull requests
@@ -309,7 +289,7 @@ struct HomePanels: Equatable, Sendable {
       mine.errors += errors.isEmpty ? [] : [errors.joined(separator: "; ")]
       mine.fill(digest.items.map { pullRow($0, withRepo: false, clock: clock) }, empty: "Nenhum PR seu aberto.")
     }
-    return HomePanel(module: .pulls, title: "Pull requests", tabs: [tracked, reviews, mine])
+    return HomePanel(module: .pulls, title: "GitHub", tabs: [tracked, reviews, mine])
   }
 
   /// `components/pulls/PullRow.tsx` and `PullBadges.tsx`: CI, review, conflict,
@@ -394,8 +374,6 @@ struct HomeClock: Sendable {
   private static let dayMS = 86_400.0
   /// `STALE_UPDATE_MS` in `lib/pullAge.ts:5`.
   private static let pullStaleSeconds = 3 * dayMS
-  /// `STALE_AFTER_DAYS` in `lib/parsers/jira.ts:167`.
-  private static let jiraStaleDays = 5
 
   init(now: Date, calendar: Calendar) {
     self.now = now
@@ -404,28 +382,13 @@ struct HomeClock: Sendable {
     minute = TaskDay.minuteOfDay(now, calendar: calendar)
   }
 
-  /// The server's ISO timestamps, with or without milliseconds. An unreadable
-  /// date is an expected value (the web prints nothing or "—"), hence `try?`.
-  func date(_ value: String) -> Date? {
-    if let date = try? Date(value, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) {
-      return date
-    }
-    return try? Date(value, strategy: Date.ISO8601FormatStyle())
-  }
+  /// The server's ISO timestamps, with or without milliseconds.
+  func date(_ value: String) -> Date? { RelativeTime.parseISO(value) }
 
   /// `relativeTime` in `lib/filters.ts:23-43`: "agora", "12min", "3h", "ontem", "4d", "02/10".
   func relative(_ iso: String) -> String {
     guard let then = date(iso) else { return HomePanels.emDash }
-    let minutes = Int((now.timeIntervalSince(then) / 60).rounded(.down))
-    if minutes < 1 { return "agora" }
-    if minutes < 60 { return "\(minutes)min" }
-    let hours = minutes / 60
-    if hours < 24 { return "\(hours)h" }
-    let days = hours / 24
-    if days == 1 { return "ontem" }
-    if days < 7 { return "\(days)d" }
-    let parts = calendar.dateComponents([.day, .month], from: then)
-    return String(format: "%02d/%02d", parts.day ?? 0, parts.month ?? 0)
+    return RelativeTime.short(then, now: now, calendar: calendar)
   }
 
   /// A `YYYY-MM-DD` day as the lead of a row: "hoje", "amanhã", or "DD/MM"
@@ -457,22 +420,11 @@ struct HomeClock: Sendable {
 
   /// `stalenessLabel` in `lib/parsers/jira.ts:171-175`.
   func jiraStaleness(_ updatedAt: String) -> String? {
-    guard let updated = date(updatedAt) else { return nil }
-    let days = Int((now.timeIntervalSince(updated) / Self.dayMS).rounded(.down))
-    return days < Self.jiraStaleDays ? nil : "parado há \(days)d"
+    JiraFormat.stalenessLabel(updatedAt: updatedAt, now: now)
   }
 
   /// `dueLabel` in `lib/parsers/jira.ts:184-196`, counted in local days.
   func jiraDue(_ dueDate: String) -> String? {
-    let parts = dueDate.split(separator: "-").compactMap { Int($0) }
-    guard parts.count == 3,
-      let due = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
-      let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: due).day
-    else { return nil }
-    if days < 0 { return "venceu há \(-days)d" }
-    if days == 0 { return "vence hoje" }
-    if days == 1 { return "vence amanhã" }
-    if days <= 7 { return "vence em \(days)d" }
-    return String(format: "vence %02d/%02d", parts[2], parts[1])
+    JiraFormat.dueLabel(dueDate, now: now, calendar: calendar)
   }
 }
