@@ -40,7 +40,10 @@ struct DailyWebApp: App {
     }
 
     MenuBarExtra {
-      MenuBarContent(environment: delegate.environment, opener: delegate.opener)
+      // Same palette and brand tint as the windows, not the system accent.
+      ThemedRoot(preferences: delegate.environment.preferences) {
+        MenuBarContent(environment: delegate.environment, opener: delegate.opener)
+      }
     } label: {
       MenuBarLabel(environment: delegate.environment, opener: delegate.opener)
     }
