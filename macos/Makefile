@@ -1,15 +1,18 @@
 # Entry points for people and agents. Run from macos/.
 PKG := Packages/DailyKit
 SCRATCH ?= .build/spm
-XCODE := xcodebuild -project DailyWeb.xcodeproj -scheme DailyWeb -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/xcode -quiet
+# Compile jobs at a time. Unbounded parallel Swift builds exhausted memory and
+# froze the machine (2026-11-05); keep this low.
+JOBS ?= 4
+XCODE := xcodebuild -project DailyWeb.xcodeproj -scheme DailyWeb -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/xcode -quiet -jobs $(JOBS)
 
 .PHONY: build test lint format app check clean
 
 build:
-	swift build --package-path $(PKG) --scratch-path $(SCRATCH)
+	Scripts/guarded.sh swift build --package-path $(PKG) --scratch-path $(SCRATCH) -j $(JOBS)
 
 test:
-	swift test --package-path $(PKG) --scratch-path $(SCRATCH)
+	Scripts/guarded.sh swift test --package-path $(PKG) --scratch-path $(SCRATCH) -j $(JOBS)
 
 lint:
 	swift format lint --strict --recursive --parallel App $(PKG)/Package.swift $(PKG)/Sources $(PKG)/Tests
@@ -18,7 +21,7 @@ format:
 	swift format format --in-place --recursive --parallel App $(PKG)/Package.swift $(PKG)/Sources $(PKG)/Tests
 
 app:
-	$(XCODE) -configuration Debug build
+	Scripts/guarded.sh $(XCODE) -configuration Debug build
 
 check: lint test app
 

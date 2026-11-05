@@ -25,22 +25,22 @@ as tarefas em [docs/tasks.md](docs/tasks.md) e o contrato da API em
 - Precisa mudar algo que não é seu? Não mude. Escreva no relatório o que, onde e por quê.
 - Não faça commit. O orquestrador faz um commit por tarefa ao fechar a onda.
 
-## Build e testes isolados
+## Build e testes: só o orquestrador, em lote
 
-Use o seu próprio `--scratch-path` para não disputar o lock com outros agentes:
+Em 2026-11-05, builds Swift em paralelo chegaram a ~150 GB de memória do
+compilador num Mac de 26 GB e travaram a máquina duas vezes. Desde então:
 
-```sh
-cd macos
-swift build --package-path Packages/DailyKit --target <Target> --scratch-path .build/agents/<nome>
-swift test  --package-path Packages/DailyKit --filter <Target>Tests --scratch-path .build/agents/<nome>
-swift format lint --strict --recursive Packages/DailyKit/Sources/<Target> Packages/DailyKit/Tests/<Target>Tests
-```
-
-`make check` (lint, todos os testes e build do app no Xcode) é o gate de onda do orquestrador.
+- **Agentes não compilam nem rodam testes.** Escrevem o código e os testes, e o
+  relatório diz o que precisa ser validado.
+- **O orquestrador valida em lote**, ao fim de cada leva, com `make check`. Ele
+  roda tudo por `Scripts/guarded.sh`, que para o build se um compilador passar de
+  6 GB ou todos juntos passarem de 14 GB, e com no máximo 4 compilações por vez (`JOBS`).
+- **Evite código que pese no verificador de tipos:** listas literais enormes com
+  chamadas aninhadas e membros implícitos (`.email`, `.resize(...)`). Use dados
+  em texto ou JSON interpretados em tempo de execução, ou anote os tipos.
 
 Se os testes caírem com sinal 10 ou 11 logo depois de um campo novo num tipo
-público do núcleo, o build incremental ficou com layout antigo: rode
-`make clean` (ou apague o seu `--scratch-path`) e compile de novo.
+público do núcleo, o build incremental ficou com layout antigo: rode `make clean`.
 
 ## Arquitetura
 
