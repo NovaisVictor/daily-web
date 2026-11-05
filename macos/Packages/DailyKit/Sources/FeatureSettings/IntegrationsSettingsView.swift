@@ -4,7 +4,7 @@ import DailyDesign
 import DailyModels
 import SwiftUI
 
-/// The integrations tab (`components/IntegrationsPanel.tsx`): one row per
+/// The integrations (`components/IntegrationsPanel.tsx`): one card per
 /// module, and a sheet with its connections, form and help.
 struct IntegrationsSettingsView: View {
   @Environment(\.theme) private var theme
@@ -36,33 +36,34 @@ struct IntegrationsSettingsView: View {
       }
   }
 
+  /// `grid-cols-12`, three columns each: four cards to a row on a wide page,
+  /// fewer as it narrows.
+  static let cardMinWidth: CGFloat = 200
+
   @ViewBuilder private var content: some View {
     if let payload = store.payload {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 12) {
-          if !payload.vaultReady {
-            PanelError(
-              "DAILY_WEB_SECRET_KEY não está configurada no servidor. Sem ela nenhuma credencial pode ser "
-                + "guardada. Gere com openssl rand -base64 32.")
-          }
-          if let error = store.error, store.activeModule == nil {
-            PanelError(error)
-          }
-          // No on/off switch per module: connecting turns it on, and the web
-          // asserts there is none (`tests/components/IntegrationsPanel.test.tsx:299`,
-          // "não mostra o liga/desliga no popup: conectar já liga o módulo").
-          ForEach(payload.modules) { module in
-            ModuleRow(store: store, module: module)
+      VStack(alignment: .leading, spacing: 16) {
+        if !payload.vaultReady {
+          PanelError(
+            "DAILY_WEB_SECRET_KEY não está configurada no servidor. Sem ela nenhuma credencial pode ser "
+              + "guardada. Gere com openssl rand -base64 32.")
+        }
+        if let error = store.error, store.activeModule == nil {
+          PanelError(error)
+        }
+        // No on/off switch per module: connecting turns it on, and the web
+        // asserts there is none (`tests/components/IntegrationsPanel.test.tsx:299`,
+        // "não mostra o liga/desliga no popup: conectar já liga o módulo").
+        GlassGroup(spacing: 16) {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardMinWidth), spacing: 16)], spacing: 16) {
+            ForEach(payload.modules) { module in
+              ModuleCard(store: store, module: module)
+            }
           }
         }
-        .padding(20)
       }
     } else if let error = store.loadError {
-      VStack {
-        PanelError(error)
-        Spacer()
-      }
-      .padding(20)
+      PanelError(error)
     } else {
       LoadingState()
     }
@@ -90,47 +91,49 @@ func moduleSymbol(_ module: ModuleID) -> String {
   }
 }
 
-private struct ModuleRow: View {
+/// One tool (`IntegrationsPanel.tsx:670-703`): logo and "Conectado", the
+/// name, and the two actions at the bottom.
+private struct ModuleCard: View {
   @Environment(\.theme) private var theme
   let store: IntegrationsStore
   let module: ModuleState
 
   var body: some View {
     let connected = !module.connections.isEmpty
-    HStack(alignment: .center, spacing: 12) {
-      Image(systemName: moduleSymbol(module.module))
-        .font(.system(size: 18))
-        .foregroundStyle(theme.inkMid)
-        .frame(width: 28)
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 2) {
-        HStack(spacing: 8) {
-          Text(module.label)
-            .typeRole(.body)
-            .foregroundStyle(theme.ink)
-          if connected {
-            Text("Conectado")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(theme.brand)
-              .padding(.horizontal, 10)
-              .padding(.vertical, 2)
-              .background(theme.brandTint, in: .capsule)
-          }
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(alignment: .top) {
+        Image(systemName: moduleSymbol(module.module))
+          .font(.system(size: 20))
+          .foregroundStyle(theme.inkMid)
+          .frame(width: 32, height: 32)
+          .accessibilityHidden(true)
+        Spacer()
+        if connected {
+          Text("Conectado")
+            .typeRole(.caption)
+            .foregroundStyle(theme.brand)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(theme.brandTint, in: .capsule)
         }
-        Text(module.summary)
-          .font(.system(size: 13))
-          .foregroundStyle(theme.inkDim)
-          .lineLimit(2)
       }
-      Spacer(minLength: 8)
-      Button(connected ? "Gerenciar" : "Conectar") { store.open(module, help: false) }
-      Button("Como conectar") { store.open(module, help: true) }
-        .buttonStyle(.borderless)
-        .disabled(connected)
+      Text(module.label)
+        .typeRole(.subhead)
+        .foregroundStyle(theme.ink)
+        .accessibilityAddTraits(.isHeader)
+      Spacer(minLength: 0)
+      FlowLayout(spacing: 8) {
+        Button(connected ? "Gerenciar" : "Conectar") { store.open(module, help: false) }
+          .pillButtonStyle(.primary, size: .small)
+        Button("Como conectar") { store.open(module, help: true) }
+          .pillButtonStyle(.ghost, size: .small)
+          .disabled(connected)
+      }
     }
-    .padding(12)
-    .background(theme.surface1.opacity(0.6), in: .rect(cornerRadius: Radius.medium))
-    .overlay { RoundedRectangle(cornerRadius: Radius.medium).strokeBorder(theme.lineSoft) }
+    .padding(16)
+    .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
+    .glassSurface(.panel)
+    .help(module.summary)
   }
 }
 
@@ -148,5 +151,7 @@ private let previewIntegrations = """
   IntegrationsSettingsView(
     store: IntegrationsStore(
       client: PreviewAPIClient(responses: ["GET /api/integrations": Data(previewIntegrations.utf8)])),
-    server: URL(string: "https://daily.example.com"))
+    server: URL(string: "https://daily.example.com")
+  )
+  .padding(24)
 }

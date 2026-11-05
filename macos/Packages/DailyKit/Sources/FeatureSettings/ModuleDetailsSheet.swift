@@ -47,15 +47,17 @@ struct ModuleDetailsSheet: View {
               ConnectionFormView(store: store, spec: spec, mstodoAvailable: payload.mstodoAvailable)
             } else if module.module == .agenda, payload.googleConfigured {
               Button("Usar link iCal") { store.startNew(module.module) }
+                .pillButtonStyle(.outline, size: .small)
             }
           }
           .padding(24)
         }
       }
-      Divider()
+      Rectangle().fill(theme.lineSoft).frame(height: 1).accessibilityHidden(true)
       HStack {
         Spacer()
         Button("Fechar") { store.close() }
+          .pillButtonStyle(.outline)
           .keyboardShortcut(.cancelAction)
       }
       .padding(16)
@@ -76,7 +78,7 @@ struct ModuleDetailsSheet: View {
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
         Text(module.summary)
-          .font(.system(size: 14))
+          .typeRole(.data)
           .foregroundStyle(theme.inkMid)
       }
       Spacer()
@@ -86,11 +88,11 @@ struct ModuleDetailsSheet: View {
           Button(title) {
             if let url = IntegrationForm.serverURL(server, path: path, query: query) { openURL(url) }
           }
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary)
           .disabled(server == nil)
         case .form(let title):
           Button(title) { store.startNew(module.module) }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle(.primary)
         }
       }
     }
@@ -116,7 +118,7 @@ struct ModuleDetailsSheet: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(text)
       Text(uri)
-        .font(.system(size: 12, design: .monospaced))
+        .font(.dailyMono(size: 12))
         .foregroundStyle(theme.ink)
         .textSelection(.enabled)
     }
@@ -143,7 +145,7 @@ private struct ConnectionRow: View {
       HStack(spacing: 10) {
         VStack(alignment: .leading, spacing: 2) {
           Text(connection.label)
-            .font(.system(size: 14, weight: .medium))
+            .typeRole(.data)
             .foregroundStyle(theme.ink)
           Text(IntegrationForm.subtitle(connection, spec: spec))
             .typeRole(.caption)
@@ -154,19 +156,17 @@ private struct ConnectionRow: View {
         Button(store.testing == connection.id ? "Testando…" : "Testar") {
           Task { await store.test(connection) }
         }
+        .pillButtonStyle(.outline, size: .small)
         .disabled(store.testing == connection.id)
         if IntegrationForm.isGoogle(connection) {
           if connection.module == .agenda {
             Button("Escolher agendas") { Task { await store.loadCalendars(connection.id) } }
+              .pillButtonStyle(.outline, size: .small)
           }
         } else {
-          Button("Editar", systemImage: "pencil") { store.startEdit(connection) }
-            .labelStyle(.iconOnly)
-            .help("Editar")
+          IconButton("Editar", systemImage: "pencil", size: .small) { store.startEdit(connection) }
         }
-        Button("Remover", systemImage: "trash", role: .destructive, action: onRemove)
-          .labelStyle(.iconOnly)
-          .help("Remover")
+        IconButton("Remover", systemImage: "trash", size: .small, action: onRemove)
       }
       if let calendars = store.calendars[connection.id] {
         CalendarChooser(store: store, connectionId: connection.id, calendars: calendars)
@@ -190,18 +190,26 @@ private struct CalendarChooser: View {
   let connectionId: String
   let calendars: [CalendarRef]
 
+  @Environment(\.theme) private var theme
+
   var body: some View {
-    GroupBox("Quais agendas mostrar") {
-      VStack(alignment: .leading, spacing: 6) {
-        ForEach(calendars) { calendar in
-          Toggle(calendar.label, isOn: chosen(calendar.id))
-            .toggleStyle(.checkbox)
-        }
-        Button("Salvar seleção") { Task { await store.saveCalendars(connectionId) } }
-          .padding(.top, 6)
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Quais agendas mostrar")
+        .typeRole(.caption)
+        .foregroundStyle(theme.inkDim)
+        .accessibilityAddTraits(.isHeader)
+      ForEach(calendars) { calendar in
+        Toggle(calendar.label, isOn: chosen(calendar.id))
+          .toggleStyle(.checkbox)
+          .typeRole(.data)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      Button("Salvar seleção") { Task { await store.saveCalendars(connectionId) } }
+        .pillButtonStyle(.primary, size: .small)
+        .padding(.top, 6)
     }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(theme.lineSoft) }
   }
 
   private func chosen(_ id: String) -> Binding<Bool> {
@@ -233,9 +241,11 @@ private struct ConnectionFormView: View {
       }
       HStack {
         Button(store.isSaving ? "Salvando…" : "Salvar") { Task { await store.save() } }
+          .pillButtonStyle(.primary, size: .small)
           .keyboardShortcut(.defaultAction)
           .disabled(store.isSaving)
         Button("Cancelar") { store.cancelEdit() }
+          .pillButtonStyle(.ghost, size: .small)
       }
       .padding(.top, 4)
     }
@@ -253,7 +263,7 @@ private struct ConnectionFormView: View {
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Text(required ? "\(label) *" : label)
-        .font(.system(size: 13))
+        .typeRole(.caption)
         .foregroundStyle(theme.inkMid)
         .accessibilityHidden(true)
       input()

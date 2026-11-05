@@ -122,3 +122,27 @@ nonisolated enum UsersEndpoints {
     Endpoint(.delete, "/api/users/\(Endpoint<EmptyResponse>.segment(username))")
   }
 }
+
+/// The panel layout of the Home grid (`app/api/preferences/**`, spec 010 FR-010-11).
+nonisolated enum LayoutEndpoints {
+  /// `{layout: null}`: the synthesized encoder would drop a nil key, and the
+  /// server only resets when the key is present and null (`route.ts:60-62`).
+  struct ResetBody: Encodable, Sendable, Equatable {
+    private enum CodingKeys: String, CodingKey { case layout }
+
+    func encode(to encoder: any Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encodeNil(forKey: .layout)
+    }
+  }
+
+  /// `app/api/preferences/layout-default/route.ts`.
+  static var layoutDefault: Endpoint<LayoutDefaultResponse> { Endpoint(.get, "/api/preferences/layout-default") }
+
+  static var reset: Endpoint<LayoutResponse> { Endpoint(.patch, "/api/preferences", body: ResetBody()) }
+}
+
+/// `GET /api/preferences/layout-default`.
+nonisolated struct LayoutDefaultResponse: Codable, Sendable, Equatable {
+  let layout: [LayoutItem]
+}

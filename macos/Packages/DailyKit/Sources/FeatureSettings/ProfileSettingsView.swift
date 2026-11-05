@@ -36,43 +36,70 @@ struct ProfileSettingsView: View {
 
   @ViewBuilder private var content: some View {
     if let me = store.me {
-      Form {
-        Section("Perfil") {
+      VStack(alignment: .leading, spacing: 16) {
+        SettingsSection("Perfil") {
           if let error = store.avatarError { PanelError(error) }
           photo(me)
           if let error = store.profileError { PanelError(error) }
-          TextField("Nome completo", text: $store.fullName, prompt: Text("Seu nome completo"))
-          TextField("E-mail", text: $store.email, prompt: Text("voce@exemplo.com"))
-            .textContentType(.emailAddress)
-          LabeledContent("Usuário", value: me.username)
+          field("Nome completo") {
+            TextField("Nome completo", text: $store.fullName, prompt: Text("Seu nome completo"))
+          }
+          field("E-mail") {
+            TextField("E-mail", text: $store.email, prompt: Text("voce@exemplo.com"))
+              .textContentType(.emailAddress)
+          }
+          field("Usuário") {
+            Text(me.username)
+              .typeRole(.data)
+              .foregroundStyle(theme.inkMid)
+              .textSelection(.enabled)
+          }
           Button(store.isSavingProfile ? "Salvando…" : "Salvar") { Task { await store.saveProfile() } }
+            .pillButtonStyle(.primary, size: .small)
             .disabled(store.isSavingProfile)
         }
-        Section("Senha") {
+        SettingsSection("Senha") {
           if let error = store.passwordError {
             PanelError(error)
           } else if store.passwordSaved {
             Text("Senha alterada.")
+              .typeRole(.data)
               .foregroundStyle(theme.inkMid)
           }
-          SecureField("Senha atual", text: $store.currentPassword)
-          SecureField("Nova senha", text: $store.newPassword, prompt: Text("mín. 8 caracteres"))
-          SecureField("Confirmar nova senha", text: $store.confirmPassword)
+          field("Senha atual") {
+            SecureField("Senha atual", text: $store.currentPassword)
+          }
+          field("Nova senha") {
+            SecureField("Nova senha", text: $store.newPassword, prompt: Text("mín. 8 caracteres"))
+          }
+          field("Confirmar nova senha") {
+            SecureField("Confirmar nova senha", text: $store.confirmPassword)
+          }
           Button(store.isChangingPassword ? "Trocando…" : "Trocar senha") {
             Task { await store.changePassword() }
           }
+          .pillButtonStyle(.outline, size: .small)
           .disabled(!store.canChangePassword)
         }
       }
-      .formStyle(.grouped)
+      .textFieldStyle(.roundedBorder)
     } else if let error = store.loadError {
-      VStack {
-        PanelError(error)
-        Spacer()
-      }
-      .padding(20)
+      PanelError(error)
     } else {
       LoadingState()
+    }
+  }
+
+  /// A visible label over its input; the input keeps the same name for VoiceOver.
+  private func field<Input: View>(_ label: String, @ViewBuilder input: () -> Input) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(label)
+        .typeRole(.caption)
+        .foregroundStyle(theme.inkMid)
+        .accessibilityHidden(true)
+      input()
+        .labelsHidden()
+        .accessibilityLabel(label)
     }
   }
 
@@ -82,9 +109,11 @@ struct ProfileSettingsView: View {
       Avatar(name: displayName, imageData: AvatarEncoder.imageData(fromDataURL: me.avatarUrl), size: 80)
         .accessibilityLabel(displayName)
       Button(store.isUploadingAvatar ? "Enviando…" : "Colocar foto") { pickingPhoto = true }
+        .pillButtonStyle(.outline, size: .small)
         .disabled(store.isUploadingAvatar)
       if me.avatarUrl != nil {
         Button("Remover") { Task { await store.removeAvatar() } }
+          .pillButtonStyle(.ghost, size: .small)
           .disabled(store.isUploadingAvatar)
       }
     }
@@ -93,4 +122,5 @@ struct ProfileSettingsView: View {
 
 #Preview {
   ProfileSettingsView(store: ProfileStore(client: PreviewAPIClient(responses: [:]), user: PreviewFixtures.user))
+    .padding(24)
 }

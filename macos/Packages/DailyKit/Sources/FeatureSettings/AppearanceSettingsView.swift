@@ -6,6 +6,7 @@ import SwiftUI
 /// Theme, density, backdrop and content width (`components/AppearancePanel.tsx`).
 /// Each pick applies at once and is saved with `PATCH /api/preferences`.
 struct AppearanceSettingsView: View {
+  @Environment(\.theme) private var theme
   let preferences: PreferencesStore
 
   /// `THEME_OPTIONS`, `DENSITY_OPTIONS` and `BACKDROP_OPTIONS` of the web.
@@ -22,66 +23,94 @@ struct AppearanceSettingsView: View {
   static let limitedWidth = 1216
 
   var body: some View {
-    Form {
-      Section("Tema") {
-        Picker("Tema", selection: binding(\.theme, default: .system) { Appearance(theme: $0) }) {
-          ForEach(Self.themes, id: \.0) { value, label, symbol in
-            Label(label, systemImage: symbol).tag(value)
-          }
+    VStack(alignment: .leading, spacing: 16) {
+      SettingsSection("Tema") {
+        options(Self.themes.map { ($0.0, $0.1, $0.2) }, selected: preferences.appearance.theme ?? .system) {
+          Appearance(theme: $0)
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
       }
-      Section("Densidade") {
-        Picker("Densidade", selection: binding(\.density, default: .comfortable) { Appearance(density: $0) }) {
-          ForEach(Self.densities, id: \.0) { value, label in
-            Text(label).tag(value)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+      SettingsSection("Densidade") {
+        options(
+          Self.densities.map { ($0.0, $0.1, nil) }, selected: preferences.appearance.density ?? .comfortable
+        ) { Appearance(density: $0) }
       }
-      Section("Fundo") {
-        Picker("Fundo", selection: binding(\.backdrop, default: .mesh) { Appearance(backdrop: $0) }) {
-          ForEach(Self.backdrops, id: \.0) { value, label in
-            Text(label).tag(value)
-          }
+      SettingsSection("Fundo") {
+        options(Self.backdrops.map { ($0.0, $0.1, nil) }, selected: preferences.appearance.backdrop ?? .mesh) {
+          Appearance(backdrop: $0)
         }
-        .pickerStyle(.radioGroup)
-        .labelsHidden()
       }
-      Section("Largura do conteúdo") {
-        Toggle(isOn: limitedWidth) {
-          Text("Limitar largura")
-          Text(
-            "Ligado, o conteúdo fica com no máximo \(Self.limitedWidth)px, centralizado. "
-              + "Desligado, ocupa a largura toda da tela, como o cabeçalho.")
-        }
+      SettingsSection("Largura do conteúdo") {
+        widthCard
       }
     }
-    .formStyle(.grouped)
   }
+
+  /// The web's row of `size="sm"` buttons, `default` for the current pick and
+  /// `outline` for the others, with `aria-pressed`.
+  private func options<Value: Hashable>(
+    _ items: [(Value, String, String?)],
+    selected: Value,
+    patch: @escaping (Value) -> Appearance
+  ) -> some View {
+    FlowLayout(spacing: 8) {
+      ForEach(items, id: \.0) { value, label, symbol in
+        let isOn = value == selected
+        Button {
+          Task { await preferences.updateAppearance(patch(value)) }
+        } label: {
+          if let symbol {
+            Label(label, systemImage: symbol)
+          } else {
+            Text(label)
+          }
+        }
+        .pillButtonStyle(isOn ? .primary : .outline, size: .small)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
+      }
+    }
+  }
+
+  /// `w-56 rounded-xl border bg-glass p-4 shadow-e1` with the switch and the hint.
+  private var widthCard: some View {
+    VStack(alignment: .leading, spacing: 24) {
+      HStack {
+        Image(systemName: "arrow.left.and.right")
+          .font(.system(size: 18))
+          .foregroundStyle(theme.inkMid)
+          .accessibilityHidden(true)
+        Spacer()
+        Toggle("Limitar largura", isOn: limitedWidth)
+          .toggleStyle(.switch)
+          .labelsHidden()
+      }
+      HStack(spacing: 8) {
+        Text("Limitar largura")
+          .typeRole(.data)
+          .foregroundStyle(theme.ink)
+          .accessibilityHidden(true)
+        Spacer()
+        Image(systemName: "info.circle")
+          .font(.system(size: 14))
+          .foregroundStyle(theme.inkDim)
+          .help(Self.widthHint)
+          .accessibilityLabel("Sobre limitar a largura")
+          .accessibilityHint(Self.widthHint)
+      }
+    }
+    .padding(16)
+    .frame(width: 224)
+    .glassSurface(.panel, elevation: .e1)
+  }
+
+  static let widthHint =
+    "Ligado, o conteúdo fica com no máximo \(limitedWidth)px, centralizado. "
+    + "Desligado, ocupa a largura toda da tela, como o cabeçalho."
 
   private var limitedWidth: Binding<Bool> {
     Binding(
       get: { preferences.appearance.width == .limited },
       set: { on in
         Task { await preferences.updateAppearance(Appearance(width: on ? .limited : .full)) }
-      }
-    )
-  }
-
-  /// The saved value, or the web's default when never chosen; a pick saves
-  /// only that field.
-  private func binding<Value>(
-    _ keyPath: KeyPath<Appearance, Value?>,
-    default fallback: Value,
-    patch: @escaping (Value) -> Appearance
-  ) -> Binding<Value> {
-    Binding(
-      get: { preferences.appearance[keyPath: keyPath] ?? fallback },
-      set: { value in
-        Task { await preferences.updateAppearance(patch(value)) }
       }
     )
   }
