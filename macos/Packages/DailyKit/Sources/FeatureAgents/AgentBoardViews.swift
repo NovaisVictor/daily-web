@@ -50,7 +50,7 @@ struct AgentStatusBadge: View {
   var body: some View {
     let colors = theme.agentStatusColors(status)
     Text(text)
-      .font(.system(size: 11, weight: .medium))
+      .font(.geist(11, weight: .medium))
       .lineLimit(1)
       .foregroundStyle(colors.foreground)
       .padding(.horizontal, 8)
@@ -68,10 +68,10 @@ struct NeedsYouLine: View {
   var body: some View {
     HStack(spacing: 6) {
       Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
-      Text(needsYou.label).fontWeight(.semibold).foregroundStyle(theme.danger)
+      Text(needsYou.label).font(.geist(11, weight: .semibold)).foregroundStyle(theme.danger)
       Text("· \(AgentsLogic.waitedFor(needsYou.since, now: now))").foregroundStyle(theme.inkDim)
     }
-    .font(.system(size: 11))
+    .font(.geist(11))
     .accessibilityElement(children: .combine)
   }
 }
@@ -94,7 +94,7 @@ struct AgentTaskCard: View {
       VStack(alignment: .leading, spacing: 6) {
         if let waiting { NeedsYouLine(needsYou: waiting, now: now) }
         Text(task.title)
-          .font(.system(size: 13, weight: .semibold))
+          .font(.geist(13, weight: .semibold))
           .foregroundStyle(theme.ink)
           .lineLimit(2)
           .multilineTextAlignment(.leading)
@@ -102,7 +102,7 @@ struct AgentTaskCard: View {
           HStack(spacing: 6) {
             AgentStatusBadge(text: AgentsLogic.holdLabel(hold.reason, status: task.status), status: task.status)
             if let note = hold.note {
-              Text(note).font(.system(size: 11)).foregroundStyle(theme.inkDim).lineLimit(1)
+              Text(note).font(.geist(11)).foregroundStyle(theme.inkDim).lineLimit(1)
             }
           }
         }
@@ -112,7 +112,7 @@ struct AgentTaskCard: View {
             Circle().fill(theme.liveColor(live)).frame(width: 6, height: 6).accessibilityHidden(true)
             Text(AgentsLogic.liveLabel(live))
           }
-          .font(.system(size: 11))
+          .font(.geist(11))
           .foregroundStyle(theme.inkMid)
         }
         footer
@@ -160,7 +160,7 @@ struct AgentTaskCard: View {
       }
       Text(AgentsLogic.formatTime(task.lastActivityAt)).monospacedDigit()
     }
-    .font(.system(size: 11))
+    .font(.geist(11))
     .foregroundStyle(theme.inkDim)
   }
 }
@@ -181,7 +181,7 @@ struct SubtaskProgressView: View {
         Text(current?.title ?? "Subtarefas concluídas").lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
         Text("\(progress.completed)/\(progress.total)").monospacedDigit()
       }
-      .font(.system(size: 11))
+      .font(.geist(11))
       .foregroundStyle(theme.inkDim)
     }
     .accessibilityElement(children: .ignore)
@@ -191,9 +191,11 @@ struct SubtaskProgressView: View {
 
 // MARK: - Kanban
 
-/// `KanbanColumns` (`BoardViews.tsx:34-54`).
+/// `KanbanColumns` (`BoardViews.tsx:34-54`): the active columns, the
+/// "Finalizadas" strip and, when opened, the finished columns.
 struct AgentKanbanView: View {
   @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   let tasks: [AgentTask]
   let status: AgentTaskStatus?
   let progress: [String: AgentSubtaskProgress]
@@ -203,47 +205,70 @@ struct AgentKanbanView: View {
   var focusedCard: FocusState<String?>.Binding
   let open: (String) -> Void
 
+  /// The board's own width, which picks 1, 2 or 4 columns.
+  @State private var width: CGFloat = AgentsLogic.largeBreakpoint
+  @State private var hoveringStrip = false
+
   var body: some View {
-    if let status {
-      column(status)
-    } else {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .top, spacing: 12) {
-          ForEach(AgentsLogic.activeStatuses, id: \.self) { column($0) }
-        }
-        finishedStrip
-        if showFinished && finishedTotal > 0 {
-          HStack(alignment: .top, spacing: 12) {
-            ForEach(AgentsLogic.finishedStatuses, id: \.self) { column($0) }
+    Group {
+      if let status {
+        column(status)
+      } else {
+        VStack(alignment: .leading, spacing: 12) {
+          grid(AgentsLogic.activeStatuses)
+          finishedStrip
+          if showFinished && finishedTotal > 0 {
+            grid(AgentsLogic.finishedStatuses)
           }
         }
       }
+    }
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .onGeometryChange(for: CGFloat.self) {
+      $0.size.width
+    } action: {
+      width = $0
     }
   }
 
   private var counts: [(status: AgentTaskStatus, count: Int)] { AgentsLogic.finishedCounts(tasks, board: board) }
   private var finishedTotal: Int { counts.reduce(0) { $0 + $1.count } }
 
+  /// `grid items-start gap-3` with the column count of the width.
+  private func grid(_ statuses: [AgentTaskStatus]) -> some View {
+    let count = AgentsLogic.columnCount(width: width, columns: statuses.count)
+    return LazyVGrid(
+      columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: count),
+      alignment: .leading,
+      spacing: 12
+    ) {
+      ForEach(statuses, id: \.self) { column($0) }
+    }
+  }
+
+  /// `Column` (`BoardViews.tsx:25-32`), on a glass panel instead of `bg-surface-1/80`.
   private func column(_ status: AgentTaskStatus) -> some View {
     let cards = tasks.filter { $0.status == status }
     return VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Text(AgentsLogic.statusLabel(status)).font(.system(size: 13, weight: .semibold))
+      HStack(spacing: 8) {
+        Text(AgentsLogic.statusLabel(status)).font(.geist(14, weight: .semibold))
         Spacer()
         Text("\(cards.count)")
-          .font(.system(size: 11).monospacedDigit())
+          .font(.geist(12))
+          .monospacedDigit()
           .foregroundStyle(theme.inkMid)
           .padding(.horizontal, 8)
           .padding(.vertical, 2)
           .background(theme.surface2, in: .capsule)
       }
+      .padding([.horizontal, .top], 4)
       .accessibilityAddTraits(.isHeader)
       if cards.isEmpty {
         Text("Nenhuma tarefa")
-          .font(.system(size: 11))
+          .font(.geist(12))
           .foregroundStyle(theme.inkDim)
           .frame(maxWidth: .infinity)
-          .padding(.vertical, 12)
+          .padding(.vertical, 16)
       } else {
         ForEach(cards) { task in
           AgentTaskCard(task: task, progress: progress[task.id], now: now, open: open)
@@ -254,62 +279,73 @@ struct AgentKanbanView: View {
     }
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .topLeading)
-    .background(theme.surface1.opacity(0.8), in: .rect(cornerRadius: Radius.medium))
-    .overlay { RoundedRectangle(cornerRadius: Radius.medium).strokeBorder(theme.line) }
+    .glassSurface(.panel)
     .accessibilityElement(children: .contain)
     .accessibilityLabel(AgentsLogic.statusLabel(status))
   }
 
-  /// "Finalizadas": the counts, red when something failed, and the toggle.
+  /// "Finalizadas": the counts, red when something failed, and the toggle
+  /// (`BoardViews.tsx:43-49`).
   private var finishedStrip: some View {
     let failed = counts.first { $0.status == .failed }?.count ?? 0
+    let lit = hoveringStrip && finishedTotal > 0
     return Button {
       showFinished.toggle()
     } label: {
       HStack(spacing: 8) {
-        Text("Finalizadas").fontWeight(.semibold)
-        if finishedTotal == 0 {
-          Text("nenhuma neste período").font(.system(size: 11)).foregroundStyle(theme.inkDim)
-        } else {
-          ForEach(counts.filter { $0.count > 0 }, id: \.status) { item in
-            if item.status == .failed {
-              Label(
-                AgentsLogic.finishedCountLabel(item.status, count: item.count), systemImage: "exclamationmark.triangle"
-              )
-              .font(.system(size: 11, weight: .semibold))
-              .foregroundStyle(theme.danger)
-              .padding(.horizontal, 8)
-              .padding(.vertical, 2)
-              .background(theme.dangerTint, in: .capsule)
-            } else {
-              Text(AgentsLogic.finishedCountLabel(item.status, count: item.count))
-                .font(.system(size: 11))
-                .foregroundStyle(theme.inkMid)
+        FlowLayout(spacing: 8) {
+          Text("Finalizadas").font(.geist(14, weight: .semibold))
+          if finishedTotal == 0 {
+            Text("nenhuma neste período").font(.geist(12)).foregroundStyle(theme.inkDim)
+          } else {
+            ForEach(counts.filter { $0.count > 0 }, id: \.status) { item in
+              if item.status == .failed {
+                Label(
+                  AgentsLogic.finishedCountLabel(item.status, count: item.count),
+                  systemImage: "exclamationmark.triangle"
+                )
+                .font(.geist(12, weight: .semibold))
+                .foregroundStyle(theme.danger)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(theme.dangerTint, in: .capsule)
+              } else {
+                Text(AgentsLogic.finishedCountLabel(item.status, count: item.count))
+                  .font(.geist(12))
+                  .foregroundStyle(theme.inkMid)
+              }
             }
           }
         }
-        Spacer()
+        Spacer(minLength: 0)
         if finishedTotal > 0 {
-          Label(showFinished ? "Ocultar" : "Mostrar", systemImage: showFinished ? "chevron.up" : "chevron.down")
-            .labelStyle(.titleAndIcon)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(theme.brand)
+          HStack(spacing: 4) {
+            Text(showFinished ? "Ocultar" : "Mostrar")
+            Image(systemName: "chevron.down")
+              .rotationEffect(.degrees(showFinished ? 180 : 0))
+              .accessibilityHidden(true)
+          }
+          .font(.geist(12, weight: .medium))
+          .foregroundStyle(theme.brand)
         }
       }
-      .font(.system(size: 13))
+      .foregroundStyle(theme.ink)
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(theme.surface1.opacity(0.6), in: .rect(cornerRadius: Radius.medium))
+      .background(theme.surface1.opacity(lit ? 1 : 0.6), in: .rect(cornerRadius: Radius.extraLarge))
       .overlay {
-        RoundedRectangle(cornerRadius: Radius.medium)
+        RoundedRectangle(cornerRadius: Radius.extraLarge)
           .strokeBorder(
-            failed > 0 ? theme.danger.opacity(0.6) : theme.line, style: StrokeStyle(lineWidth: 1, dash: [4]))
+            failed > 0 ? theme.danger.opacity(0.6) : (lit ? theme.brand.opacity(0.5) : theme.line),
+            style: StrokeStyle(lineWidth: 1, dash: [4]))
       }
       .contentShape(.rect)
     }
     .buttonStyle(.plain)
     .disabled(finishedTotal == 0)
+    .onHover { hoveringStrip = $0 }
+    .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: showFinished)
     .accessibilityValue(showFinished ? "expandido" : "recolhido")
   }
 }
@@ -337,34 +373,38 @@ struct AgentSessionGrid: View {
     let attention = AgentsLogic.needsYou(session)
     return VStack(alignment: .leading, spacing: 6) {
       Image(systemName: "cpu").foregroundStyle(theme.brand).accessibilityHidden(true)
-      Text(session.agent.displayName).font(.system(size: 14, weight: .semibold))
+      Text(session.agent.displayName).font(.geist(14, weight: .semibold))
       Text("\(session.agent.provider.rawValue) · \(session.id)")
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkDim)
         .textSelection(.enabled)
       Text("Última atividade: \(AgentsLogic.formatTime(session.lastActivityAt))")
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkMid)
-      Text(AgentsLogic.freshnessLabel(session.freshness)).font(.system(size: 11)).foregroundStyle(theme.inkMid)
+      Text(AgentsLogic.freshnessLabel(session.freshness)).font(.geist(11)).foregroundStyle(theme.inkMid)
       if let live = session.live {
         HStack(spacing: 6) {
           Circle().fill(theme.liveColor(live.state)).frame(width: 6, height: 6).accessibilityHidden(true)
           Text(AgentsLogic.liveLabel(live.state))
         }
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkMid)
       }
       if let attention { NeedsYouLine(needsYou: attention, now: now) }
+      // `variant="link"`: DailyDesign has no link pill, so the system link stands in.
       Button("Ver tarefas da sessão") { select(session.id) }
         .buttonStyle(.link)
+        .font(.geist(14, weight: .medium))
         .padding(.top, 4)
     }
     .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(theme.surface1, in: .rect(cornerRadius: Radius.medium))
+    .glassSurface(.panel)
     .overlay {
-      RoundedRectangle(cornerRadius: Radius.medium)
-        .strokeBorder(attention == nil ? theme.line : theme.danger, lineWidth: attention == nil ? 1 : 2)
+      // `border-danger ring-2 ring-danger/40` on the session that needs the user.
+      if attention != nil {
+        RoundedRectangle(cornerRadius: Radius.medium).strokeBorder(theme.danger, lineWidth: 2)
+      }
     }
   }
 }
@@ -413,8 +453,9 @@ struct AgentsFilterMenu: View {
       }
     } label: {
       Label("Filtros", systemImage: "line.3.horizontal.decrease")
-        .labelStyle(.iconOnly)
     }
+    .menuStyle(.button)
+    .iconButtonStyle(variant: .outline)
     .menuIndicator(.hidden)
     .fixedSize()
     .help("Filtros")
@@ -423,6 +464,55 @@ struct AgentsFilterMenu: View {
     .overlay(alignment: .topTrailing) {
       if store.activeFilterCount > 0 {
         Badge("\(store.activeFilterCount)").offset(x: 8, y: -8).allowsHitTesting(false).accessibilityHidden(true)
+      }
+    }
+  }
+}
+
+// MARK: - Alerts
+
+/// `PushToggle` (`components/agents/PushToggle.tsx:88-99`) on the app's desktop
+/// alerts: "Ativar avisos" asks the system for permission, "Desativar avisos"
+/// turns them off. There is no "Testar aviso": the alert engine has no way to
+/// post one on demand.
+struct AgentsAlertsToggle: View {
+  @Environment(\.theme) private var theme
+  let store: AgentsStore
+
+  var body: some View {
+    let state = store.alertsState
+    if state != .unavailable {
+      HStack(spacing: 8) {
+        switch state {
+        case .off:
+          Button {
+            Task { await store.enableAlerts() }
+          } label: {
+            Label("Ativar avisos", systemImage: "bell")
+          }
+          .pillButtonStyle(.outline, size: .small)
+          .disabled(store.isChangingAlerts)
+        case .on:
+          Button {
+            store.disableAlerts()
+          } label: {
+            Label("Desativar avisos", systemImage: "bell.slash")
+          }
+          .pillButtonStyle(.ghost, size: .small)
+          .help("Desativar avisos neste dispositivo")
+          .accessibilityLabel("Desativar avisos neste dispositivo")
+        case .denied:
+          Text("Avisos bloqueados nas permissões do sistema.")
+            .font(.geist(12))
+            .foregroundStyle(theme.inkDim)
+        case .unavailable:
+          EmptyView()
+        }
+        if let notice = store.alertsNotice {
+          Text(notice)
+            .font(.geist(12))
+            .foregroundStyle(theme.inkMid)
+        }
       }
     }
   }

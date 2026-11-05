@@ -53,7 +53,7 @@ public struct AccessScreen: View {
   private var header: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text("CONECTE SEU WORKSPACE")
-        .font(.system(size: 11, weight: .medium))
+        .font(.geist(11, weight: .medium))
         .tracking(1.5)
         .foregroundStyle(theme.inkDim)
       Text("Acesso dos agentes")
@@ -63,7 +63,7 @@ public struct AccessScreen: View {
       Text(
         "Envie o trabalho do Claude, Codex ou Gemini ao seu kanban. Cada acesso pertence à sua conta e pode ser revogado a qualquer momento."
       )
-      .font(.system(size: 13))
+      .font(.geist(13))
       .foregroundStyle(theme.inkMid)
       .frame(maxWidth: 640, alignment: .leading)
       .fixedSize(horizontal: false, vertical: true)
@@ -76,7 +76,7 @@ public struct AccessScreen: View {
     VStack(alignment: .leading, spacing: 16) {
       sectionTitle("1. Gere um acesso para a API", systemImage: "key")
       Text("O token é exibido uma única vez. Guarde-o no gerenciador de segredos do seu ambiente.")
-        .font(.system(size: 13))
+        .font(.geist(13))
         .foregroundStyle(theme.inkMid)
         .fixedSize(horizontal: false, vertical: true)
       Form {
@@ -96,7 +96,7 @@ public struct AccessScreen: View {
       Button(store.isSaving ? "Aguarde…" : "Gerar token") {
         Task { await store.create() }
       }
-      .buttonStyle(.borderedProminent)
+      .pillButtonStyle()
       .disabled(!store.canCreate)
     }
     .padding(24)
@@ -112,16 +112,16 @@ public struct AccessScreen: View {
       Text(
         "As instruções usam placeholders e não incluem seu token. Informe o segredo separadamente pelo ambiente seguro do agente."
       )
-      .font(.system(size: 13))
+      .font(.geist(13))
       .foregroundStyle(theme.inkMid)
       .fixedSize(horizontal: false, vertical: true)
       if let error = store.promptError {
-        Text(error).font(.system(size: 13)).foregroundStyle(theme.danger)
+        Text(error).font(.geist(13)).foregroundStyle(theme.danger)
       }
       if let prompt = store.prompt {
         ScrollView {
           Text(prompt)
-            .font(.system(size: 11, design: .monospaced))
+            .font(.dailyMono(size: 11))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
@@ -132,7 +132,7 @@ public struct AccessScreen: View {
         .accessibilityLabel("Instruções para o agente")
         CopyButton(value: prompt, label: "Copiar instruções")
       } else if store.promptError == nil {
-        Text("Preparando instruções…").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+        Text("Preparando instruções…").font(.geist(13)).foregroundStyle(theme.inkMid)
       }
     }
     .padding(24)
@@ -144,18 +144,19 @@ public struct AccessScreen: View {
 
   private var tokenList: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("Tokens da API").font(.system(size: 14, weight: .semibold)).accessibilityAddTraits(.isHeader)
+      Text("Tokens da API").font(.geist(14, weight: .semibold)).accessibilityAddTraits(.isHeader)
       if let tokens = store.tokens {
         if tokens.isEmpty {
-          Text("Você ainda não gerou nenhum token.").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+          Text("Você ainda não gerou nenhum token.").font(.geist(13)).foregroundStyle(theme.inkMid)
         } else {
-          ForEach(tokens) { token in
-            tokenRow(token)
-            if token.id != tokens.last?.id { Divider() }
+          VStack(spacing: 0) {
+            ForEach(Array(tokens.enumerated()), id: \.element.id) { index, token in
+              ListRow(index: index, isLast: index == tokens.count - 1) { tokenRow(token) }
+            }
           }
         }
       } else if store.error == nil {
-        Text("Carregando acessos…").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+        Text("Carregando acessos…").font(.geist(13)).foregroundStyle(theme.inkMid)
       }
     }
     .padding(24)
@@ -167,29 +168,27 @@ public struct AccessScreen: View {
     HStack(alignment: .center, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 8) {
-          Text(token.label).font(.system(size: 13, weight: .medium))
-          Text(token.state == .active ? "Ativo" : "Revogado").font(.system(size: 11)).foregroundStyle(theme.inkDim)
+          Text(token.label).font(.geist(13, weight: .medium))
+          Text(token.state == .active ? "Ativo" : "Revogado").font(.geist(11)).foregroundStyle(theme.inkDim)
         }
         Text("\(token.prefix)… · \(AccessLogic.scopeSummary(token.scopes))")
-          .font(.system(size: 11))
+          .font(.geist(11))
           .foregroundStyle(theme.inkMid)
         Text(
           "Criado em \(AccessLogic.formatTime(token.createdAt)) · "
             + (token.lastUsedAt.map { "Usado em \(AccessLogic.formatTime($0))" } ?? "Ainda não utilizado")
         )
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkDim)
       }
       .accessibilityElement(children: .combine)
       Spacer()
       if token.state == .active {
         Button("Revogar \(token.label)") { confirmRevoke(token) }
-          .buttonStyle(.bordered)
-          .controlSize(.small)
+          .pillButtonStyle(.outline, size: .small)
           .disabled(store.isSaving)
       }
     }
-    .padding(.vertical, 8)
   }
 
   private func confirmRevoke(_ token: APICredential) {
@@ -212,7 +211,7 @@ public struct AccessScreen: View {
       Text(
         "O MCP usa sua autorização de login para operar tarefas, Jira e GitHub. Tokens e senhas das integrações são cadastrados apenas no navegador."
       )
-      .font(.system(size: 13))
+      .font(.geist(13))
       .foregroundStyle(theme.inkMid)
       .frame(maxWidth: 720, alignment: .leading)
       .fixedSize(horizontal: false, vertical: true)
@@ -221,7 +220,7 @@ public struct AccessScreen: View {
         navigator?.requestSettings(.integrations)
         openSettings()
       }
-      .buttonStyle(.bordered)
+      .pillButtonStyle(.outline)
       Divider()
       grants
     }
@@ -232,13 +231,13 @@ public struct AccessScreen: View {
 
   @ViewBuilder private var mcpEndpoint: some View {
     if let error = store.mcpError {
-      Text(error).font(.system(size: 13)).foregroundStyle(theme.danger)
+      Text(error).font(.geist(13)).foregroundStyle(theme.danger)
     } else if let endpoint = store.mcpEndpoint {
       HStack(alignment: .bottom, spacing: 12) {
         VStack(alignment: .leading, spacing: 6) {
-          Text("Endereço do servidor MCP").font(.system(size: 13))
+          Text("Endereço do servidor MCP").font(.geist(13))
           Text(endpoint)
-            .font(.system(size: 11, design: .monospaced))
+            .font(.dailyMono(size: 11))
             .textSelection(.enabled)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
@@ -250,14 +249,14 @@ public struct AccessScreen: View {
         CopyButton(value: endpoint, label: "Copiar endereço MCP")
       }
     } else {
-      Text("Carregando endereço MCP…").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+      Text("Carregando endereço MCP…").font(.geist(13)).foregroundStyle(theme.inkMid)
     }
   }
 
   private var grants: some View {
     VStack(alignment: .leading, spacing: 8) {
       Label("Clientes autorizados", systemImage: "checkmark.shield")
-        .font(.system(size: 13, weight: .medium))
+        .font(.geist(13, weight: .medium))
         .accessibilityAddTraits(.isHeader)
       if let error = store.grantsError {
         HStack(spacing: 8) {
@@ -265,20 +264,21 @@ public struct AccessScreen: View {
           Button("Tentar novamente") { Task { await store.loadGrants() } }
             .buttonStyle(.link)
         }
-        .font(.system(size: 13))
+        .font(.geist(13))
       }
       if let grants = store.grants {
         if grants.isEmpty {
           Text("Nenhum cliente MCP autorizado. A autorização é solicitada pelo seu cliente ao conectar.")
-            .font(.system(size: 13))
+            .font(.geist(13))
             .foregroundStyle(theme.inkMid)
         }
-        ForEach(grants) { grant in
-          grantRow(grant)
-          if grant.id != grants.last?.id { Divider() }
+        VStack(spacing: 0) {
+          ForEach(Array(grants.enumerated()), id: \.element.id) { index, grant in
+            ListRow(index: index, isLast: index == grants.count - 1) { grantRow(grant) }
+          }
         }
       } else if store.grantsError == nil {
-        Text("Carregando autorizações…").font(.system(size: 11)).foregroundStyle(theme.inkDim)
+        Text("Carregando autorizações…").font(.geist(11)).foregroundStyle(theme.inkDim)
       }
     }
   }
@@ -286,20 +286,18 @@ public struct AccessScreen: View {
   private func grantRow(_ grant: OAuthGrant) -> some View {
     HStack(spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(grant.clientName).font(.system(size: 13, weight: .medium))
-        Text(grant.scopes.joined(separator: " · ")).font(.system(size: 11)).foregroundStyle(theme.inkMid)
+        Text(grant.clientName).font(.geist(13, weight: .medium))
+        Text(grant.scopes.joined(separator: " · ")).font(.geist(11)).foregroundStyle(theme.inkMid)
         if let expires = grant.expiresAt {
-          Text("Expira em \(AccessLogic.formatTime(expires))").font(.system(size: 11)).foregroundStyle(theme.inkDim)
+          Text("Expira em \(AccessLogic.formatTime(expires))").font(.geist(11)).foregroundStyle(theme.inkDim)
         }
       }
       .accessibilityElement(children: .combine)
       Spacer()
       Button("Revogar \(grant.clientName)") { confirmRevoke(grant) }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
+        .pillButtonStyle(.outline, size: .small)
         .disabled(store.isRevokingGrant)
     }
-    .padding(.vertical, 6)
   }
 
   private func confirmRevoke(_ grant: OAuthGrant) {
@@ -319,7 +317,7 @@ public struct AccessScreen: View {
     } icon: {
       Image(systemName: systemImage).foregroundStyle(theme.brand)
     }
-    .font(.system(size: 14, weight: .semibold))
+    .font(.geist(14, weight: .semibold))
     .accessibilityAddTraits(.isHeader)
   }
 }
@@ -333,14 +331,14 @@ struct SecretSheet: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Guarde seu token agora")
-        .font(.system(size: 18, weight: .semibold))
+        .typeRole(.subhead)
         .accessibilityAddTraits(.isHeader)
       Text("Este segredo não será mostrado novamente. Não o cole nas instruções nem compartilhe em conversas.")
-        .font(.system(size: 13))
+        .font(.geist(13))
         .foregroundStyle(theme.inkMid)
         .fixedSize(horizontal: false, vertical: true)
       Text(secret)
-        .font(.system(size: 13, design: .monospaced))
+        .font(.dailyMono(size: 13))
         .textSelection(.enabled)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -352,7 +350,7 @@ struct SecretSheet: View {
         CopyButton(value: secret, label: "Copiar token")
         Spacer()
         Button("Já guardei o token", action: done)
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle()
           .keyboardShortcut(.defaultAction)
       }
     }
@@ -381,9 +379,9 @@ struct CopyButton: View {
       } label: {
         Label(state == .copied ? "Copiado" : label, systemImage: state == .copied ? "checkmark" : "doc.on.doc")
       }
-      .buttonStyle(.bordered)
+      .pillButtonStyle(.outline, size: .small)
       if state == .failed {
-        Text("Selecione o texto e copie manualmente.").font(.system(size: 11)).foregroundStyle(theme.danger)
+        Text("Selecione o texto e copie manualmente.").font(.geist(11)).foregroundStyle(theme.danger)
       }
     }
   }
@@ -395,13 +393,11 @@ extension View {
   }
 }
 
+/// `rounded-2xl border bg-surface-1` on the web; Liquid Glass here, as on the
+/// Home panels (spec 013 FR-013-02).
 private struct AccessCard: ViewModifier {
-  @Environment(\.theme) private var theme
-
   func body(content: Content) -> some View {
-    content
-      .background(theme.surface1, in: .rect(cornerRadius: Radius.extraLarge))
-      .overlay { RoundedRectangle(cornerRadius: Radius.extraLarge).strokeBorder(theme.line) }
+    content.glassSurface(.panel)
   }
 }
 

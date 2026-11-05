@@ -14,6 +14,25 @@ nonisolated enum AgentsTab: String, Sendable, Equatable, CaseIterable {
   case sessions
 }
 
+/// Which page the board is (`AgentBoard({ mode })`, `AgentBoard.tsx:15`): the
+/// Kanban (`app/(app)/kanban/page.tsx`) or the agents workspace with sessions
+/// (`app/(app)/agents/page.tsx`).
+public enum AgentsMode: String, Sendable, Equatable, CaseIterable {
+  case kanban
+  case workspace
+
+  /// `AgentBoard.tsx:58`.
+  public var title: String {
+    switch self {
+    case .kanban: "Kanban de tarefas"
+    case .workspace: "Agentes e atividades"
+    }
+  }
+
+  /// "Tarefas / Sessões" belong to the workspace only (`AgentBoard.tsx:66`).
+  public var showsTabs: Bool { self == .workspace }
+}
+
 /// `sort` (`AgentBoard.tsx:25`).
 nonisolated enum AgentsSort: String, Sendable, Equatable, CaseIterable {
   case newest
@@ -53,6 +72,22 @@ nonisolated enum AgentsLogic {
 
   static let activeStatuses: [AgentTaskStatus] = [.queued, .working, .waiting, .blocked]
   static let finishedStatuses: [AgentTaskStatus] = [.completed, .failed, .cancelled]
+
+  // MARK: - Columns
+
+  /// Tailwind's `sm` and `lg` breakpoints, which `KanbanColumns` switches on
+  /// (`BoardViews.tsx:42,50`).
+  static let smallBreakpoint: CGFloat = 640
+  static let largeBreakpoint: CGFloat = 1024
+
+  /// How many columns fit across `width`: one below `sm`, two up to `lg`, then
+  /// all of them (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, and `lg:grid-cols-3`
+  /// for the finished ones). The web reads the viewport; the native board reads
+  /// its own width, since the sidebar shares the window.
+  static func columnCount(width: CGFloat, columns: Int) -> Int {
+    let fitting = width < smallBreakpoint ? 1 : width < largeBreakpoint ? 2 : columns
+    return max(1, min(fitting, columns))
+  }
 
   /// `STATUS_LABELS` (`contracts.ts:6-9`).
   static func statusLabel(_ status: AgentTaskStatus) -> String {

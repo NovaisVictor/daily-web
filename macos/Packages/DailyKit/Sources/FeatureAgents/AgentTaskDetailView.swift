@@ -15,9 +15,9 @@ struct AgentTaskDetailView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       Button(action: back) {
-        Label("Voltar ao kanban", systemImage: "chevron.left")
+        Label("Voltar ao kanban", systemImage: "arrow.left")
       }
-      .buttonStyle(.borderless)
+      .pillButtonStyle(.ghost)
       .keyboardShortcut("[", modifiers: .command)
 
       if let error = store.error {
@@ -69,7 +69,7 @@ struct AgentTaskDetailView: View {
         AgentStatusBadge(text: AgentsLogic.statusLabel(task.status), status: task.status)
         if let hold = task.hold {
           AgentStatusBadge(text: AgentsLogic.holdLabel(hold.reason, status: task.status), status: task.status)
-          if let note = hold.note { Text(note).font(.system(size: 12)).foregroundStyle(theme.inkMid) }
+          if let note = hold.note { Text(note).font(.geist(12)).foregroundStyle(theme.inkMid) }
         }
       }
       Text(task.title)
@@ -79,13 +79,13 @@ struct AgentTaskDetailView: View {
         .accessibilityAddTraits(.isHeader)
       if !task.description.isEmpty {
         Text(task.description)
-          .font(.system(size: 13))
+          .font(.geist(13))
           .foregroundStyle(theme.inkMid)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
       Text("Referência: \(task.externalId) · Versão \(task.version)")
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkDim)
         .textSelection(.enabled)
       Divider()
@@ -102,9 +102,9 @@ struct AgentTaskDetailView: View {
     let items = detail.subtasks.items
     let statuses = AgentTaskStatus.known.filter { status in items.contains { $0.status == status } }
     return VStack(alignment: .leading, spacing: 12) {
-      Text("Subtarefas").font(.system(size: 14, weight: .semibold)).accessibilityAddTraits(.isHeader)
+      Text("Subtarefas").font(.geist(14, weight: .semibold)).accessibilityAddTraits(.isHeader)
       Text("Subtarefas agrupadas por status. O status da tarefa principal é definido separadamente.")
-        .font(.system(size: 11))
+        .font(.geist(11))
         .foregroundStyle(theme.inkMid)
       if items.isEmpty {
         EmptyState(
@@ -118,7 +118,7 @@ struct AgentTaskDetailView: View {
               HStack {
                 AgentStatusBadge(text: AgentsLogic.statusLabel(status), status: status)
                 Spacer()
-                Text("\(children.count)").font(.system(size: 11)).foregroundStyle(theme.inkDim)
+                Text("\(children.count)").font(.geist(11)).foregroundStyle(theme.inkDim)
               }
               ForEach(children) { child in
                 AgentTaskCard(task: child, now: now, open: openTask)
@@ -134,16 +134,17 @@ struct AgentTaskDetailView: View {
       }
       HStack(spacing: 12) {
         Text("\(items.count) nesta página\(detail.subtasks.nextCursor == nil ? "" : " · Há mais subtarefas")")
-          .font(.system(size: 11))
+          .font(.geist(11))
           .foregroundStyle(theme.inkDim)
         if store.subtaskCursor != nil {
           Button("Primeiras subtarefas") { store.setSubtaskCursor(nil) }
+            .pillButtonStyle(.outline, size: .small)
         }
         if let next = detail.subtasks.nextCursor {
           Button("Ver mais subtarefas") { store.setSubtaskCursor(next) }
+            .pillButtonStyle(.outline, size: .small)
         }
       }
-      .controlSize(.small)
     }
     .padding(20)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,7 +155,7 @@ struct AgentTaskDetailView: View {
 
   private func activity(_ detail: AgentTaskDetail) -> some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Atividade recente").font(.system(size: 14, weight: .semibold)).accessibilityAddTraits(.isHeader)
+      Text("Atividade recente").font(.geist(14, weight: .semibold)).accessibilityAddTraits(.isHeader)
       if detail.activity.items.isEmpty {
         EmptyState("Sem atualizações de atividade", description: "Novos relatos do agente aparecerão aqui.")
       } else {
@@ -162,11 +163,11 @@ struct AgentTaskDetailView: View {
           ForEach(detail.activity.items) { item in
             VStack(alignment: .leading, spacing: 4) {
               Text(item.summary)
-                .font(.system(size: 13))
+                .font(.geist(13))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
               Text("\(AgentsLogic.formatTime(item.receivedAt)) · \(item.kind.rawValue)")
-                .font(.system(size: 11))
+                .font(.geist(11))
                 .foregroundStyle(theme.inkDim)
             }
             .padding(.leading, 16)
@@ -178,12 +179,13 @@ struct AgentTaskDetailView: View {
       HStack(spacing: 8) {
         if store.activityCursor != nil {
           Button("Mais recentes") { store.setActivityCursor(nil) }
+            .pillButtonStyle(.outline, size: .small)
         }
         if let next = detail.activity.nextCursor {
           Button("Ver mais atividade") { store.setActivityCursor(next) }
+            .pillButtonStyle(.outline, size: .small)
         }
       }
-      .controlSize(.small)
     }
     .padding(20)
     .agentsCard()
@@ -195,39 +197,39 @@ struct AgentTaskDetailView: View {
     VStack(alignment: .leading, spacing: 20) {
       VStack(alignment: .leading, spacing: 6) {
         Label("Agente responsável", systemImage: "cpu")
-          .font(.system(size: 13, weight: .semibold))
+          .font(.geist(13, weight: .semibold))
           .accessibilityAddTraits(.isHeader)
         if let assignment = task.assignment {
-          Text(assignment.displayName).font(.system(size: 13))
-          Text(assignment.provider.rawValue).font(.system(size: 11)).foregroundStyle(theme.inkMid)
+          Text(assignment.displayName).font(.geist(13))
+          Text(assignment.provider.rawValue).font(.geist(11)).foregroundStyle(theme.inkMid)
           Button("Sessão \(assignment.sessionId)") { openSession(assignment.sessionId) }
             .buttonStyle(.link)
-            .font(.system(size: 11))
-          Text(AgentsLogic.freshnessLabel(assignment.freshness)).font(.system(size: 11)).foregroundStyle(theme.inkMid)
+            .font(.geist(11))
+          Text(AgentsLogic.freshnessLabel(assignment.freshness)).font(.geist(11)).foregroundStyle(theme.inkMid)
         } else {
-          Text("Nenhum agente atribuído.").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+          Text("Nenhum agente atribuído.").font(.geist(13)).foregroundStyle(theme.inkMid)
         }
       }
       VStack(alignment: .leading, spacing: 8) {
         Label("Histórico", systemImage: "clock")
-          .font(.system(size: 13, weight: .semibold))
+          .font(.geist(13, weight: .semibold))
           .accessibilityAddTraits(.isHeader)
         fact("Criada em", AgentsLogic.formatTime(task.createdAt))
         fact("Última atividade", AgentsLogic.formatTime(task.lastActivityAt))
         Text("A tarefa e seu histórico expiram após 30 dias sem atividade aceita. Consultas não renovam esse prazo.")
-          .font(.system(size: 11))
+          .font(.geist(11))
           .foregroundStyle(theme.inkMid)
           .fixedSize(horizontal: false, vertical: true)
       }
       if let source = task.source {
         VStack(alignment: .leading, spacing: 4) {
-          Text("Origem vinculada").font(.system(size: 13, weight: .semibold)).accessibilityAddTraits(.isHeader)
+          Text("Origem vinculada").font(.geist(13, weight: .semibold)).accessibilityAddTraits(.isHeader)
           Text("\(source.provider.rawValue): \(source.resource)")
-            .font(.system(size: 11))
+            .font(.geist(11))
             .foregroundStyle(theme.inkMid)
             .textSelection(.enabled)
           Text("O vínculo não altera o item de origem automaticamente.")
-            .font(.system(size: 11))
+            .font(.geist(11))
             .foregroundStyle(theme.inkDim)
         }
       }
@@ -241,7 +243,7 @@ struct AgentTaskDetailView: View {
       Text(title).foregroundStyle(theme.inkDim)
       Text(value)
     }
-    .font(.system(size: 11))
+    .font(.geist(11))
     .accessibilityElement(children: .combine)
   }
 }
@@ -276,20 +278,19 @@ struct AgentTaskActions: View {
       FlowLayout(spacing: 8) {
         ForEach(store.availableTransitions, id: \.self) { target in
           Button(AgentsLogic.actionLabel(for: target, from: task.status)) { start(target) }
-            .buttonStyle(.bordered)
+            .pillButtonStyle(.outline, size: .small)
         }
         Button("Editar") {
           editing = EditDraft(title: task.title, description: task.description, version: task.version)
         }
-        .buttonStyle(.borderless)
+        .pillButtonStyle(.ghost, size: .small)
         Button("Excluir", role: .destructive) { confirmDelete() }
-          .buttonStyle(.borderless)
+          .pillButtonStyle(.ghost, size: .small)
       }
-      .controlSize(.small)
       .disabled(store.isSaving)
       if let error = store.actionError {
         Text(error)
-          .font(.system(size: 13))
+          .font(.geist(13))
           .foregroundStyle(theme.danger)
           .accessibilityAddTraits(.isStaticText)
       }
@@ -355,7 +356,7 @@ struct HoldReasonSheet: View {
     .formStyle(.grouped)
     .safeAreaInset(edge: .top) {
       Text(status == .waiting ? "Aguardando o quê?" : "Por que está bloqueada?")
-        .font(.system(size: 16, weight: .semibold))
+        .typeRole(.subhead)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding([.horizontal, .top], 20)
         .accessibilityAddTraits(.isHeader)
@@ -364,8 +365,10 @@ struct HoldReasonSheet: View {
       HStack {
         Spacer()
         Button("Cancelar", role: .cancel) { dismiss() }
+          .pillButtonStyle(.outline)
           .keyboardShortcut(.cancelAction)
         Button(AgentsLogic.actionLabel(status)) { submit() }
+          .pillButtonStyle()
           .keyboardShortcut(.defaultAction)
           .disabled(hold == nil || store.isSaving)
       }
@@ -401,7 +404,7 @@ struct EditTaskSheet: View {
             get: { draft.description },
             set: { draft.description = String($0.prefix(AgentsLogic.descriptionMax)) })
         )
-        .font(.system(size: 13))
+        .font(.geist(13))
         .frame(minHeight: 120)
         .accessibilityLabel("Descrição")
       }
@@ -412,7 +415,7 @@ struct EditTaskSheet: View {
     .formStyle(.grouped)
     .safeAreaInset(edge: .top) {
       Text("Editar tarefa")
-        .font(.system(size: 16, weight: .semibold))
+        .typeRole(.subhead)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding([.horizontal, .top], 20)
         .accessibilityAddTraits(.isHeader)
@@ -421,8 +424,10 @@ struct EditTaskSheet: View {
       HStack {
         Spacer()
         Button("Cancelar", role: .cancel) { dismiss() }
+          .pillButtonStyle(.outline)
           .keyboardShortcut(.cancelAction)
         Button("Salvar alterações") { submit() }
+          .pillButtonStyle()
           .keyboardShortcut(.defaultAction)
           .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isSaving)
       }
@@ -440,18 +445,15 @@ struct EditTaskSheet: View {
 }
 
 extension View {
-  /// The rounded surface every block of the screen sits on.
+  /// The glass panel every block of the screen sits on (`rounded-2xl border
+  /// bg-surface-1` on the web, Liquid Glass here as on the Home panels).
   func agentsCard() -> some View {
     modifier(AgentsCard())
   }
 }
 
 private struct AgentsCard: ViewModifier {
-  @Environment(\.theme) private var theme
-
   func body(content: Content) -> some View {
-    content
-      .background(theme.surface1, in: .rect(cornerRadius: Radius.large))
-      .overlay { RoundedRectangle(cornerRadius: Radius.large).strokeBorder(theme.line) }
+    content.glassSurface(.panel)
   }
 }

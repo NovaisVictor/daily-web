@@ -12,6 +12,8 @@ import os
 /// `useAgentPolling`, and the open task detail is read with it.
 @Observable
 final class AgentsStore {
+  /// Kanban or workspace; the Kanban never shows "Sessões".
+  let mode: AgentsMode
   /// The filters, which the web keeps in the URL.
   private(set) var query = AgentsEndpoints.BoardQuery()
   /// "Finalizadas" opened (`finished=show`).
@@ -28,6 +30,8 @@ final class AgentsStore {
   @ObservationIgnored let poller: Poller
   @ObservationIgnored let now: Now
   @ObservationIgnored private let reportWaiting: @MainActor ([DailyCore.AgentAttention]) async -> Void
+  /// The desktop alerts switch behind "Ativar avisos"; nil hides the control.
+  @ObservationIgnored private let alerts: AlertEngine?
   @ObservationIgnored private let sleep: Sleeper
   @ObservationIgnored private var isVisible = false
   /// Bumped on every filter change, so an older answer does not land on a newer query.
@@ -42,10 +46,14 @@ final class AgentsStore {
   init(
     client: any APIClient,
     poller: Poller,
+    mode: AgentsMode = .workspace,
+    alerts: AlertEngine? = nil,
     now: @escaping Now = LiveTime.now,
     sleep: @escaping Sleeper = LiveTime.sleep,
     reportWaiting: @escaping @MainActor ([DailyCore.AgentAttention]) async -> Void = { _ in }
   ) {
+    self.mode = mode
+    self.alerts = alerts
     self.client = client
     self.poller = poller
     self.now = now
@@ -53,11 +61,13 @@ final class AgentsStore {
     self.reportWaiting = reportWaiting
   }
 
-  convenience init(environment: AppEnvironment) {
+  convenience init(environment: AppEnvironment, mode: AgentsMode = .workspace) {
     let alerts = environment.alerts
     self.init(
       client: environment.client,
       poller: environment.poller,
+      mode: mode,
+      alerts: alerts,
       reportWaiting: { waiting in await alerts.updateAgentsFromScreen(waiting) })
   }
 
@@ -137,7 +147,11 @@ final class AgentsStore {
 
   // MARK: - Filters
 
-  func setTab(_ tab: AgentsTab) { change { $0.tab = tab } }
+  /// The Kanban has no "Sessões" (`AgentBoard.tsx:22`, `query.delete('tab')`).
+  func setTab(_ tab: AgentsTab) {
+    guard mode.showsTabs else { return }
+    change { $0.tab = tab }
+  }
   func setStatus(_ status: AgentTaskStatus?) { change { $0.status = status } }
   func setDays(_ days: Int) { change { $0.days = AgentsLogic.activityWindow(days) } }
   func setSort(_ sort: AgentsSort) { change { $0.sort = sort } }
@@ -179,6 +193,48 @@ final class AgentsStore {
     guard next != query else { return }
     query = next
     Task { await loadBoard() }
+  }
+
+  // MARK: - Desktop alerts
+
+  /// What "Ativar avisos" shows (`PushToggle.tsx`). The native app has no push
+  /// subscription per device: the switch is the app's one desktop alerts switch,
+  /// the same as "Avisar no computador" in the notifications.
+  enum AlertsState: Equatable {
+    case unavailable
+    case off
+    case denied
+    case on
+  }
+
+  /// Whether the system refused permission on the last attempt.
+  private(set) var alertsDenied = false
+  private(set) var isChangingAlerts = false
+  /// "Avisos ativados neste dispositivo." and the like (`PushToggle.tsx:62-81`).
+  private(set) var alertsNotice: String?
+
+  var alertsState: AlertsState {
+    guard let alerts else { return .unavailable }
+    if alerts.isEnabled { return .on }
+    return alertsDenied ? .denied : .off
+  }
+
+  /// Asks the system for permission and turns the alerts on when granted.
+  func enableAlerts() async {
+    guard let alerts, !alerts.isEnabled, !isChangingAlerts else { return }
+    isChangingAlerts = true
+    alertsNotice = nil
+    defer { isChangingAlerts = false }
+    await alerts.enable()
+    alertsDenied = !alerts.isEnabled
+    alertsNotice = alerts.isEnabled ? "Avisos ativados neste dispositivo." : nil
+  }
+
+  func disableAlerts() {
+    guard let alerts, alerts.isEnabled else { return }
+    alerts.disable()
+    alertsDenied = false
+    alertsNotice = "Avisos desativados neste dispositivo."
   }
 
   // MARK: - Detail

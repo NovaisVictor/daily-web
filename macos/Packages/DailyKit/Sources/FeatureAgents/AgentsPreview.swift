@@ -41,7 +41,7 @@ enum AgentsPreview {
   }
 
   /// A store whose client answers the sample board and nothing touches the network.
-  static func store() -> AgentsStore {
+  static func store(mode: AgentsMode = .workspace) -> AgentsStore {
     var responses: [String: Data] = [:]
     do {
       responses["GET /api/agents"] = try JSONEncoder().encode(board)
@@ -49,7 +49,7 @@ enum AgentsPreview {
       Logger.agents.fault("Preview board failed to encode: \(String(describing: error), privacy: .public)")
     }
     let store = AgentsStore(
-      client: PreviewAPIClient(responses: responses), poller: Poller(),
+      client: PreviewAPIClient(responses: responses), poller: Poller(), mode: mode,
       now: { AgentsLogic.date(now) ?? Date() })
     Task { await store.loadBoard() }
     return store

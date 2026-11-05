@@ -3,9 +3,9 @@ import DailyDesign
 import DailyModels
 import SwiftUI
 
-/// "Agentes e atividades" (`components/agents/AgentBoard.tsx`, workspace mode):
-/// the kanban of agent tasks and the sessions, with each task's page opening
-/// inside the screen.
+/// The agent tasks board (`components/agents/AgentBoard.tsx`). In `.kanban` it is
+/// the "Kanban de tarefas" page; in `.workspace` it is "Agentes e atividades",
+/// with the sessions tab. Each task's page opens inside the screen.
 public struct AgentsScreen: View {
   @State private var store: AgentsStore
   @State private var searchPresented = false
@@ -16,7 +16,11 @@ public struct AgentsScreen: View {
   private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
-    self.init(store: AgentsStore(environment: environment), navigator: environment.navigator)
+    self.init(environment: environment, mode: .workspace)
+  }
+
+  public init(environment: AppEnvironment, mode: AgentsMode) {
+    self.init(store: AgentsStore(environment: environment, mode: mode), navigator: environment.navigator)
   }
 
   init(store: AgentsStore, navigator: AppNavigator) {
@@ -56,44 +60,61 @@ public struct AgentsScreen: View {
   }
 
   /// Only the main window takes the request; it is the one the navigator moved.
+  /// The request names the agents route, so the Kanban leaves it to that screen.
   private func openPendingTask() {
-    guard isPrimaryWindow else { return }
+    guard isPrimaryWindow, store.mode == .workspace else { return }
     store.openPendingTask(from: navigator)
   }
 
   // MARK: - Header
 
   private func header(proxy: ScrollViewProxy) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .center, spacing: 8) {
-        Text("Agentes e atividades")
-          .typeRole(.subhead)
-          .foregroundStyle(theme.ink)
-          .accessibilityAddTraits(.isHeader)
-        Spacer()
-        waitingButton(proxy: proxy)
-        Button {
-          Task { await store.loadBoard() }
-        } label: {
-          Label("Atualizar", systemImage: "arrow.clockwise")
+    VStack(alignment: .leading, spacing: 20) {
+      // `flex flex-wrap items-center justify-between gap-4` (`AgentBoard.tsx:57`).
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .center, spacing: 16) {
+          title
+          Spacer(minLength: 0)
+          controls(proxy: proxy)
         }
-        .accessibilityLabel("Atualizar agentes")
-        .keyboardShortcut("r", modifiers: .command)
-        searchButton
-        AgentsFilterMenu(store: store)
+        VStack(alignment: .leading, spacing: 16) {
+          title
+          FlowLayout(spacing: 8) { controls(proxy: proxy) }
+        }
       }
-      .buttonStyle(.bordered)
-      Picker(
-        "Visão de agentes",
-        selection: Binding(get: { store.query.tab }, set: { store.setTab($0) })
-      ) {
-        Text("Tarefas").tag(AgentsTab.tasks)
-        Text("Sessões").tag(AgentsTab.sessions)
+      if store.mode.showsTabs {
+        SegmentedPills(
+          "Visão de agentes",
+          items: [
+            .init(id: AgentsTab.tasks, label: "Tarefas"),
+            .init(id: AgentsTab.sessions, label: "Sessões"),
+          ],
+          selection: Binding(get: { store.query.tab }, set: { store.setTab($0) }))
       }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .fixedSize()
-      .accessibilityLabel("Visão de agentes")
+    }
+  }
+
+  private var title: some View {
+    Text(store.mode.title)
+      .typeRole(.heading)
+      .foregroundStyle(theme.ink)
+      .accessibilityAddTraits(.isHeader)
+  }
+
+  @ViewBuilder private func controls(proxy: ScrollViewProxy) -> some View {
+    HStack(spacing: 8) {
+      waitingButton(proxy: proxy)
+      AgentsAlertsToggle(store: store)
+      Button {
+        Task { await store.loadBoard() }
+      } label: {
+        Label("Atualizar", systemImage: "arrow.clockwise")
+      }
+      .pillButtonStyle(.outline, size: .small)
+      .accessibilityLabel("Atualizar agentes")
+      .keyboardShortcut("r", modifiers: .command)
+      searchButton
+      AgentsFilterMenu(store: store)
     }
   }
 
@@ -108,14 +129,15 @@ public struct AgentsScreen: View {
       } label: {
         HStack(spacing: 6) {
           Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
-          Text("\(waiting.count) aguardando você").fontWeight(.semibold)
+          Text("\(waiting.count) aguardando você").font(.geist(12, weight: .semibold))
         }
         .foregroundStyle(theme.danger)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(theme.dangerTint, in: .capsule)
+        .contentShape(.capsule)
       }
       .buttonStyle(.plain)
-      .padding(.horizontal, 12)
-      .padding(.vertical, 4)
-      .background(theme.dangerTint, in: .capsule)
       .help("Ir para a primeira tarefa que precisa de você")
     }
   }
@@ -125,14 +147,17 @@ public struct AgentsScreen: View {
     Button {
       searchPresented.toggle()
     } label: {
-      Label("Buscar tarefas", systemImage: "magnifyingglass").labelStyle(.iconOnly)
+      Label("Buscar tarefas", systemImage: "magnifyingglass")
     }
+    .iconButtonStyle(variant: .outline, isActive: searchPresented)
     .help("Buscar tarefas")
     .accessibilityLabel("Buscar tarefas")
     .keyboardShortcut("f", modifiers: .command)
     .overlay(alignment: .topTrailing) {
       if !store.query.search.isEmpty {
-        Circle().fill(theme.brand).frame(width: 8, height: 8).offset(x: 3, y: -3).accessibilityHidden(true)
+        Circle().fill(theme.brand).frame(width: 10, height: 10).offset(x: 2, y: -2)
+          .allowsHitTesting(false)
+          .accessibilityHidden(true)
       }
     }
     .popover(isPresented: $searchPresented, arrowEdge: .bottom) {
@@ -167,7 +192,7 @@ public struct AgentsScreen: View {
         let text = AgentsLogic.emptyBoardText(store.query)
         EmptyState(text.title, description: text.description, systemImage: "rectangle.split.3x1") {
           Button("Configurar acesso") { navigator.open(.access) }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle()
         }
       }
       AgentKanbanView(
@@ -190,20 +215,26 @@ public struct AgentsScreen: View {
       HStack(spacing: 8) {
         if next != nil {
           Text("Mais resultados disponíveis; esta página não representa todo o workspace.")
-            .font(.system(size: 11))
+            .font(.geist(12))
             .foregroundStyle(theme.inkMid)
         }
         Spacer()
         if store.query.cursor != nil {
           Button("Primeira página") { store.setCursor(nil) }
+            .pillButtonStyle(.outline, size: .small)
         }
         if let next {
           Button("Próxima página") { store.setCursor(next) }
+            .pillButtonStyle(.outline, size: .small)
         }
       }
-      .controlSize(.small)
     }
   }
+}
+
+#Preview("Kanban") {
+  AgentsScreen(store: AgentsPreview.store(mode: .kanban), navigator: AppNavigator())
+    .frame(width: 1100, height: 760)
 }
 
 #Preview("Agentes") {

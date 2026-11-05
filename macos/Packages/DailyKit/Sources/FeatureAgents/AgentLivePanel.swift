@@ -14,21 +14,21 @@ struct AgentLivePanel: View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         Label("Sessão ao vivo", systemImage: "terminal")
-          .font(.system(size: 14, weight: .semibold))
+          .font(.geist(14, weight: .semibold))
           .accessibilityAddTraits(.isHeader)
         Spacer()
         if let snapshot = store.snapshot { liveState(snapshot.live) }
       }
       if store.terminal == nil && store.error == nil {
-        Text("Conectando ao terminal…").font(.system(size: 13)).foregroundStyle(theme.inkMid)
+        Text("Conectando ao terminal…").font(.geist(13)).foregroundStyle(theme.inkMid)
       }
       if let error = store.error {
-        Text(error).font(.system(size: 13)).foregroundStyle(theme.danger)
+        Text(error).font(.geist(13)).foregroundStyle(theme.danger)
       }
       switch store.terminal {
       case .unavailable(let reason)?:
         Text(AgentsLogic.unavailableText(reason))
-          .font(.system(size: 13))
+          .font(.geist(13))
           .foregroundStyle(theme.inkMid)
           .fixedSize(horizontal: false, vertical: true)
       case .available(let snapshot)?:
@@ -50,25 +50,25 @@ struct AgentLivePanel: View {
         Text("· última atividade \(AgentsLogic.waitedFor(since, now: now))").foregroundStyle(theme.inkDim)
       }
     }
-    .font(.system(size: 11))
+    .font(.geist(11))
     .foregroundStyle(theme.inkMid)
     .accessibilityElement(children: .combine)
   }
 
   @ViewBuilder private func available(_ snapshot: AgentTerminalSnapshot) -> some View {
-    Picker("Conteúdo da sessão", selection: $store.content) {
-      Text("Terminal").tag(AgentLiveStore.Content.pane)
-      Text("Última resposta").tag(AgentLiveStore.Content.response)
-    }
-    .pickerStyle(.segmented)
-    .labelsHidden()
-    .fixedSize()
-    .accessibilityLabel("Conteúdo da sessão")
+    SegmentedPills(
+      "Conteúdo da sessão",
+      items: [
+        .init(id: AgentLiveStore.Content.pane, label: "Terminal"),
+        .init(id: AgentLiveStore.Content.response, label: "Última resposta"),
+      ],
+      selection: $store.content,
+      style: .toggle)
 
     ScrollViewReader { proxy in
       ScrollView {
         Text(screenText(snapshot))
-          .font(.system(size: 11, design: .monospaced))
+          .font(.dailyMono(size: 11))
           .foregroundStyle(theme.ink)
           .textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,7 +83,7 @@ struct AgentLivePanel: View {
       .onChange(of: store.content) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
     }
 
-    Text(caption(snapshot)).font(.system(size: 11)).foregroundStyle(theme.inkDim)
+    Text(caption(snapshot)).font(.geist(11)).foregroundStyle(theme.inkDim)
 
     reply(snapshot)
   }
@@ -108,9 +108,9 @@ struct AgentLivePanel: View {
 
   private func reply(_ snapshot: AgentTerminalSnapshot) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("Responder ao agente").font(.system(size: 13, weight: .medium))
+      Text("Responder ao agente").font(.geist(13, weight: .medium))
       TextEditor(text: Binding(get: { store.text }, set: { store.setText($0) }))
-        .font(.system(size: 13))
+        .font(.geist(13))
         .frame(minHeight: 64, maxHeight: 140)
         .scrollContentBackground(.hidden)
         .padding(6)
@@ -118,7 +118,7 @@ struct AgentLivePanel: View {
         .overlay(alignment: .topLeading) {
           if store.text.isEmpty {
             Text("Escreva como se estivesse no terminal. ⌘↩ envia.")
-              .font(.system(size: 13))
+              .font(.geist(13))
               .foregroundStyle(theme.inkDim)
               .padding(.horizontal, 11)
               .padding(.vertical, 6)
@@ -131,7 +131,7 @@ struct AgentLivePanel: View {
         .accessibilityLabel("Responder ao agente")
       HStack(spacing: 8) {
         Text(store.notice?.text ?? store.hint)
-          .font(.system(size: 11))
+          .font(.geist(11))
           .foregroundStyle(store.notice?.isError == true ? theme.danger : theme.inkMid)
           .frame(maxWidth: .infinity, alignment: .leading)
         Button {
@@ -139,6 +139,7 @@ struct AgentLivePanel: View {
         } label: {
           Label(store.isSending ? "Enviando…" : "Enviar", systemImage: "paperplane")
         }
+        .pillButtonStyle(size: .small)
         .keyboardShortcut(.return, modifiers: .command)
         .disabled(!store.canSend)
       }
