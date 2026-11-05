@@ -1,0 +1,26 @@
+cask "daily-web" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256}}"
+
+  url "https://github.com/NovaisVictor/daily-web/releases/download/macos-v#{version}/DailyWeb-#{version}.zip"
+  name "Daily Web"
+  desc "Native macOS client for a self-hosted daily-web dashboard"
+  homepage "https://github.com/NovaisVictor/daily-web"
+
+  depends_on arch: :arm64
+  depends_on macos: ">= :tahoe"
+
+  app "DailyWeb.app"
+
+  zap trash: [
+    "~/Library/Application Scripts/io.github.novaisvictor.dailyweb",
+    "~/Library/Containers/io.github.novaisvictor.dailyweb",
+  ]
+
+  caveats <<~EOS
+    Daily Web is signed with the project's own certificate, not an Apple
+    Developer ID, so macOS blocks the first launch of each version.
+    Open it once, then allow it in System Settings → Privacy & Security
+    → "Open Anyway".
+  EOS
+end
