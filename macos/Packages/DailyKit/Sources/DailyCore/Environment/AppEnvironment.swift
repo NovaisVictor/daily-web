@@ -21,6 +21,7 @@ public final class AppEnvironment {
   public let toasts: ToastCenter
   public let navigator = AppNavigator()
   public let shutdown = ShutdownTasks()
+  public let featureStores: FeatureStores
 
   /// The app's graph: `HTTPAPIClient`, Keychain token, caches under
   /// Application Support and `UNUserNotificationCenter`.
@@ -108,7 +109,9 @@ public final class AppEnvironment {
       dashboard.loadCached()
       poller.start()
     }
+    let featureStores = FeatureStores()
     session.onSignedOut = {
+      featureStores.removeAll()
       poller.stop()
       dashboard.clear()
       pomodoro.clear()
@@ -117,6 +120,7 @@ public final class AppEnvironment {
     }
 
     self.session = session
+    self.featureStores = featureStores
     self.client = client
     self.dashboard = dashboard
     self.poller = poller
