@@ -57,6 +57,7 @@ private struct StartDateFix: View {
       case .editing(let value), .saving(let value):
         if value.isEmpty {
           Button("Escolher data") { step = .editing(JiraDates.dayString(store.now())) }
+            .pillButtonStyle(.outline, size: .small)
             .disabled(step == .saving(value))
         } else {
           DatePicker(
@@ -71,18 +72,19 @@ private struct StartDateFix: View {
           .disabled(step == .saving(value))
         }
         Button(step == .saving(value) ? "Salvando…" : "Salvar") { save(value) }
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary, size: .small)
           .disabled(value.isEmpty || step == .saving(value))
-        Button("Cancelar") { step = .idle }.buttonStyle(.borderless)
+        Button("Cancelar") { step = .idle }.pillButtonStyle(.ghost, size: .small)
         if let note { Text(note).foregroundStyle(theme.inkDim) }
         if let error { Text(error).foregroundStyle(theme.danger) }
       case .idle, .loading:
         Button(step == .loading ? "Lendo o histórico…" : "Preencher início", action: suggest)
+          .pillButtonStyle(.outline, size: .small)
           .disabled(step == .loading)
         if let error { Text(error).foregroundStyle(theme.danger) }
       }
     }
-    .font(.system(size: 12))
+    .font(.geist(12))
     .controlSize(.small)
   }
 
@@ -143,17 +145,18 @@ private struct EpicFix: View {
         .accessibilityLabel("épico de \(key)")
         .disabled(step == .saving(value))
         Button(step == .saving(value) ? "Salvando…" : "Salvar") { save(value) }
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary, size: .small)
           .disabled(value.isEmpty || step == .saving(value))
-        Button("Cancelar") { step = .idle }.buttonStyle(.borderless)
+        Button("Cancelar") { step = .idle }.pillButtonStyle(.ghost, size: .small)
         if let error { Text(error).foregroundStyle(theme.danger) }
       case .idle, .loading:
         Button(step == .loading ? "Buscando épicos…" : "Escolher épico", action: fetch)
+          .pillButtonStyle(.outline, size: .small)
           .disabled(step == .loading)
         if let error { Text(error).foregroundStyle(theme.danger) }
       }
     }
-    .font(.system(size: 12))
+    .font(.geist(12))
     .controlSize(.small)
   }
 

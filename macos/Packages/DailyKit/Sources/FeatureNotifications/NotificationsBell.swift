@@ -1,3 +1,4 @@
+import AppKit
 import DailyCore
 import DailyDesign
 import DailyModels
@@ -34,7 +35,7 @@ public struct NotificationsBell: View {
     .overlay(alignment: .topTrailing) {
       if store.unreadCount > 0 {
         Text("\(store.unreadCount)")
-          .font(.system(size: 10, weight: .semibold).monospacedDigit())
+          .font(.geist(10, weight: .semibold).monospacedDigit())
           .foregroundStyle(theme.brandInk)
           .padding(.horizontal, 4)
           .frame(minWidth: 16, minHeight: 16)
@@ -85,8 +86,12 @@ struct NotificationCenterView: View {
         .padding(.horizontal, 16)
       }
     }
-    .frame(width: 440)
-    .frame(maxHeight: 600)
+    .frame(width: NotificationsLogic.popoverWidth)
+    .frame(maxHeight: NotificationsLogic.popoverMaxHeight(screenHeight: NSScreen.main?.visibleFrame.height))
+    // The web's popover is `bg-glass-strong … shadow-e4` (NotificationsBell.tsx:248); the
+    // system popover chrome gives way to the same glass the menus use.
+    .glassSurface(.popover)
+    .presentationBackground(.clear)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("central de notificações")
     .onExitCommand(perform: close)
@@ -156,7 +161,7 @@ struct NotificationCenterView: View {
         Image(systemName: "checkmark.circle")
           .symbolEffect(.pulse, isActive: store.markingAll)
       }
-      .buttonStyle(.borderless)
+      .iconButtonStyle(size: .small)
       .disabled(store.markingAll)
       .help(store.markingAll ? "Marcando…" : "Marcar todas como lidas")
       .accessibilityLabel(store.markingAll ? "Marcando…" : "Marcar todas como lidas")
@@ -181,10 +186,10 @@ struct NotificationCenterView: View {
         .padding(.vertical, 32)
     } else {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(Array(store.visibleItems.enumerated()), id: \.element.id) { index, item in
-          NotificationRow(store: store, item: item, open: { open(item) })
-          if index < store.visibleItems.count - 1 {
-            Divider().overlay(theme.line)
+        let items = store.visibleItems
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+          ListRow(index: index, isLast: index == items.count - 1) {
+            NotificationRow(store: store, item: item, open: { open(item) })
           }
         }
       }
@@ -225,8 +230,7 @@ private struct NotificationRow: View {
         Spacer(minLength: 0)
         if mentionKey != nil {
           Button("Responder") { store.toggleReply(item) }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
             .accessibilityLabel("responder \(item.title)")
             .accessibilityValue(isWriting ? "aberto" : "fechado")
         }
@@ -236,7 +240,7 @@ private struct NotificationRow: View {
           } label: {
             Image(systemName: "checkmark")
           }
-          .buttonStyle(.borderless)
+          .iconButtonStyle(size: .small)
           .help("Marcar como lida")
           .accessibilityLabel("marcar \(item.title) como lida")
         }
@@ -250,7 +254,6 @@ private struct NotificationRow: View {
           .foregroundStyle(theme.inkMid)
       }
     }
-    .padding(.vertical, 12)
     .contextMenu {
       if store.destination(item) != nil { Button("Abrir", action: open) }
       if !item.read {
@@ -287,7 +290,7 @@ private struct ReplyForm: View {
     if let reply = store.reply {
       VStack(alignment: .leading, spacing: 8) {
         TextEditor(text: textBinding)
-          .font(.system(size: 14))
+          .font(.geist(14))
           .frame(height: 88)
           .scrollContentBackground(.hidden)
           .padding(6)
@@ -311,15 +314,15 @@ private struct ReplyForm: View {
         HStack(spacing: 8) {
           Spacer(minLength: 0)
           Button("Cancelar") { store.cancelReply() }
+            .pillButtonStyle(.outline, size: .small)
             .disabled(reply.sending)
           Button(reply.sending ? "Comentando…" : "Comentar") {
             Task { await store.submitReply() }
           }
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary, size: .small)
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(!reply.ready)
         }
-        .controlSize(.small)
       }
       .onAppear { focused = true }
     }

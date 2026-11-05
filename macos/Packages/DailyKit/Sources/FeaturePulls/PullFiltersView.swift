@@ -17,8 +17,9 @@ struct PullFiltersView: View {
         } label: {
           Label(
             store.hiddenFilterCount > 0 ? "Filtros (\(store.hiddenFilterCount))" : "Filtros",
-            systemImage: "line.3.horizontal.decrease.circle")
+            systemImage: "slider.horizontal.3")
         }
+        .pillButtonStyle(.outline, size: .small)
         .accessibilityLabel("Filtros, \(countLabel(store.hiddenFilterCount))")
         .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
           PullFilterPopover(store: store)
@@ -94,17 +95,19 @@ private struct MultiValueFilter: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack {
-        Picker(label, selection: $group.mode) {
-          Text("É igual a (=)").tag(PullFilterMode.include)
-          Text("Não é igual a (≠)").tag(PullFilterMode.exclude)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .accessibilityLabel("modo de \(label)")
+        SegmentedPills(
+          "modo de \(label)",
+          items: [
+            .init(id: PullFilterMode.include, label: "É igual a (=)"),
+            .init(id: .exclude, label: "Não é igual a (≠)"),
+          ],
+          selection: $group.mode,
+          style: .toggle
+        )
+        .fixedSize()
         if !group.values.isEmpty {
           Button("Limpar") { group.values = [] }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
             .accessibilityLabel("limpar opções de \(label)")
         }
       }
@@ -165,8 +168,7 @@ struct PullActiveFiltersRow: View {
         }
         if filters.count > 1 {
           Button("Limpar tudo", systemImage: "xmark", action: clearAll)
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
         }
       }
     }

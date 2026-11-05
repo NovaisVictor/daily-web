@@ -23,15 +23,9 @@ struct JiraIssueMenu: View {
   let actions: JiraRowActions
 
   var body: some View {
-    Menu {
+    JiraIconMenu("ações de \(issue.key)", systemImage: "ellipsis", size: .small) {
       JiraIssueMenuItems(issue: issue, actions: actions)
-    } label: {
-      Image(systemName: "ellipsis")
     }
-    .menuStyle(.borderlessButton)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .accessibilityLabel("ações de \(issue.key)")
   }
 }
 
@@ -91,7 +85,7 @@ struct JiraRowView: View {
     let stale = JiraText.stalenessLabel(issue, now: actions.now)
     let due = issue.dueDate.isEmpty ? nil : JiraText.dueLabel(issue.dueDate, now: actions.now)
     let overdue = !issue.dueDate.isEmpty && JiraText.isOverdue(issue.dueDate, now: actions.now)
-    HStack(alignment: .top, spacing: 10) {
+    HStack(alignment: .top, spacing: 12) {
       if depth > 0 {
         // A branch tick reads as hierarchy without drawing a full tree of guides.
         UnevenRoundedRectangle(bottomLeadingRadius: 3)
@@ -130,27 +124,21 @@ struct JiraRowView: View {
             TransitionPicker(issue: issue, store: store)
           }
           JiraPriorityLabel(issue: issue)
-          if let stale { Text(stale).font(.system(size: 12)).foregroundStyle(theme.warning) }
+          if let stale { Text(stale).font(.geist(12)).foregroundStyle(theme.warning) }
           if let due {
-            Text(due).font(.system(size: 12)).foregroundStyle(overdue ? theme.danger : theme.inkDim)
+            Text(due).font(.geist(12)).foregroundStyle(overdue ? theme.danger : theme.inkDim)
           }
         }
         JiraPullLinks(key: issue.key, pulls: actions.pulls[issue.key] ?? [])
       }
       if let source = actions.focusSource(issue) {
-        Button {
+        IconButton("agendar foco para \(issue.key)", systemImage: "calendar.badge.plus", size: .small) {
           actions.open(.focus(source))
-        } label: {
-          Image(systemName: "calendar.badge.plus")
         }
-        .buttonStyle(.borderless)
-        .help("agendar foco para \(issue.key)")
-        .accessibilityLabel("agendar foco para \(issue.key)")
       }
       if origin != .ancestor { JiraIssueMenu(issue: issue, actions: actions) }
     }
     .padding(.leading, CGFloat(depth) * 24)
-    .padding(.vertical, 10)
     .contentShape(.rect)
     .draggableIfPresent(actions.focusSource(issue))
     .contextMenu {
@@ -170,12 +158,9 @@ struct JiraRowView: View {
       let what = children == 1 ? "a issue" : "as \(children) issues"
       Button(action: toggle) {
         Image(systemName: "chevron.right")
-          .font(.system(size: 11, weight: .semibold))
-          .rotationEffect(.degrees(isOpen ? 90 : 0))
-          .frame(width: 18, height: 18)
       }
-      .buttonStyle(.borderless)
-      .foregroundStyle(theme.inkDim)
+      .buttonStyle(JiraCaretStyle(isOpen: isOpen))
+      .focusEffectDisabled()
       .accessibilityLabel("\(isOpen ? "recolher" : "expandir") \(what) sob \(issue.key)")
       .accessibilityValue(isOpen ? "expandido" : "recolhido")
     } else {
@@ -223,32 +208,8 @@ struct FlagIndicator: View {
   }
 }
 
-/// A node and, when open, its children (`JiraBranch`).
-struct JiraBranchView: View {
-  let node: JiraNode
-  let store: JiraStore
-  let actions: JiraRowActions
-  let depth: Int
-  let showRole: Bool
-
-  var body: some View {
-    let open = store.isOpen(node)
-    JiraRowView(
-      issue: node.issue, store: store, actions: actions, depth: depth, children: node.children.count, isOpen: open,
-      origin: node.origin, showRole: showRole, toggle: { store.toggle(node) }
-    )
-    .id(node.issue.key)
-    .jiraRowBackground(highlighted: store.revealed == node.issue.key)
-    Divider()
-    if open {
-      ForEach(node.children) { child in
-        JiraBranchView(node: child, store: store, actions: actions, depth: depth + 1, showRole: showRole)
-      }
-    }
-  }
-}
-
-/// One block per project with its tree (`JiraProjects`).
+/// One block per project with its tree (`JiraProjects`, `JiraBranch`). The open
+/// branches are laid out as one flat list so every row knows its place in the zebra.
 struct JiraProjectsView: View {
   let groups: [JiraProjectGroup]
   let store: JiraStore
@@ -257,10 +218,17 @@ struct JiraProjectsView: View {
 
   var body: some View {
     ForEach(groups) { group in
+      let rows = JiraTree.visibleRows(group.roots, isOpen: store.isOpen)
       VStack(alignment: .leading, spacing: 0) {
         JiraGroupHeading(title: group.project, count: group.count)
-        ForEach(group.roots) { node in
-          JiraBranchView(node: node, store: store, actions: actions, depth: 0, showRole: showRole)
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+          let node = row.node
+          ListRow(index: index, isLast: index == rows.count - 1, isActive: store.revealed == node.issue.key) {
+            JiraRowView(
+              issue: node.issue, store: store, actions: actions, depth: row.depth, children: node.children.count,
+              isOpen: store.isOpen(node), origin: node.origin, showRole: showRole, toggle: { store.toggle(node) })
+          }
+          .id(node.issue.key)
         }
       }
       .padding(.top, 16)
@@ -276,7 +244,7 @@ struct JiraProblemRowView: View {
   let actions: JiraRowActions
 
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
+    HStack(alignment: .top, spacing: 12) {
       Text(JiraText.issueMarker(issue.item)).typeRole(.caption).foregroundStyle(theme.inkDim)
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 3) {
@@ -299,7 +267,6 @@ struct JiraProblemRowView: View {
       }
       JiraIssueMenu(issue: issue.item, actions: actions)
     }
-    .padding(.vertical, 10)
     .contentShape(.rect)
     .contextMenu {
       JiraRowContextItems(issue: issue.item, actions: actions)
@@ -319,7 +286,7 @@ struct JiraWatchedRowView: View {
   var body: some View {
     let stale = JiraText.stalenessLabel(issue, now: actions.now)
     let due = issue.dueDate.isEmpty ? nil : JiraText.dueLabel(issue.dueDate, now: actions.now)
-    HStack(alignment: .top, spacing: 10) {
+    HStack(alignment: .top, spacing: 12) {
       Text(JiraText.issueMarker(issue)).typeRole(.caption).foregroundStyle(theme.inkDim).accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 3) {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -328,38 +295,51 @@ struct JiraWatchedRowView: View {
         }
         FlowLayout(spacing: 10) {
           JiraStatusLabel(issue: issue)
-          if let stale { Text(stale).font(.system(size: 12)).foregroundStyle(theme.warning) }
+          if let stale { Text(stale).font(.geist(12)).foregroundStyle(theme.warning) }
           if let due {
-            Text(due).font(.system(size: 12))
+            Text(due).font(.geist(12))
               .foregroundStyle(JiraText.isOverdue(issue.dueDate, now: actions.now) ? theme.danger : theme.inkDim)
           }
         }
       }
-      Button(action: unwatch) {
-        Image(systemName: "xmark")
-      }
-      .buttonStyle(.borderless)
-      .foregroundStyle(theme.inkDim)
-      .help("parar de acompanhar \(issue.key)")
-      .accessibilityLabel("parar de acompanhar \(issue.key)")
+      IconButton("parar de acompanhar \(issue.key)", systemImage: "xmark", size: .small, action: unwatch)
     }
-    .padding(.vertical, 10)
+    .contentShape(.rect)
     .contextMenu { JiraRowContextItems(issue: issue, actions: actions) }
   }
 }
 
-extension View {
-  /// The revealed row of a notification gets the brand tint.
-  func jiraRowBackground(highlighted: Bool) -> some View {
-    modifier(JiraRowHighlight(highlighted: highlighted))
+/// The tree caret (`caret`, `JiraPanel.tsx:105-106` and :1365-1374): a 14pt arrow in an
+/// 18pt box, `rounded-md hover:bg-muted hover:text-ink`, turned 90° while open.
+private struct JiraCaretStyle: ButtonStyle {
+  let isOpen: Bool
+
+  func makeBody(configuration: Configuration) -> some View {
+    JiraCaretBody(configuration: configuration, isOpen: isOpen)
   }
 }
 
-private struct JiraRowHighlight: ViewModifier {
+private struct JiraCaretBody: View {
   @Environment(\.theme) private var theme
-  let highlighted: Bool
+  @Environment(\.isFocused) private var isFocused
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var hovering = false
+  let configuration: ButtonStyleConfiguration
+  let isOpen: Bool
 
-  func body(content: Content) -> some View {
-    content.background(highlighted ? theme.brandTint : .clear, in: .rect(cornerRadius: 6))
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: Radius.medium)
+    configuration.label
+      .font(.system(size: 14))
+      .foregroundStyle(hovering ? theme.ink : theme.inkDim)
+      .rotationEffect(.degrees(isOpen ? 90 : 0))
+      .frame(width: 18, height: 18)
+      .background(hovering || configuration.isPressed ? theme.lineSoft : .clear, in: shape)
+      .dailyFocusRing(isFocused, in: shape)
+      .contentShape(shape)
+      .onHover { hovering = $0 }
+      // `transition-transform duration-100 ease-brand motion-reduce:transition-none`.
+      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: isOpen)
+      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: hovering)
   }
 }

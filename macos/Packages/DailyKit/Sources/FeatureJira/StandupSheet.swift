@@ -19,7 +19,7 @@ struct StandupSheet: View {
     VStack(alignment: .leading, spacing: 14) {
       VStack(alignment: .leading, spacing: 4) {
         Text("Resumo para a daily").typeRole(.subhead).foregroundStyle(theme.ink).accessibilityAddTraits(.isHeader)
-        Text(range.description).font(.system(size: 13)).foregroundStyle(theme.inkDim)
+        Text(range.description).font(.geist(13)).foregroundStyle(theme.inkDim)
           .fixedSize(horizontal: false, vertical: true)
       }
       HStack(spacing: 8) {
@@ -34,7 +34,7 @@ struct StandupSheet: View {
       .accessibilityLabel("Período do resumo")
       ScrollView {
         Text(text)
-          .font(.system(size: 13, design: .monospaced))
+          .font(.dailyMono(size: 13))
           .textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(10)
@@ -45,13 +45,13 @@ struct StandupSheet: View {
       .accessibilityLabel("texto do resumo")
       if copied == false {
         Text("Não deu para copiar. Selecione o texto acima e copie com ⌘C.")
-          .font(.system(size: 13)).foregroundStyle(theme.danger)
+          .font(.geist(13)).foregroundStyle(theme.danger)
       }
       HStack {
         Spacer()
-        Button("Fechar") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.cancelAction)
         Button(copied == true ? "Copiado" : "Copiar", action: copy)
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle()
           .keyboardShortcut(.defaultAction)
       }
     }

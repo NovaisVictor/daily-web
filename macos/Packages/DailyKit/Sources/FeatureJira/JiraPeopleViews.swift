@@ -5,6 +5,7 @@ import SwiftUI
 /// Whose Jira is on screen, as the screen title itself (`components/jira/PersonSwitcher.tsx`).
 struct PersonSwitcher: View {
   @Environment(\.theme) private var theme
+  @State private var hovering = false
   let store: JiraStore
 
   var body: some View {
@@ -27,12 +28,27 @@ struct PersonSwitcher: View {
         }
       }
     } label: {
-      Text("Jira · \(active?.displayName ?? "Eu")")
-        .typeRole(.subhead)
-        .foregroundStyle(theme.ink)
+      // `PersonSwitcher.tsx:54-55`: the name truncates and a chevron says it opens a menu.
+      HStack(spacing: 4) {
+        Text("Jira · \(active?.displayName ?? "Eu")")
+          .typeRole(.subhead)
+          .foregroundStyle(hovering ? theme.inkMid : theme.ink)
+          .lineLimit(1)
+          .truncationMode(.tail)
+        Image(systemName: "chevron.down")
+          .font(.system(size: 14))
+          .foregroundStyle(theme.inkDim)
+          .accessibilityHidden(true)
+      }
+      .contentShape(.rect)
     }
-    .menuStyle(.borderlessButton)
-    .fixedSize()
+    // The button menu style renders the whole label, so the chevron and the
+    // truncation survive; the borderless one keeps only the text.
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .onHover { hovering = $0 }
+    .accessibilityLabel("Jira · \(active?.displayName ?? "Eu")")
   }
 }
 
@@ -53,23 +69,16 @@ struct PeopleSearchCard: View {
             store.closePeopleSearch()
             return .handled
           }
-        Button {
-          store.closePeopleSearch()
-        } label: {
-          Image(systemName: "xmark")
-        }
-        .buttonStyle(.borderless)
-        .help("fechar busca de pessoa")
-        .accessibilityLabel("fechar busca de pessoa")
+        IconButton("fechar busca de pessoa", systemImage: "xmark") { store.closePeopleSearch() }
       }
       if let error = store.peopleError { PanelError(error) }
       if store.peopleSearching {
-        Text("Buscando…").font(.system(size: 13)).foregroundStyle(theme.inkDim)
+        Text("Buscando…").font(.geist(13)).foregroundStyle(theme.inkDim)
       } else if !store.peopleCandidates.isEmpty {
         FlowLayout(spacing: 8) {
           ForEach(store.peopleCandidates) { person in
             Button(person.displayName) { Task { await store.follow(person.accountId) } }
-              .controlSize(.small)
+              .pillButtonStyle(.outline, size: .small)
           }
         }
       }

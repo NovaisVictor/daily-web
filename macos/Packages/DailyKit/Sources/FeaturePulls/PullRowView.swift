@@ -17,7 +17,6 @@ struct PullRowView: View {
   let item: PullRequestItem
   /// In the global lists the repository is the first thing to know.
   var withRepo = false
-  var highlighted = false
   let store: PullsStore
   let actions: PullRowActions
 
@@ -49,20 +48,10 @@ struct PullRowView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       if let schedule = actions.scheduleFocus {
-        Button {
-          schedule(item)
-        } label: {
-          Image(systemName: "calendar.badge.plus")
-        }
-        .buttonStyle(.borderless)
-        .help("Agendar foco")
-        .accessibilityLabel("agendar foco para \(ref)")
+        IconButton("agendar foco para \(ref)", systemImage: "calendar.badge.plus", size: .small) { schedule(item) }
       }
       actionsMenu
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 10)
-    .background(highlighted ? theme.brandTint : .clear, in: .rect(cornerRadius: 6))
     .contentShape(.rect)
     .draggableIfPresent(actions.scheduleFocus == nil ? nil : PullsStore.focusSource(item))
     .contextMenu { menuContent(includeExtras: true) }
@@ -91,19 +80,13 @@ struct PullRowView: View {
         Text(item.title.isEmpty ? "—" : item.title).foregroundStyle(theme.ink).lineLimit(1)
       }
     }
-    .font(.system(size: 14))
+    .font(.geist(14))
   }
 
   private var actionsMenu: some View {
-    Menu {
+    PullIconMenu("ações de \(ref)", systemImage: "ellipsis") {
       menuContent(includeExtras: false)
-    } label: {
-      Image(systemName: "ellipsis")
     }
-    .menuStyle(.borderlessButton)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .accessibilityLabel("ações de \(ref)")
   }
 
   @ViewBuilder
@@ -130,7 +113,7 @@ struct JiraRefLink: View {
 
   var body: some View {
     let content = HStack(alignment: .firstTextBaseline, spacing: 6) {
-      Text(jira.key).font(.system(size: 12, design: .monospaced)).foregroundStyle(theme.brand)
+      Text(jira.key).font(.dailyMono(size: 12)).foregroundStyle(theme.brand)
       Text(glyph).foregroundStyle(tone).accessibilityHidden(true)
       Text(PullFormat.status(jira.status)).foregroundStyle(tone)
     }
@@ -288,7 +271,7 @@ private struct MoveCardButton: View {
 
   var body: some View {
     Button("\(jira.key) → \(intent.label)") { open = true }
-      .buttonStyle(.borderless)
+      .buttonStyle(.plain)
       .typeRole(.caption)
       .foregroundStyle(theme.brand)
       .accessibilityLabel("mover \(jira.key) para \(intent.label)")
@@ -316,14 +299,14 @@ private struct MoveCardButton: View {
     case .confirming(let transition, let sending, let refusal):
       if transition.requires == .screen {
         VStack(alignment: .leading, spacing: 8) {
-          Text("\(transition.name) → \(transition.to.name)").font(.system(size: 14))
+          Text("\(transition.name) → \(transition.to.name)").font(.geist(14))
           if let url = URL(string: jira.url) {
             Link("pede campos — abrir no Jira", destination: url).foregroundStyle(theme.warning)
           }
         }
       } else {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Mover \(jira.key) de \(jira.status) para \(transition.to.name)?").font(.system(size: 14))
+          Text("Mover \(jira.key) de \(jira.status) para \(transition.to.name)?").font(.geist(14))
           if let refusal {
             HStack(spacing: 4) {
               Text("\(refusal) ·").foregroundStyle(theme.danger)
@@ -334,14 +317,14 @@ private struct MoveCardButton: View {
           HStack {
             Spacer()
             Button("Cancelar") { open = false }
+              .pillButtonStyle(.outline, size: .small)
               .disabled(sending)
               .keyboardShortcut(.cancelAction)
             Button(sending ? "Movendo…" : "Confirmar") { confirm(transition) }
-              .buttonStyle(.borderedProminent)
+              .pillButtonStyle(.primary, size: .small)
               .disabled(sending)
               .keyboardShortcut(.defaultAction)
           }
-          .controlSize(.small)
         }
       }
     }

@@ -26,14 +26,11 @@ public struct SlackScreen: View {
             .foregroundStyle(theme.inkDim)
         }
       }
-      Picker("listas do Slack", selection: $store.tab) {
-        ForEach(SlackTab.allCases) { tab in
-          Text("\(tab.label) \(store.count(tab))").tag(tab)
-        }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .accessibilityLabel("listas do Slack")
+      SegmentedPills(
+        "listas do Slack",
+        items: SlackTab.allCases.map { .init(id: $0, label: $0.label, count: store.count($0)) },
+        selection: $store.tab
+      )
       .fixedSize()
       content
     }
@@ -68,22 +65,16 @@ public struct SlackScreen: View {
 
   private var messageList: some View {
     ScrollViewReader { proxy in
-      List(selection: $store.selection) {
-        ForEach(store.items) { message in
-          SlackMessageRow(message: message)
-            .tag(message.id)
+      ScrollView {
+        let items = store.items
+        LazyVStack(alignment: .leading, spacing: 0) {
+          ForEach(Array(items.enumerated()), id: \.element.id) { index, message in
+            ListRow(index: index, isLast: index == items.count - 1, isActive: store.selection == message.id) {
+              row(message)
+            }
             .id(message.id)
+          }
         }
-      }
-      .listStyle(.inset)
-      .scrollContentBackground(.hidden)
-      .contextMenu(forSelectionType: String.self) { ids in
-        if let message = message(ids), let url = SlackStore.link(message) {
-          Button("Abrir no Slack") { openURL(url) }
-          Button("Copiar link") { copy(url) }
-        }
-      } primaryAction: { ids in
-        if let message = message(ids), let url = SlackStore.link(message) { openURL(url) }
       }
       .onAppear { scrollToTarget(proxy) }
       .onChange(of: store.scrollTarget) { scrollToTarget(proxy) }
@@ -96,9 +87,25 @@ public struct SlackScreen: View {
     store.scrollTarget = nil
   }
 
-  private func message(_ ids: Set<String>) -> SlackMessage? {
-    guard let id = ids.first else { return nil }
-    return store.items.first { $0.id == id }
+  /// The web row is a link to Slack (`SlackPanel.tsx:35-42`); one without a link is text.
+  @ViewBuilder
+  private func row(_ message: SlackMessage) -> some View {
+    if let url = SlackStore.link(message) {
+      Button {
+        store.selection = message.id
+        openURL(url)
+      } label: {
+        SlackMessageRow(message: message).contentShape(.rect)
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint("abre no Slack")
+      .contextMenu {
+        Button("Abrir no Slack") { openURL(url) }
+        Button("Copiar link") { copy(url) }
+      }
+    } else {
+      SlackMessageRow(message: message)
+    }
   }
 
   private func copy(_ url: URL) {
@@ -116,7 +123,7 @@ private struct SlackMessageRow: View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(message.author)
-          .font(.system(size: 14, weight: .medium))
+          .font(.geist(14, weight: .medium))
           .foregroundStyle(theme.ink)
         Text(message.channel)
           .typeRole(.caption)
@@ -129,14 +136,11 @@ private struct SlackMessageRow: View {
         }
       }
       Text(message.text)
-        .font(.system(size: 14))
+        .font(.geist(14))
         .foregroundStyle(theme.inkMid)
-        .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(.vertical, 6)
     .accessibilityElement(children: .combine)
-    .accessibilityHint(SlackStore.link(message) == nil ? "" : "abre no Slack")
   }
 }
 

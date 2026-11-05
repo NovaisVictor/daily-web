@@ -33,7 +33,7 @@ struct PullActionSheet: View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text(title).typeRole(.subhead).foregroundStyle(theme.ink)
-        Text(item.title).font(.system(size: 13)).foregroundStyle(theme.inkDim)
+        Text(item.title).font(.geist(13)).foregroundStyle(theme.inkDim)
           .fixedSize(horizontal: false, vertical: true)
       }
       if let outcome {
@@ -68,13 +68,13 @@ struct PullActionSheet: View {
           Link("abrir \(ref) no GitHub", destination: url).underline()
         }
       }
-      .font(.system(size: 14))
+      .font(.geist(14))
       .foregroundStyle(theme.ink)
       .accessibilityElement(children: .combine)
       HStack {
         Spacer()
         Button("Fechar") { dismiss() }
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle()
           .keyboardShortcut(.defaultAction)
       }
     }
@@ -108,7 +108,7 @@ struct PullActionSheet: View {
   private var textForm: some View {
     VStack(alignment: .leading, spacing: 8) {
       TextEditor(text: $text)
-        .font(.system(size: 14))
+        .font(.geist(14))
         .frame(minHeight: 96)
         .scrollContentBackground(.hidden)
         .padding(6)
@@ -163,7 +163,7 @@ struct PullActionSheet: View {
         .disabled(sending)
       }
       VStack(alignment: .leading, spacing: 4) {
-        Text("outros logins (separados por vírgula)").font(.system(size: 13))
+        Text("outros logins (separados por vírgula)").font(.geist(13))
         TextField("outros logins (separados por vírgula)", text: $typed)
           .textFieldStyle(.roundedBorder)
           .labelsHidden()
@@ -181,7 +181,7 @@ struct PullActionSheet: View {
   private var mergeForm: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("\(item.headRef ?? "") → \(item.baseRef ?? "")")
-        .font(.system(size: 14, design: .monospaced))
+        .font(.dailyMono(size: 14))
         .foregroundStyle(theme.ink)
       Picker("método", selection: $method) {
         ForEach(MergeMethod.allCases, id: \.self) { method in
@@ -207,7 +207,7 @@ struct PullActionSheet: View {
 
   private var rerunForm: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("roda de novo só os jobs que falharam no GitHub Actions deste commit").font(.system(size: 14))
+      Text("roda de novo só os jobs que falharam no GitHub Actions deste commit").font(.geist(14))
       if !item.failedChecks.isEmpty {
         VStack(alignment: .leading, spacing: 2) {
           ForEach(item.failedChecks, id: \.name) { check in
@@ -249,13 +249,13 @@ struct PullActionSheet: View {
     HStack(spacing: 8) {
       Spacer()
       Button("Cancelar") { dismiss() }
+        .pillButtonStyle(.outline)
         .disabled(sending)
         .keyboardShortcut(.cancelAction)
       Button(sending ? pending : label, role: destructive ? .destructive : nil) {
         submit(send)
       }
-      .buttonStyle(.borderedProminent)
-      .tint(destructive ? theme.danger : nil)
+      .pillButtonStyle(destructive ? .destructive : .primary)
       .disabled(!ready || sending)
       .keyboardShortcut(.defaultAction)
     }

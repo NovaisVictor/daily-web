@@ -36,6 +36,14 @@ nonisolated struct JiraProjectGroup: Equatable, Identifiable, Sendable {
   var id: String { project }
 }
 
+/// A node as one line of the list, at its depth in the tree.
+nonisolated struct JiraVisibleRow: Equatable, Identifiable, Sendable {
+  var node: JiraNode
+  var depth: Int
+
+  var id: String { node.id }
+}
+
 /// A situation bucket of the flat list (`groupByStatusCategory`).
 nonisolated struct JiraStatusGroup: Equatable, Identifiable, Sendable {
   var category: JiraStatusCategory
@@ -95,6 +103,19 @@ nonisolated enum JiraTree {
       return JiraProjectGroup(project: project, roots: roots, count: roots.reduce(0) { $0 + $1.matchCount })
     }
     return JiraSorting.stable(built) { JiraText.localeLess($0.project, $1.project) }
+  }
+
+  /// The rows a project shows, depth first: a node, then its children when open. A
+  /// flat list gives every row its position, which the zebra of `ListRow` counts.
+  static func visibleRows(_ roots: [JiraNode], isOpen: (JiraNode) -> Bool) -> [JiraVisibleRow] {
+    var rows: [JiraVisibleRow] = []
+    func visit(_ node: JiraNode, depth: Int) {
+      rows.append(JiraVisibleRow(node: node, depth: depth))
+      guard isOpen(node) else { return }
+      for child in node.children { visit(child, depth: depth + 1) }
+    }
+    for root in roots { visit(root, depth: 0) }
+    return rows
   }
 
   /// `groupByStatusCategory`: what was started comes before what was not.

@@ -49,7 +49,7 @@ struct JiraDialogChrome<Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: 14) {
       VStack(alignment: .leading, spacing: 4) {
         Text(title).typeRole(.subhead).foregroundStyle(theme.ink).accessibilityAddTraits(.isHeader)
-        Text(description).font(.system(size: 13)).foregroundStyle(theme.inkMid)
+        Text(description).font(.geist(13)).foregroundStyle(theme.inkMid)
           .fixedSize(horizontal: false, vertical: true)
       }
       content
@@ -90,30 +90,30 @@ struct CommentSheet: View {
           }
           .buttonStyle(.link)
         }
-        .font(.system(size: 13))
+        .font(.geist(13))
       } else {
         VStack(alignment: .leading, spacing: 6) {
           TextEditor(text: $text)
-            .font(.system(size: 13))
+            .font(.geist(13))
             .frame(minHeight: 96)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
             .accessibilityLabel("comentário em \(issue.key)")
           if let problem = refusal ?? (tooLong ? "passou de \(JiraLimits.comment) caracteres (\(trimmed.count))" : nil)
           {
-            Text(problem).font(.system(size: 12)).foregroundStyle(theme.danger)
+            Text(problem).font(.geist(12)).foregroundStyle(theme.danger)
           }
           Text("vai aparecer como seu comentário em \(issue.key)")
-            .font(.system(size: 12)).foregroundStyle(theme.inkDim)
+            .font(.geist(12)).foregroundStyle(theme.inkDim)
         }
       }
     } footer: {
       if published {
-        Button("Fechar") { dismiss() }.keyboardShortcut(.defaultAction)
+        Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
       } else {
-        Button("Cancelar") { dismiss() }.disabled(sending).keyboardShortcut(.cancelAction)
+        Button("Cancelar") { dismiss() }.pillButtonStyle(.outline).disabled(sending).keyboardShortcut(.cancelAction)
         Button(sending ? "Comentando…" : "Comentar", action: submit)
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle()
           .disabled(!ready)
           .keyboardShortcut(.return, modifiers: .command)
       }
@@ -166,9 +166,9 @@ struct FlagSheet: View {
       JiraDialogChrome(
         title: flagging ? "Impedimento marcado" : "Impedimento removido", description: "\(issue.key) — \(issue.summary)"
       ) {
-        Text(warning).font(.system(size: 13)).foregroundStyle(theme.warning)
+        Text(warning).font(.geist(13)).foregroundStyle(theme.warning)
       } footer: {
-        Button("Fechar") { dismiss() }.keyboardShortcut(.defaultAction)
+        Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
       }
     } else {
       JiraDialogChrome(
@@ -176,9 +176,9 @@ struct FlagSheet: View {
         description: "\(issue.key) — \(issue.summary)"
       ) {
         VStack(alignment: .leading, spacing: 6) {
-          Text(flagging ? "Motivo" : "Observação (opcional)").font(.system(size: 13, weight: .medium))
+          Text(flagging ? "Motivo" : "Observação (opcional)").font(.geist(13, weight: .medium))
           TextEditor(text: $text)
-            .font(.system(size: 13))
+            .font(.geist(13))
             .frame(minHeight: 72)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
@@ -191,14 +191,13 @@ struct FlagSheet: View {
             flagging
               ? "o motivo vira um comentário na issue" : "se preenchida, a observação vira um comentário na issue"
           )
-          .font(.system(size: 11)).foregroundStyle(theme.inkDim)
-          if let error { Text(error).font(.system(size: 13)).foregroundStyle(theme.danger) }
+          .font(.geist(11)).foregroundStyle(theme.inkDim)
+          if let error { Text(error).font(.geist(13)).foregroundStyle(theme.danger) }
         }
       } footer: {
-        Button("Cancelar") { dismiss() }.disabled(sending).keyboardShortcut(.cancelAction)
+        Button("Cancelar") { dismiss() }.pillButtonStyle(.outline).disabled(sending).keyboardShortcut(.cancelAction)
         Button(sending ? "enviando…" : (flagging ? "Marcar impedimento" : "Remover impedimento"), action: submit)
-          .buttonStyle(.borderedProminent)
-          .tint(flagging ? theme.danger : nil)
+          .pillButtonStyle(flagging ? .destructive : .primary)
           .disabled(sending || !valid)
           .keyboardShortcut(.defaultAction)
       }
@@ -269,10 +268,9 @@ struct ApprovalSheet: View {
               HStack {
                 Text(approval.name).foregroundStyle(theme.ink)
                 Spacer()
-                Button("Recusar") { confirming = (approval, .decline) }
-                Button("Aprovar") { confirming = (approval, .approve) }.buttonStyle(.borderedProminent)
+                Button("Recusar") { confirming = (approval, .decline) }.pillButtonStyle(.outline, size: .small)
+                Button("Aprovar") { confirming = (approval, .approve) }.pillButtonStyle(.primary, size: .small)
               }
-              .controlSize(.small)
             }
           }
         }
@@ -281,13 +279,14 @@ struct ApprovalSheet: View {
           if let error { Text(error).foregroundStyle(theme.danger) }
         }
       }
-      .font(.system(size: 13))
+      .font(.geist(13))
     } footer: {
       if let confirming {
         Button("Voltar") {
           error = nil
           self.confirming = nil
         }
+        .pillButtonStyle(.outline)
         .disabled(sending)
         .keyboardShortcut(.cancelAction)
         Button(
@@ -296,12 +295,11 @@ struct ApprovalSheet: View {
         ) {
           submit(confirming.approval, confirming.decision)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(confirming.decision == .decline ? theme.danger : nil)
+        .pillButtonStyle(confirming.decision == .decline ? .destructive : .primary)
         .disabled(sending)
         .keyboardShortcut(.defaultAction)
       } else {
-        Button("Fechar") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.cancelAction)
       }
     }
     .task { reload() }
@@ -356,9 +354,9 @@ struct JiraDialogActions: View {
   let confirm: () -> Void
 
   var body: some View {
-    Button("Cancelar", action: cancel).disabled(sending).keyboardShortcut(.cancelAction)
+    Button("Cancelar", action: cancel).pillButtonStyle(.outline).disabled(sending).keyboardShortcut(.cancelAction)
     Button(sending ? busy : idle, action: confirm)
-      .buttonStyle(.borderedProminent)
+      .pillButtonStyle()
       .disabled(disabled || sending)
       .keyboardShortcut(.defaultAction)
   }
@@ -386,21 +384,24 @@ struct DueSheet: View {
   var body: some View {
     JiraDialogChrome(title: "Prazo de \(issue.key)", description: issue.summary) {
       VStack(alignment: .leading, spacing: 8) {
-        Text("Novo prazo").font(.system(size: 13, weight: .medium))
+        Text("Novo prazo").font(.geist(13, weight: .medium))
         HStack(spacing: 8) {
           if value.isEmpty {
             Button("Escolher data") { value = JiraDates.dayString(store.now()) }
+              .pillButtonStyle(.outline, size: .small)
               .disabled(sending)
           } else {
             DatePicker("Novo prazo", selection: dateBinding, displayedComponents: .date)
               .labelsHidden()
               .disabled(sending)
           }
-          Button("Remover prazo") { value = "" }.disabled(value.isEmpty || sending)
+          Button("Remover prazo") { value = "" }
+            .pillButtonStyle(.ghost, size: .small)
+            .disabled(value.isEmpty || sending)
         }
         if changed {
           Text("de \(JiraText.formatDate(issue.dueDate)) para \(JiraText.formatDate(value))")
-            .font(.system(size: 12)).foregroundStyle(theme.ink)
+            .font(.geist(12)).foregroundStyle(theme.ink)
         }
         JiraRefusal(message: refusal, issue: issue)
       }
@@ -467,7 +468,7 @@ struct PrioritySheet: View {
           Text("carregando prioridades…").foregroundStyle(theme.inkDim)
         case .failed(let message):
           Text(message).foregroundStyle(theme.danger)
-          Button("Tentar de novo", action: fetch).controlSize(.small)
+          Button("Tentar de novo", action: fetch).pillButtonStyle(.outline, size: .small)
         case .ready(let options):
           Picker(
             "Prioridade",
@@ -485,7 +486,7 @@ struct PrioritySheet: View {
           JiraRefusal(message: refusal, issue: issue)
         }
       }
-      .font(.system(size: 13))
+      .font(.geist(13))
     } footer: {
       JiraDialogActions(
         sending: sending, disabled: !changed, idle: "Salvar", busy: "Salvando…", cancel: { dismiss() }, confirm: save)
@@ -568,25 +569,25 @@ struct CreateStorySheet: View {
           .buttonStyle(.link)
           Text("criada")
         }
-        .font(.system(size: 13))
+        .font(.geist(13))
       } footer: {
-        Button("Fechar") { dismiss() }.keyboardShortcut(.defaultAction)
+        Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
       }
     } else {
       JiraDialogChrome(
         title: "Criar história", description: "nova história em \(issue.project) dentro de \(issue.key)"
       ) {
         VStack(alignment: .leading, spacing: 6) {
-          Text("Resumo").font(.system(size: 13, weight: .medium))
+          Text("Resumo").font(.geist(13, weight: .medium))
           TextField("Resumo", text: $summary)
             .labelsHidden()
             .disabled(sending)
             .onChange(of: summary) { _, next in
               if next.count > JiraLimits.summary { summary = String(next.prefix(JiraLimits.summary)) }
             }
-          Text("Descrição (opcional)").font(.system(size: 13, weight: .medium))
+          Text("Descrição (opcional)").font(.geist(13, weight: .medium))
           TextEditor(text: $description)
-            .font(.system(size: 13))
+            .font(.geist(13))
             .frame(minHeight: 72)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }

@@ -32,7 +32,7 @@ struct TransitionPicker: View {
     .accessibilityLabel("mudar status de \(issue.key) (\(issue.status))")
     .popover(isPresented: $open, arrowEdge: .bottom) {
       content
-        .font(.system(size: 12))
+        .font(.geist(12))
         .padding(10)
         .frame(width: 288, alignment: .leading)
     }
@@ -60,7 +60,7 @@ struct TransitionPicker: View {
     case .failed(let message):
       VStack(alignment: .leading, spacing: 8) {
         Text(message).foregroundStyle(theme.danger)
-        Button("Tentar de novo", action: load).controlSize(.small)
+        Button("Tentar de novo", action: load).pillButtonStyle(.outline, size: .small)
       }
     case .choosing(let transitions):
       if transitions.isEmpty {
@@ -75,21 +75,21 @@ struct TransitionPicker: View {
     case .confirming(let transitions, let chosen, let sending, let refusal):
       VStack(alignment: .leading, spacing: 8) {
         Text("Mover \(issue.key) de \(issue.status) para \(chosen.to.name)?")
-          .font(.system(size: 13))
+          .font(.geist(13))
           .foregroundStyle(theme.ink)
           .fixedSize(horizontal: false, vertical: true)
         JiraRefusal(message: refusal, issue: issue)
         HStack {
           Spacer()
           Button("Cancelar") { phase = .choosing(transitions) }
+            .pillButtonStyle(.outline, size: .small)
             .disabled(sending)
             .keyboardShortcut(.cancelAction)
           Button(sending ? "Movendo…" : "Confirmar") { confirm(transitions, chosen) }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle(.primary, size: .small)
             .disabled(sending)
             .keyboardShortcut(.defaultAction)
         }
-        .controlSize(.small)
       }
     }
   }

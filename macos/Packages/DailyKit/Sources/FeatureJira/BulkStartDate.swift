@@ -85,7 +85,7 @@ struct BulkStartDateButton: View {
         Button(phase == .loading ? "Buscando datas…" : "Preencher início em todas (\(missing.count))") {
           open(missing)
         }
-        .controlSize(.small)
+        .pillButtonStyle(.outline, size: .small)
         .disabled(phase == .loading)
       }
       .sheet(isPresented: presented) {
@@ -141,7 +141,7 @@ private struct BulkStartDateSheet: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("Preencher data de início").typeRole(.subhead).foregroundStyle(theme.ink)
         Text("Confira a data sugerida de cada história. Nada é gravado no Jira até você confirmar.")
-          .font(.system(size: 13)).foregroundStyle(theme.inkDim)
+          .font(.geist(13)).foregroundStyle(theme.inkDim)
       }
       if case .failed(let error) = phase {
         Text("Não foi possível sugerir as datas: \(error)").foregroundStyle(theme.danger)
@@ -161,17 +161,17 @@ private struct BulkStartDateSheet: View {
         Spacer()
         switch phase {
         case .written, .failed:
-          Button("Fechar") { phase = .closed }.keyboardShortcut(.defaultAction)
+          Button("Fechar") { phase = .closed }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
         default:
-          Button("Cancelar") { phase = .closed }.keyboardShortcut(.cancelAction)
+          Button("Cancelar") { phase = .closed }.pillButtonStyle(.outline).keyboardShortcut(.cancelAction)
           Button(phase.isWriting ? "Gravando…" : "Gravar \(count) \(count == 1 ? "data" : "datas")") { write() }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle()
             .disabled(locked || count == 0)
             .keyboardShortcut(.defaultAction)
         }
       }
     }
-    .font(.system(size: 13))
+    .font(.geist(13))
     .padding(20)
     .frame(width: 640)
   }
@@ -198,7 +198,7 @@ private struct BulkStartDateSheet: View {
           .accessibilityLabel("Incluir \(row.key)")
           .disabled(locked)
         }
-        Text(row.key).font(.system(size: 13, design: .monospaced)).foregroundStyle(theme.brand)
+        Text(row.key).font(.dailyMono(size: 13)).foregroundStyle(theme.brand)
         Text(row.summary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
         if case .editable(let date, _, let included) = row.kind {
           DatePicker(
@@ -216,14 +216,14 @@ private struct BulkStartDateSheet: View {
       }
       switch row.kind {
       case .editable(_, let basis, _):
-        if let note = JiraText.basisNote(basis) { Text(note).font(.system(size: 12)).foregroundStyle(theme.inkDim) }
+        if let note = JiraText.basisNote(basis) { Text(note).font(.geist(12)).foregroundStyle(theme.inkDim) }
       case .unavailable(let error):
-        Text("Sem sugestão: \(error)").font(.system(size: 12)).foregroundStyle(theme.danger)
+        Text("Sem sugestão: \(error)").font(.geist(12)).foregroundStyle(theme.danger)
       }
       if result?.outcome == .written {
-        Text("gravada ✓").font(.system(size: 12)).foregroundStyle(theme.success)
+        Text("gravada ✓").font(.geist(12)).foregroundStyle(theme.success)
       } else if result?.outcome == .refused {
-        Text("Jira recusou: \(result?.error ?? "sem detalhe")").font(.system(size: 12)).foregroundStyle(theme.danger)
+        Text("Jira recusou: \(result?.error ?? "sem detalhe")").font(.geist(12)).foregroundStyle(theme.danger)
       }
     }
   }

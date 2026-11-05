@@ -94,33 +94,29 @@ public struct JiraScreen: View {
       PersonSwitcher(store: store)
       if store.tab == .open, !active.isEmpty {
         Text("\(visible.count) de \(store.all.count)")
-          .font(.system(size: 14).monospacedDigit())
+          .font(.geist(14).monospacedDigit())
           .foregroundStyle(theme.inkDim)
+          .fixedSize()
       }
-      Spacer()
+      Spacer(minLength: 0)
       if store.activePerson == nil {
-        Button {
-          standupOpen = true
-        } label: {
-          Image(systemName: "list.clipboard")
-        }
-        .help("Resumo para a daily")
-        .accessibilityLabel("Resumo para a daily")
+        IconButton("Resumo para a daily", systemImage: "list.clipboard") { standupOpen = true }
       }
     }
   }
 
   private func tabs(delivered: Int, approved: Int, problems: Int) -> some View {
-    Picker("listas do Jira", selection: $store.tab) {
-      Text("Em aberto \(store.all.count)").tag(JiraTab.open)
-      Text("Entregues \(delivered)").tag(JiraTab.delivered)
-      Text("Aprovados \(approved)").tag(JiraTab.approved)
-      Text("Problemas \(problems)").tag(JiraTab.problems)
-    }
-    .pickerStyle(.segmented)
-    .labelsHidden()
+    SegmentedPills(
+      "listas do Jira",
+      items: [
+        .init(id: JiraTab.open, label: "Em aberto", count: store.all.count),
+        .init(id: .delivered, label: "Entregues", count: delivered),
+        .init(id: .approved, label: "Aprovados", count: approved),
+        .init(id: .problems, label: "Problemas", count: problems),
+      ],
+      selection: $store.tab
+    )
     .fixedSize()
-    .accessibilityLabel("listas do Jira")
   }
 
   private func filterBar(active: [JiraActiveFilter], known: [String: JiraItem]) -> some View {
@@ -131,28 +127,20 @@ public struct JiraScreen: View {
       Button {
         filtersOpen.toggle()
       } label: {
-        HStack(spacing: 4) {
-          Image(systemName: "line.3.horizontal.decrease")
-          if secondary > 0 { Text("\(secondary)").monospacedDigit() }
+        // `FilterPopover.tsx:33-56`: the trigger names itself and shows how many hide inside.
+        HStack(spacing: 6) {
+          Image(systemName: "slider.horizontal.3").accessibilityHidden(true)
+          Text("Filtros")
+          if secondary > 0 { Text("\(secondary)").monospacedDigit().foregroundStyle(theme.brand) }
         }
       }
+      .pillButtonStyle(.outline, size: .small)
       .accessibilityLabel(secondary > 0 ? "filtros do Jira, \(secondary) ativos" : "filtros do Jira")
       .keyboardShortcut("f", modifiers: [.command, .shift])
       .popover(isPresented: $filtersOpen, arrowEdge: .bottom) {
         JiraFilterPopover(store: store, known: known)
       }
-      Menu {
-        Picker("Ordenar por", selection: $store.order) {
-          ForEach(JiraOrder.allCases, id: \.self) { order in Text(order.label).tag(order) }
-        }
-        .pickerStyle(.inline)
-      } label: {
-        Image(systemName: "arrow.up.arrow.down")
-      }
-      .menuIndicator(.hidden)
-      .fixedSize()
-      .help("Ordenar: \(store.order.label)")
-      .accessibilityLabel("Ordenar: \(store.order.label)")
+      JiraSortMenu(order: $store.order)
     }
   }
 
@@ -187,11 +175,11 @@ public struct JiraScreen: View {
       }
       BulkStartDateButton(problems: problems, store: store)
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(problems) { issue in
-          JiraProblemRowView(issue: issue, store: store, actions: actions)
-            .id(issue.key)
-            .jiraRowBackground(highlighted: store.revealed == issue.key)
-          Divider()
+        ForEach(Array(problems.enumerated()), id: \.element.id) { index, issue in
+          ListRow(index: index, isLast: index == problems.count - 1, isActive: store.revealed == issue.key) {
+            JiraProblemRowView(issue: issue, store: store, actions: actions)
+          }
+          .id(issue.key)
         }
       }
     case .open:
@@ -207,11 +195,11 @@ public struct JiraScreen: View {
           if store.grouped {
             ForEach(store.situations(visible)) { group in
               JiraGroupHeading(title: group.label, count: group.issues.count).padding(.top, 16)
-              ForEach(group.issues) { issue in
-                JiraRowView(issue: issue, store: store, actions: actions, showRole: store.role == .both)
-                  .id(issue.key)
-                  .jiraRowBackground(highlighted: store.revealed == issue.key)
-                Divider()
+              ForEach(Array(group.issues.enumerated()), id: \.element.id) { index, issue in
+                ListRow(index: index, isLast: index == group.issues.count - 1, isActive: store.revealed == issue.key) {
+                  JiraRowView(issue: issue, store: store, actions: actions, showRole: store.role == .both)
+                }
+                .id(issue.key)
               }
             }
           } else {
@@ -262,6 +250,7 @@ public struct JiraScreen: View {
         } label: {
           Image(systemName: "plus").symbolEffect(.pulse, isActive: store.watchSaving)
         }
+        .iconButtonStyle(variant: .outline)
         .disabled(store.watchSaving || store.watchKey.trimmingCharacters(in: .whitespaces).isEmpty)
         .help(store.watchSaving ? "Buscando…" : "Acompanhar issue")
         .accessibilityLabel(store.watchSaving ? "Buscando…" : "Acompanhar issue")
@@ -269,12 +258,13 @@ public struct JiraScreen: View {
       if let error = store.watchError { PanelError(error) }
       if let error = watched.error { PanelError(error) }
       if items.isEmpty, store.watchError == nil {
-        Text("Nenhuma issue acompanhada.").font(.system(size: 14)).foregroundStyle(theme.inkDim).padding(.vertical, 8)
+        Text("Nenhuma issue acompanhada.").font(.geist(14)).foregroundStyle(theme.inkDim).padding(.vertical, 8)
       }
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(items) { issue in
-          JiraWatchedRowView(issue: issue, actions: actions) { Task { await store.unwatch(issue.key) } }
-          Divider()
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, issue in
+          ListRow(index: index, isLast: index == items.count - 1) {
+            JiraWatchedRowView(issue: issue, actions: actions) { Task { await store.unwatch(issue.key) } }
+          }
         }
       }
     }

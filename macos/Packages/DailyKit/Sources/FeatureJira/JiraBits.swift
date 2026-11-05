@@ -14,7 +14,7 @@ struct JiraStatusLabel: View {
       Text(glyph.rawValue).accessibilityHidden(true)
       Text(JiraText.normalizeStatus(issue.status))
     }
-    .font(.system(size: 12))
+    .font(.geist(12))
     .foregroundStyle(theme.color(for: tone))
     .lineLimit(1)
     .fixedSize()
@@ -37,7 +37,7 @@ struct JiraPriorityLabel: View {
   var body: some View {
     if let priority = issue.priority {
       Text(priority.name)
-        .font(.system(size: 12))
+        .font(.geist(12))
         .foregroundStyle(color(priority.rank))
         .lineLimit(1)
         .fixedSize()
@@ -63,7 +63,7 @@ struct JiraRoleBadge: View {
 
   var body: some View {
     Text(text)
-      .font(.system(size: 11, weight: bold ? .semibold : .regular))
+      .font(.geist(11, weight: bold ? .semibold : .regular))
       .foregroundStyle(tone == .neutral ? theme.inkDim : theme.color(for: tone))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
@@ -106,7 +106,7 @@ struct JiraPullLinks: View {
               Text("\(pull.repo)#\(pull.number)").monospacedDigit().fixedSize()
               Text(pull.title).lineLimit(1).truncationMode(.tail)
             }
-            .font(.system(size: 12))
+            .font(.geist(12))
             .foregroundStyle(theme.inkDim)
           }
           .buttonStyle(.plain)
@@ -130,7 +130,7 @@ struct JiraKeyLink: View {
       if let url = URL(string: issue.url) { openURL(url) }
     }
     .buttonStyle(.plain)
-    .font(.system(size: 13, design: .monospaced))
+    .font(.dailyMono(size: 13))
     .foregroundStyle(theme.brand)
     .fixedSize()
     .help("abrir \(issue.key) no Jira")
@@ -186,8 +186,7 @@ struct JiraActiveFiltersRow: View {
         }
         if filters.count > 1 {
           Button("Limpar tudo", systemImage: "xmark", action: clearAll)
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
         }
       }
     }
@@ -213,7 +212,7 @@ struct JiraRefusal: View {
         }
         .buttonStyle(.link)
       }
-      .font(.system(size: 12))
+      .font(.geist(12))
       .fixedSize(horizontal: false, vertical: true)
       .accessibilityElement(children: .contain)
     }
@@ -228,6 +227,80 @@ extension View {
       draggable(payload)
     } else {
       self
+    }
+  }
+}
+
+/// The order trigger (`JiraPanel.tsx:840-864`, JR-14): a 32pt rimmed circle that opens
+/// the "Ordenar por" radio menu.
+struct JiraSortMenu: View {
+  @Binding var order: JiraOrder
+
+  var body: some View {
+    JiraIconMenu("Ordenar: \(order.label)", systemImage: "arrow.up.arrow.down", variant: .outline) {
+      Picker("Ordenar por", selection: $order) {
+        ForEach(JiraOrder.allCases, id: \.self) { order in Text(order.label).tag(order) }
+      }
+      .pickerStyle(.inline)
+    }
+  }
+}
+
+/// A menu behind an icon button. A native menu keeps the keyboard and VoiceOver
+/// behaviour of the web's dropdown; the circle takes the icon button's tokens, since a
+/// menu draws its own control and ignores a custom `ButtonStyle`.
+struct JiraIconMenu<Content: View>: View {
+  @Environment(\.theme) private var theme
+  @State private var hovering = false
+  private let label: String
+  private let systemImage: String
+  private let size: IconButtonSize
+  private let variant: IconButtonVariant
+  private let content: Content
+
+  init(
+    _ label: String, systemImage: String, size: IconButtonSize = .regular, variant: IconButtonVariant = .ghost,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.label = label
+    self.systemImage = systemImage
+    self.size = size
+    self.variant = variant
+    self.content = content()
+  }
+
+  var body: some View {
+    let palette = IconButtonStyle.palette(variant, highlighted: hovering, theme: theme)
+    Menu {
+      content
+    } label: {
+      raised(
+        Image(systemName: systemImage)
+          .font(.system(size: size.glyphSize))
+          .foregroundStyle(palette.foreground)
+          .frame(width: size.side, height: size.side)
+          .background(palette.fill, in: .circle)
+          .overlay { Circle().strokeBorder(palette.border ?? .clear) },
+        shadow: palette.shadow
+      )
+      .contentShape(.circle)
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .onHover { hovering = $0 }
+    .help(label)
+    .accessibilityLabel(label)
+  }
+
+  /// Only the outline variant is raised (`shadow-e1`); the ghost one sits flat.
+  @ViewBuilder
+  private func raised(_ view: some View, shadow: ControlShadow) -> some View {
+    if shadow == .none {
+      view
+    } else {
+      view.elevation(.e1, in: Circle())
     }
   }
 }

@@ -36,6 +36,17 @@ nonisolated enum NotificationsLogic {
     count == 1 ? "1 não lida" : "\(count) não lidas"
   }
 
+  // MARK: - Popover size
+
+  /// `w-[min(460px,calc(100vw-2rem))]` (`NotificationsBell.tsx:248-249`).
+  static let popoverWidth: CGFloat = 460
+
+  /// `max-h-[70vh]`: 70% of the screen the popover opens on. Without a screen there
+  /// is nothing to measure, and the popover takes the height of its content.
+  static func popoverMaxHeight(screenHeight: CGFloat?) -> CGFloat? {
+    screenHeight.map { ($0 * 0.7).rounded(.down) }
+  }
+
   // MARK: - Jira reply
 
   /// `COMMENT_MAX`, `lib/jiraLimits.ts:1`.

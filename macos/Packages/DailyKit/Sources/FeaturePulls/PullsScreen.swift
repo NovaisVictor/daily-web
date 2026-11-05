@@ -29,15 +29,12 @@ public struct PullsScreen: View {
     VStack(alignment: .leading, spacing: 12) {
       let count = store.count(store.tab)
       SectionHeader("GitHub", count: count > 0 ? String(count) : nil)
-      Picker("listas do GitHub", selection: $store.tab) {
-        ForEach(PullsTab.allCases) { tab in
-          Text("\(tab.label) \(store.count(tab))").tag(tab)
-        }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
+      SegmentedPills(
+        "listas do GitHub",
+        items: PullsTab.allCases.map { .init(id: $0, label: $0.label, count: store.count($0)) },
+        selection: $store.tab
+      )
       .fixedSize()
-      .accessibilityLabel("listas do GitHub")
       if store.showsFilters { PullFiltersView(store: store) }
       content
       if store.tab == .tracked { TrackedReposView(store: store) }
@@ -99,12 +96,18 @@ public struct PullsScreen: View {
     )
   }
 
-  private func row(_ item: PullRequestItem, withRepo: Bool) -> some View {
+  /// `blockers` is the "needs you" line the web prints above the row (`PullsPanel.tsx`).
+  private func row(
+    _ item: PullRequestItem, withRepo: Bool, index: Int, count: Int, blockers: String? = nil
+  ) -> some View {
     let ref = PullActionRules.ref(item)
-    return VStack(spacing: 0) {
-      PullRowView(
-        item: item, withRepo: withRepo, highlighted: store.highlighted == ref, store: store, actions: rowActions)
-      Divider().overlay(theme.lineSoft)
+    return ListRow(index: index, isLast: index == count - 1, isActive: store.highlighted == ref) {
+      VStack(alignment: .leading, spacing: 4) {
+        if let blockers {
+          Text(blockers).typeRole(.caption).foregroundStyle(theme.danger)
+        }
+        PullRowView(item: item, withRepo: withRepo, store: store, actions: rowActions)
+      }
     }
     .id(ref)
   }
@@ -151,7 +154,9 @@ public struct PullsScreen: View {
         }
         .typeRole(.caption)
         .foregroundStyle(theme.inkDim)
-        ForEach(items) { item in row(item, withRepo: false) }
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+          row(item, withRepo: false, index: index, count: items.count)
+        }
         if let truncation {
           let noun = truncation.kind == .issues ? "issues" : "pull requests"
           Text("Mostrando \(truncation.shown) de \(truncation.total) \(noun)")
@@ -179,7 +184,10 @@ public struct PullsScreen: View {
         EmptyState("Nenhuma revisão pedida a você.", description: digest?.scopeNote)
       }
     }
-    ForEach(store.reviews) { item in row(item, withRepo: true) }
+    let reviews = store.reviews
+    ForEach(Array(reviews.enumerated()), id: \.element.id) { index, item in
+      row(item, withRepo: true, index: index, count: reviews.count)
+    }
     if let digest, digest.truncated {
       Text("Mostrando \(store.reviews.count) de \(digest.total): a busca traz uma página por ciclo.")
         .typeRole(.caption).foregroundStyle(theme.inkDim).padding(.top, 12)
@@ -205,12 +213,10 @@ public struct PullsScreen: View {
         .typeRole(.subhead)
         .accessibilityAddTraits(.isHeader)
         Divider()
-        ForEach(entry.items) { item in
-          if entry.group == .needsYou {
-            Text(PullGrouping.blockers(item).map(\.label).joined(separator: ", "))
-              .typeRole(.caption).foregroundStyle(theme.danger).padding(.horizontal, 8).padding(.top, 8)
-          }
-          row(item, withRepo: true)
+        ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
+          row(
+            item, withRepo: true, index: index, count: entry.items.count,
+            blockers: entry.group == .needsYou ? PullGrouping.blockers(item).map(\.label).joined(separator: ", ") : nil)
         }
       }
       .padding(.bottom, 24)
@@ -241,7 +247,7 @@ struct DefaultBranchAlert: View {
           }
         }
       }
-      .font(.system(size: 14))
+      .font(.geist(14))
       .foregroundStyle(theme.inkMid)
       .tint(theme.inkMid)
       .padding(.horizontal, 16)

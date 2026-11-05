@@ -145,14 +145,14 @@ struct JiraMultiFilter: View {
       HStack(spacing: 6) {
         if !group.values.isEmpty {
           Text(exclude ? "≠" : "=")
-            .font(.system(size: 11, weight: .bold))
+            .font(.geist(11, weight: .bold))
             .foregroundStyle(exclude ? Color.white : theme.brandInk)
             .padding(.horizontal, 4)
             .background(exclude ? theme.danger : theme.brand, in: .rect(cornerRadius: 3))
             .help(exclude ? "Modo: não é igual a (exclusão)" : "Modo: é igual a (inclusão)")
         }
         Text(triggerText)
-          .font(.system(size: 12))
+          .font(.geist(12))
           .foregroundStyle(group.values.isEmpty ? theme.inkDim : theme.ink)
           .lineLimit(1)
           .frame(maxWidth: 176, alignment: .leading)
@@ -178,7 +178,7 @@ struct JiraMultiFilter: View {
       onChange(JiraFilterGroup(group.values, mode: mode))
     } label: {
       Text(mode.title)
-        .font(.system(size: 11, weight: .medium))
+        .font(.geist(11, weight: .medium))
         .foregroundStyle(current ? (mode == .exclude ? Color.white : theme.ink) : theme.inkDim)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
@@ -197,7 +197,7 @@ struct JiraMultiFilter: View {
         Spacer()
         if !group.values.isEmpty {
           Button("Limpar") { onChange(JiraFilterGroup([], mode: group.mode)) }
-            .buttonStyle(.borderless)
+            .pillButtonStyle(.ghost, size: .small)
             .accessibilityLabel("limpar opções de \(label)")
         }
       }
@@ -223,7 +223,7 @@ struct JiraMultiFilter: View {
               HStack {
                 Text(option.label).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                 if let secondary = option.secondary {
-                  Text(secondary).font(.system(size: 10, design: .monospaced)).foregroundStyle(theme.inkDim)
+                  Text(secondary).font(.dailyMono(size: 10)).foregroundStyle(theme.inkDim)
                 }
               }
             }
@@ -239,10 +239,10 @@ struct JiraMultiFilter: View {
         Spacer()
         if exclude { Text("Excluindo selecionados").foregroundStyle(theme.danger) }
       }
-      .font(.system(size: 11))
+      .font(.geist(11))
       .foregroundStyle(theme.inkDim)
     }
-    .font(.system(size: 12))
+    .font(.geist(12))
     .padding(12)
     .frame(width: 288)
   }

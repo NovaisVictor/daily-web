@@ -44,7 +44,7 @@ public struct HomeScreen: View {
       .padding(24)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(theme.surface0)
+    // No fill of its own: the glass panels sit on the window's backdrop (FR-013-03).
   }
 
   @ViewBuilder
@@ -129,7 +129,7 @@ private struct NowBand: View {
         .foregroundStyle(theme.ink)
         .accessibilityAddTraits(.isHeader)
       Text(greeting.welcome)
-        .font(.system(size: 14))
+        .font(.geist(14))
         .foregroundStyle(theme.inkMid)
     }
   }
@@ -179,22 +179,19 @@ private struct PomodoroCard: View {
             .foregroundStyle(theme.ink)
           HStack(spacing: 8) {
             let label = timer.running ? "pausar foco" : "iniciar foco"
+            // `IconAction variant="default"` (Pomodoro.tsx:106-117): the brand face. The icon
+            // button has no primary variant, so the small primary pill carries the glyph.
             Button {
               Task { await store.toggleTimer() }
             } label: {
               Image(systemName: timer.running ? "pause.fill" : "play.fill")
             }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle(.primary, size: .small)
             .help(label)
             .accessibilityLabel(label)
-            Button {
+            IconButton("zerar pomodoro", systemImage: "arrow.counterclockwise") {
               Task { await store.resetTimer() }
-            } label: {
-              Image(systemName: "arrow.counterclockwise")
             }
-            .buttonStyle(.bordered)
-            .help("zerar pomodoro")
-            .accessibilityLabel("zerar pomodoro")
           }
           .disabled(store.timerBusy)
         }
@@ -240,14 +237,18 @@ private struct ModulePanel: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Abrir \(panel.title)")
       }
-      if panel.hasTabs {
-        FlowLayout(spacing: 6) {
-          ForEach(panel.tabs) { item in
-            Chip(item.count > 0 ? "\(item.label) \(item.count)" : item.label, isOn: item.id == tab?.id) {
-              selectedTab = item.id
-            }
-          }
+      if panel.hasTabs, let tab {
+        // A narrow column scrolls the tabs sideways instead of clipping them.
+        ScrollView(.horizontal, showsIndicators: false) {
+          SegmentedPills(
+            "abas de \(panel.title)",
+            items: panel.tabs.map { .init(id: $0.id, label: $0.label, count: $0.count) },
+            selection: Binding(get: { tab.id }, set: { selectedTab = $0 })
+          )
+          .fixedSize()
+          .padding(4)
         }
+        .scrollClipDisabled()
       }
       if let tab {
         TabBody(tab: tab) { open(panel.route, $0.itemID) }
@@ -255,10 +256,7 @@ private struct ModulePanel: View {
     }
     .padding(18)
     .frame(maxWidth: .infinity, alignment: .topLeading)
-    .background(theme.surface1, in: .rect(cornerRadius: Radius.large))
-    .overlay {
-      RoundedRectangle(cornerRadius: Radius.large).strokeBorder(theme.line)
-    }
+    .glassSurface(.panel)
   }
 }
 
@@ -282,10 +280,9 @@ private struct TabBody: View {
       }
       if !tab.rows.isEmpty {
         VStack(spacing: 0) {
-          ForEach(tab.rows) { row in
-            PanelRow(row: row) { choose(row) }
-            if row.id != tab.rows.last?.id {
-              Divider().overlay(theme.lineSoft)
+          ForEach(Array(tab.rows.enumerated()), id: \.element.id) { index, row in
+            ListRow(index: index, isLast: index == tab.rows.count - 1) {
+              PanelRow(row: row) { choose(row) }
             }
           }
         }
@@ -297,7 +294,6 @@ private struct TabBody: View {
 /// A read-only row; choosing it opens the module, on the item when it has one.
 private struct PanelRow: View {
   @Environment(\.theme) private var theme
-  @State private var hovering = false
   let row: HomeRow
   let action: () -> Void
 
@@ -339,13 +335,9 @@ private struct PanelRow: View {
         }
         Spacer(minLength: 0)
       }
-      .padding(.vertical, 8)
-      .padding(.horizontal, 6)
-      .background(hovering ? theme.brandTint : .clear, in: .rect(cornerRadius: Radius.small))
       .contentShape(.rect)
     }
     .buttonStyle(.plain)
-    .onHover { hovering = $0 }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(.isButton)
     .accessibilityValue(row.emphasized ? "não lido" : "")
@@ -370,7 +362,7 @@ private struct NothingOnState: View {
         navigator.requestSettings(.integrations)
         openSettings()
       }
-      .buttonStyle(.borderedProminent)
+      .pillButtonStyle()
     }
   }
 }
