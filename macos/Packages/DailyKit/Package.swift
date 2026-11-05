@@ -35,7 +35,8 @@ let core: [Target] = [
   .target(name: "DailyModels", swiftSettings: strict),
   .target(name: "DailyAPI", dependencies: ["DailyModels"], swiftSettings: strict),
   .target(name: "DailyStorage", dependencies: ["DailyModels", "DailyAPI"], swiftSettings: strict),
-  .target(name: "DailyDesign", swiftSettings: ui),
+  // Geist Sans/Mono (SIL OFL 1.1, license shipped next to the files).
+  .target(name: "DailyDesign", resources: [.copy("Resources/Fonts")], swiftSettings: ui),
   .target(
     name: "DailyCore",
     dependencies: ["DailyModels", "DailyAPI", "DailyStorage"],
