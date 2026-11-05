@@ -127,4 +127,34 @@ import Testing
     #expect(environment.preferences.appearance == Appearance(theme: .dark))
     environment.poller.stop()
   }
+
+  /// Spec 015 FR-015-01: the remembered view follows the session's account.
+  @Test func signInActivatesTheRememberedViewAndSignOutKeepsIt() async throws {
+    let fake = FakeAPIClient()
+    let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: "t")
+    let defaults = Fixtures.defaults()
+    let environment = AppEnvironment(
+      rawClient: fake,
+      tokenStore: storage,
+      settings: storage,
+      cacheDirectory: nil,
+      defaults: defaults,
+      poster: FakeNotificationPoster()
+    )
+    fake.respond { call in
+      call.path == "/api/me" ? FakeAPIClient.json(Fixtures.user) : FakeAPIClient.json(Fixtures.state())
+    }
+    #expect(!environment.viewState.isActive)
+    await environment.launch()
+    #expect(environment.viewState.isActive)
+    environment.viewState.set("problemas", module: "jira", field: "tab")
+    await environment.session.signOut()
+    #expect(!environment.viewState.isActive)
+    #expect(environment.viewState.string(module: "jira", field: "tab") == nil)
+
+    let server = try #require(storage.serverURL)
+    #expect(await environment.session.signIn(server: server, username: "ana", password: "x") == nil)
+    #expect(environment.viewState.string(module: "jira", field: "tab") == "problemas")
+    environment.poller.stop()
+  }
 }

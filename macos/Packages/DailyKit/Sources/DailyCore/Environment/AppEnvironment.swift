@@ -22,6 +22,10 @@ public final class AppEnvironment {
   public let navigator = AppNavigator()
   public let shutdown = ShutdownTasks()
   public let featureStores: FeatureStores
+  /// What each panel remembers between launches, per account (spec 015 FR-015-01).
+  public let viewState: ViewStateStore
+  /// "The notes changed elsewhere", posted by the e-mail and heard by the notes (FR-015-07).
+  public let notesEvents = NotesEvents()
 
   /// The app's graph: `HTTPAPIClient`, Keychain token, caches under
   /// Application Support and `UNUserNotificationCenter`.
@@ -74,6 +78,7 @@ public final class AppEnvironment {
     let pomodoro = PomodoroController(client: client, dashboard: dashboard, now: now, sleep: sleep)
     let preferences = PreferencesStore(client: client, dashboard: dashboard, toasts: toasts, defaults: defaults)
     let focus = FocusScheduler(client: client, dashboard: dashboard, toasts: toasts, now: now)
+    let viewState = ViewStateStore(defaults: defaults)
 
     dashboard.observe { change in
       guard change.origin == .server else { return }
@@ -102,9 +107,11 @@ public final class AppEnvironment {
     session.onSignedIn = { user in
       if let server = settings.serverURL {
         preferences.activate(server: server, username: user.username)
+        viewState.activate(server: server, username: user.username)
       } else {
         Logger.core.error("Signed in without a server URL; the appearance stays in memory")
         preferences.deactivate()
+        viewState.deactivate()
       }
       dashboard.loadCached()
       poller.start()
@@ -117,6 +124,7 @@ public final class AppEnvironment {
       pomodoro.clear()
       alerts.reset()
       preferences.deactivate()
+      viewState.deactivate()
     }
 
     self.session = session
@@ -125,6 +133,7 @@ public final class AppEnvironment {
     self.dashboard = dashboard
     self.poller = poller
     self.preferences = preferences
+    self.viewState = viewState
     self.pomodoro = pomodoro
     self.focus = focus
     self.alerts = alerts
