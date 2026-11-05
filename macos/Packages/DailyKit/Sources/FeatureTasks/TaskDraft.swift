@@ -29,15 +29,22 @@ nonisolated enum TaskRecur: String, CaseIterable, Sendable, Identifiable {
   }
 }
 
-/// What the task form edits. The due date is free text the server parses
-/// (`lib/dateParsing.ts`): "hoje", "amanhã 14:30", "+3d", "2026-11-05 09:00".
+/// What the task form edits, with the web form's state (`TaskFormModal.tsx:114-133`):
+/// the date is a day and a time, and the free text ("amanhã 14:30") is only a way
+/// of typing them, behind "Digitar data". What is sent is the parsed
+/// `YYYY-MM-DD [HH:MM]`, never the text (`TaskFormModal.tsx:224`).
 nonisolated struct TaskDraft: Equatable, Sendable {
   /// `TITLE_MAX`, the input's `maxLength` (UTF-16 units, as the browser counts).
   static let titleLimit = 255
   static let priorities: [TaskPriority] = [.high, .normal, .low]
 
   var title: String
-  var dueText: String
+  /// `YYYY-MM-DD`, or empty for "Sem data".
+  private(set) var day: String
+  /// `HH:MM`, or empty for "Sem hora"; always empty without a day.
+  private(set) var time: String
+  /// The "Digitar data" text; it only moves `day` and `time` while it parses.
+  private(set) var typed = ""
   var recur: TaskRecur
   var priority: TaskPriority
   var paper: NotePaper?
@@ -51,9 +58,9 @@ nonisolated struct TaskDraft: Equatable, Sendable {
   /// "Não repete" (`TaskFormModal.tsx:110-122`).
   init(task: TodoTask?) {
     let day = task.map(\.due).flatMap { Self.isISODay($0) ? $0 : nil } ?? ""
-    let time = task.map(\.time).flatMap { !day.isEmpty && Self.isTime($0) ? $0 : nil } ?? ""
     title = task?.title ?? ""
-    dueText = time.isEmpty ? day : "\(day) \(time)"
+    self.day = day
+    time = task.map(\.time).flatMap { !day.isEmpty && Self.isTime($0) ? $0 : nil } ?? ""
     recur = day.isEmpty ? .none : TaskRecur(stored: task?.recur ?? "")
     priority = task?.priority ?? .normal
     paper = task?.paper
@@ -63,8 +70,13 @@ nonisolated struct TaskDraft: Equatable, Sendable {
   }
 
   var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var trimmedDue: String { dueText.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var hasDue: Bool { !trimmedDue.isEmpty }
+  var hasDue: Bool { !day.isEmpty }
+
+  /// The `due` the web sends: `day`, or `day time`, or empty.
+  var due: String {
+    guard hasDue else { return "" }
+    return time.isEmpty ? day : "\(day) \(time)"
+  }
 
   /// A recurring task without a date would be completed for good, so the
   /// recurrence only counts while there is a date.
@@ -76,55 +88,67 @@ nonisolated struct TaskDraft: Equatable, Sendable {
     paper != initial.paper || pin != initial.pin || pinShape != initial.pinShape
   }
 
-  /// Whether closing would throw something away.
+  /// Whether closing would throw something away; typed text counts even when
+  /// it does not parse, as on the web.
   func isDirty(comparedTo initial: TaskDraft) -> Bool {
-    styleChanged(from: initial) || title != initial.title || dueText != initial.dueText
+    styleChanged(from: initial) || title != initial.title || day != initial.day || time != initial.time
       || effectiveRecur != initial.effectiveRecur || priority != initial.priority || column != initial.column
+      || !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  /// The first word of the date text, the day.
-  var dayPart: String {
-    trimmedDue.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-  }
-
-  /// A quick date chip: replaces the day and keeps a typed time; no day
-  /// clears the time too, which means nothing without a day.
+  /// A quick chip or the "Dia" picker. A time without a day means nothing to
+  /// the API, so it goes with the day.
   mutating func setDay(_ iso: String?) {
-    guard let iso else {
-      dueText = ""
-      return
-    }
-    let words = trimmedDue.split(whereSeparator: \.isWhitespace).map(String.init)
-    dueText = words.count > 1 ? "\(iso) \(words[1])" : iso
+    day = iso ?? ""
+    if day.isEmpty { time = "" }
   }
 
-  /// The text as the server will read it, or nil while it does not parse
-  /// (or is empty). Drives the "Dia" and "Hora" pickers.
-  func parsedDue(now: Date, calendar: Calendar = TaskDay.calendar) -> (day: String, time: String)? {
-    guard hasDue else { return nil }
+  /// The "Hora" picker; a time needs a day, as the web's disabled input does.
+  mutating func setTime(_ value: String?) {
+    guard hasDue else { return }
+    time = value ?? ""
+  }
+
+  /// `onTypedChange`: while the text does not parse, the day and time keep
+  /// their last valid value and the hint says what is wrong.
+  mutating func setTyped(_ value: String, now: Date, calendar: Calendar = TaskDay.calendar) {
+    typed = value
+    if let parsed = Self.tryParse(value, now: now, calendar: calendar) {
+      day = parsed.day
+      time = parsed.time
+    }
+  }
+
+  /// Closing "Digitar data" drops the text, not the date it set.
+  mutating func clearTyped() {
+    typed = ""
+  }
+
+  /// `typedError`: typed text that does not parse blocks "Salvar".
+  func typedIsInvalid(now: Date, calendar: Calendar = TaskDay.calendar) -> Bool {
+    let value = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !value.isEmpty && Self.tryParse(value, now: now, calendar: calendar) == nil
+  }
+
+  /// The line under the typed field (`TaskFormModal.tsx:160-165`, `:431-432`):
+  /// the preview, the refusal, or the examples while empty.
+  func typedHint(now: Date, calendar: Calendar = TaskDay.calendar) -> (text: String, isError: Bool) {
+    let value = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty else { return ("hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim", false) }
+    if let preview = DueDateParser.preview(value, now: now, calendar: calendar) { return ("→ \(preview)", false) }
+    return ("Não reconheci \"\(value)\". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.", true)
+  }
+
+  /// `tryParseDue`: the day and time of the text, or nil while it does not parse.
+  private static func tryParse(_ value: String, now: Date, calendar: Calendar) -> (day: String, time: String)? {
+    guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
     do {
-      let parsed = try DueDateParser.parse(dueText, now: now, calendar: calendar)
+      let parsed = try DueDateParser.parse(value, now: now, calendar: calendar)
       return (parsed.due, parsed.time == "none" ? "" : parsed.time)
     } catch {
-      // Being typed; the form shows the parser's hint instead.
+      // Being typed: not parsing yet is expected, and `typedHint` says why.
       return nil
     }
-  }
-
-  /// The line under the date field (`TaskFormModal.tsx:160-165`, `:431-432`):
-  /// the preview, the refusal, or the examples while empty.
-  func dueHint(now: Date, calendar: Calendar = TaskDay.calendar) -> (text: String, isError: Bool) {
-    guard hasDue else { return ("hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim", false) }
-    if let preview = DueDateParser.preview(dueText, now: now, calendar: calendar) { return ("→ \(preview)", false) }
-    return ("Não reconheci \"\(trimmedDue)\". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.", true)
-  }
-
-  /// The "Hora" picker: keeps the day as typed, so "amanhã" stays readable.
-  /// No time clears it; a time needs a day, as the web's disabled input does.
-  mutating func setTime(_ time: String?) {
-    let day = dayPart
-    guard !day.isEmpty else { return }
-    dueText = time.map { "\(day) \($0)" } ?? day
   }
 
   /// Clips the title to the browser's `maxLength`.
@@ -143,7 +167,7 @@ nonisolated struct TaskDraft: Equatable, Sendable {
   var createBody: TasksEndpoints.CreateBody {
     TasksEndpoints.CreateBody(
       title: trimmedTitle,
-      due: trimmedDue,
+      due: due,
       priority: priority,
       recur: effectiveRecur == .none ? nil : effectiveRecur.rawValue,
       status: column == .doing ? BoardColumn.doing.rawValue : nil
@@ -152,7 +176,7 @@ nonisolated struct TaskDraft: Equatable, Sendable {
 
   var editBody: TasksEndpoints.EditBody {
     TasksEndpoints.EditBody(
-      title: trimmedTitle, due: trimmedDue, priority: priority, recur: effectiveRecur.rawValue)
+      title: trimmedTitle, due: due, priority: priority, recur: effectiveRecur.rawValue)
   }
 
   /// Dates for the chips "Hoje", "Amanhã" and "Próx. semana" (the coming Monday).

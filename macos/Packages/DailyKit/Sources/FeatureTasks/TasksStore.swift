@@ -61,6 +61,14 @@ final class TasksStore {
     self.announce = announce
   }
 
+  /// `FeatureStores` key: the screen and the Início panel share one store.
+  static let storeKey = "tasks"
+
+  /// The session's store, made on first use.
+  static func shared(in environment: AppEnvironment) -> TasksStore {
+    environment.featureStores.store(storeKey) { TasksStore(environment: environment) }
+  }
+
   convenience init(environment: AppEnvironment) {
     self.init(
       client: environment.client,

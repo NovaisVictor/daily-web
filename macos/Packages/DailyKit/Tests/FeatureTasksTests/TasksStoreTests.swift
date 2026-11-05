@@ -175,24 +175,26 @@ import Testing
     let initial = TaskDraft(task: nil)
     var draft = initial
     draft.title = "Nova"
-    draft.dueText = "amanhã 14:30"
+    draft.setDay("2026-09-22")
+    draft.setTime("14:30")
     draft.pinShape = .heart
     #expect(await harness.store.save(draft, initial: initial, editing: nil) == .saved)
     #expect(
       harness.client.writes.map(\.description) == [
-        #"POST /api/tasks {"due":"amanhã 14:30","priority":"normal","title":"Nova"}"#,
+        #"POST /api/tasks {"due":"2026-09-22 14:30","priority":"normal","title":"Nova"}"#,
         #"PATCH /api/tasks/new-id/board {"paper":null,"pin":null,"pinShape":"heart"}"#,
       ])
   }
 
-  @Test func theServersDateMessageIsShownAsReturned() async {
+  @Test func theServersMessageIsShownAsReturned() async {
     let harness = Harness([])
-    harness.failWrites("data inválida: ontem")
+    harness.failWrites("data inválida: 2026-02-30")
     var draft = TaskDraft(task: nil)
     draft.title = "X"
-    draft.dueText = "ontem"
+    draft.setDay("2026-02-30")
     #expect(
-      await harness.store.save(draft, initial: TaskDraft(task: nil), editing: nil) == .failed("data inválida: ontem"))
+      await harness.store.save(draft, initial: TaskDraft(task: nil), editing: nil)
+        == .failed("data inválida: 2026-02-30"))
     #expect(harness.client.writes.count == 1)
   }
 

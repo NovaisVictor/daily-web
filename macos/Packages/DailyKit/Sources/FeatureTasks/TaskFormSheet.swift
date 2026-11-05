@@ -18,7 +18,9 @@ struct TaskFormSheet: View {
   @State private var saving = false
   @State private var deleting = false
   @State private var confirm: ConfirmRequest?
+  @State private var typing = false
   @FocusState private var titleFocused: Bool
+  @FocusState private var typedFocused: Bool
 
   init(task: TodoTask?, store: TasksStore, now: Date) {
     self.task = task
@@ -54,22 +56,15 @@ struct TaskFormSheet: View {
 
           field("Data") {
             FlowLayout(spacing: 8) {
-              Chip("Hoje", isOn: draft.dayPart == days.today) { draft.setDay(days.today) }
-              Chip("Amanhã", isOn: draft.dayPart == days.tomorrow) { draft.setDay(days.tomorrow) }
-              Chip("Próx. semana", isOn: draft.dayPart == days.monday && days.monday != days.tomorrow) {
+              Chip("Hoje", isOn: draft.day == days.today) { draft.setDay(days.today) }
+              Chip("Amanhã", isOn: draft.day == days.tomorrow) { draft.setDay(days.tomorrow) }
+              Chip("Próx. semana", isOn: draft.day == days.monday && days.monday != days.tomorrow) {
                 draft.setDay(days.monday)
               }
               Chip("Sem data", isOn: !draft.hasDue) { draft.setDay(nil) }
             }
             dayAndTimePickers
-            TextField("Data em texto", text: $draft.dueText, prompt: Text("amanhã 14:30"))
-              .textFieldStyle(.roundedBorder)
-              .accessibilityLabel("Data em texto")
-            let hint = draft.dueHint(now: now)
-            Text(hint.text)
-              .typeRole(.caption)
-              .foregroundStyle(hint.isError ? theme.danger : theme.inkDim)
-              .accessibilityAddTraits(.updatesFrequently)
+            typedDate
           }
 
           HStack(alignment: .top, spacing: 16) {
@@ -157,11 +152,10 @@ struct TaskFormSheet: View {
     .confirmDialog($confirm)
   }
 
-  /// "Dia" and "Hora" (`TaskFormModal.tsx:375-389`). They follow the text while
-  /// it parses and write back into it; "Hora" waits for a day, as on the web.
+  /// "Dia" and "Hora" (`TaskFormModal.tsx:375-389`): the date the form sends.
+  /// "Hora" waits for a day, as on the web.
   private var dayAndTimePickers: some View {
-    let parsed = draft.parsedDue(now: now)
-    // The text the pickers write is Gregorian `YYYY-MM-DD`, whatever the system calendar is.
+    // The day the pickers write is Gregorian `YYYY-MM-DD`, whatever the system calendar is.
     let calendar = TaskDay.calendar
     return HStack(alignment: .top, spacing: 16) {
       VStack(alignment: .leading, spacing: 6) {
@@ -169,7 +163,7 @@ struct TaskFormSheet: View {
         DatePicker(
           "Dia",
           selection: Binding(
-            get: { parsed.flatMap { Self.date(day: $0.day, time: "", calendar: calendar) } ?? now },
+            get: { Self.date(day: draft.day, time: "", calendar: calendar) ?? now },
             set: { draft.setDay(TaskGrouping.localISO($0, calendar: calendar)) }),
           displayedComponents: .date
         )
@@ -183,8 +177,7 @@ struct TaskFormSheet: View {
             "Hora",
             selection: Binding(
               get: {
-                parsed.flatMap { Self.date(day: $0.day, time: $0.time.isEmpty ? "09:00" : $0.time, calendar: calendar) }
-                  ?? now
+                Self.date(day: draft.day, time: draft.time.isEmpty ? "09:00" : draft.time, calendar: calendar) ?? now
               },
               set: {
                 let parts = calendar.dateComponents([.hour, .minute], from: $0)
@@ -194,19 +187,52 @@ struct TaskFormSheet: View {
           )
           .labelsHidden()
           .datePickerStyle(.field)
-          .disabled(parsed == nil)
-          if let parsed, !parsed.time.isEmpty {
-            Button {
-              draft.setTime(nil)
-            } label: {
-              Image(systemName: "xmark.circle.fill")
-            }
-            .buttonStyle(.plain)
-            .help("Sem hora")
-            .accessibilityLabel("Sem hora")
+          .disabled(!draft.hasDue)
+          // An app-only extra: the web's time input is cleared with the keyboard.
+          if !draft.time.isEmpty {
+            IconButton("Sem hora", systemImage: "xmark.circle.fill", size: .extraSmall) { draft.setTime(nil) }
           }
         }
       }
+    }
+  }
+
+  /// "Digitar data" (`TaskFormModal.tsx:391-436`): the free text is a way of
+  /// filling "Dia" and "Hora", folded away until asked for.
+  @ViewBuilder
+  private var typedDate: some View {
+    Button {
+      if typing { draft.clearTyped() }
+      typing.toggle()
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: "chevron.right")
+          .font(.system(size: 11, weight: .semibold))
+          .rotationEffect(.degrees(typing ? 90 : 0))
+          .accessibilityHidden(true)
+        Text("Digitar data")
+      }
+      .font(.daily(size: 14))
+      .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(theme.inkMid)
+    .accessibilityValue(typing ? "expandido" : "recolhido")
+    if typing {
+      TextField(
+        "Data em texto",
+        text: Binding(get: { draft.typed }, set: { draft.setTyped($0, now: now) }),
+        prompt: Text("amanhã 14:30")
+      )
+      .textFieldStyle(.roundedBorder)
+      .focused($typedFocused)
+      .accessibilityLabel("Data em texto")
+      .onAppear { typedFocused = true }
+      let hint = draft.typedHint(now: now)
+      Text(hint.text)
+        .typeRole(.caption)
+        .foregroundStyle(hint.isError ? theme.danger : theme.inkDim)
+        .accessibilityAddTraits(.updatesFrequently)
     }
   }
 
@@ -249,6 +275,11 @@ struct TaskFormSheet: View {
     guard !draft.trimmedTitle.isEmpty else {
       titleError = "Dê um título à tarefa."
       titleFocused = true
+      return
+    }
+    // `typedError`: the date the text stands for is unknown, so nothing is sent.
+    guard !draft.typedIsInvalid(now: now) else {
+      typedFocused = true
       return
     }
     saving = true

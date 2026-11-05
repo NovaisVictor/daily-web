@@ -26,6 +26,13 @@ enum TasksPreviewData {
     return state
   }
 
+  /// The same tasks, opened as a list.
+  static var listState: DashboardState {
+    var state = Self.state
+    state.tasksView = .list
+    return state
+  }
+
   private static func task(
     _ id: String,
     _ title: String,

@@ -7,13 +7,16 @@ import Testing
 @Suite struct TaskDraftTests {
   @Test func opensAStoredDateAndTimeAsText() {
     let draft = TaskDraft(task: makeTask(due: "2026-11-05", time: "14:30", recur: "absoluteMonthly"))
-    #expect(draft.dueText == "2026-11-05 14:30")
+    #expect(draft.day == "2026-11-05")
+    #expect(draft.time == "14:30")
+    #expect(draft.due == "2026-11-05 14:30")
     #expect(draft.recur == .monthly)
   }
 
   @Test func distrustsDatesOfAnotherShape() {
     let draft = TaskDraft(task: makeTask(due: "amanhã", time: "14:30", recur: "daily"))
-    #expect(draft.dueText.isEmpty)
+    #expect(draft.due.isEmpty)
+    #expect(draft.time.isEmpty)
     #expect(draft.recur == .none)
   }
 
@@ -21,7 +24,7 @@ import Testing
     var draft = TaskDraft(task: nil)
     draft.recur = .weekly
     #expect(draft.effectiveRecur == .none)
-    draft.dueText = "amanhã"
+    draft.setDay("2026-11-06")
     #expect(draft.effectiveRecur == .weekly)
   }
 
@@ -31,19 +34,20 @@ import Testing
     let plain = FakeAPIClient.encode(draft.createBody)
     #expect(plain == #"{"due":"","priority":"normal","title":"Comprar café"}"#)
 
-    draft.dueText = "amanhã 14:30"
+    draft.setDay("2026-11-06")
+    draft.setTime("14:30")
     draft.recur = .daily
     draft.priority = .high
     draft.column = .doing
     let full = FakeAPIClient.encode(draft.createBody)
     #expect(
-      full == #"{"due":"amanhã 14:30","priority":"high","recur":"daily","status":"doing","title":"Comprar café"}"#)
+      full == #"{"due":"2026-11-06 14:30","priority":"high","recur":"daily","status":"doing","title":"Comprar café"}"#)
   }
 
   @Test func editBodySendsEveryField() {
     var draft = TaskDraft(task: makeTask(title: "Antigo", due: "2026-11-05", recur: "weekly"))
     draft.title = "Novo"
-    draft.dueText = ""
+    draft.setDay(nil)
     #expect(FakeAPIClient.encode(draft.editBody) == #"{"due":"","priority":"normal","recur":"none","title":"Novo"}"#)
   }
 
@@ -55,19 +59,27 @@ import Testing
     #expect(draft.isDirty(comparedTo: initial))
     #expect(draft.styleChanged(from: initial))
     draft = initial
-    draft.dueText = "hoje"
+    draft.setTime("08:00")
     #expect(draft.isDirty(comparedTo: initial))
     #expect(!draft.styleChanged(from: initial))
+    // Typed text that does not parse changes no date, but closing would lose it.
+    draft = initial
+    draft.setTyped("ontem", now: Date())
+    #expect(draft.due == initial.due)
+    #expect(draft.isDirty(comparedTo: initial))
   }
 
-  @Test func quickDayKeepsTheTypedTime() {
+  @Test func quickDayKeepsTheTimeAndNoDayDropsIt() {
     var draft = TaskDraft(task: nil)
-    draft.dueText = "amanhã 09:15"
+    draft.setTime("09:15")
+    #expect(draft.time.isEmpty, "a time needs a day")
+    draft.setDay("2026-11-09")
+    draft.setTime("09:15")
     draft.setDay("2026-11-10")
-    #expect(draft.dueText == "2026-11-10 09:15")
-    #expect(draft.dayPart == "2026-11-10")
+    #expect(draft.due == "2026-11-10 09:15")
     draft.setDay(nil)
-    #expect(draft.dueText.isEmpty)
+    #expect(draft.due.isEmpty)
+    #expect(draft.time.isEmpty)
   }
 
   @Test func nextWeekIsTheComingMonday() throws {

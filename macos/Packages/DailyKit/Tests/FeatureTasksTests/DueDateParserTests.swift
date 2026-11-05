@@ -97,27 +97,58 @@ import Testing
     #expect(DueDateParser.preview("  ", now: now, calendar: utc) == nil)
   }
 
-  @Test func draftHintShowsPreviewErrorOrExamples() {
+  @Test func typedHintShowsPreviewErrorOrExamples() {
     var draft = TaskDraft(task: nil)
-    #expect(draft.dueHint(now: now, calendar: utc).text == "hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim")
-    draft.dueText = "+3d"
-    #expect(draft.dueHint(now: now, calendar: utc) == ("→ sex, 28/08", false))
-    draft.dueText = "ontem"
-    let hint = draft.dueHint(now: now, calendar: utc)
+    #expect(
+      draft.typedHint(now: now, calendar: utc).text == "hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim")
+    draft.setTyped("+3d", now: now, calendar: utc)
+    #expect(draft.typedHint(now: now, calendar: utc) == ("→ sex, 28/08", false))
+    #expect(!draft.typedIsInvalid(now: now, calendar: utc))
+    draft.setTyped("ontem", now: now, calendar: utc)
+    let hint = draft.typedHint(now: now, calendar: utc)
     #expect(hint.isError)
     #expect(hint.text == "Não reconheci \"ontem\". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.")
+    #expect(draft.typedIsInvalid(now: now, calendar: utc))
   }
 
-  @Test func timePickerKeepsTheTypedDay() throws {
+  // MARK: - What is sent (SC-014-2, `TaskFormModal.tsx:224`)
+
+  /// The web sends `day` or `day time`, parsed from the text, never the text.
+  @Test(arguments: [
+    ("hoje", "2026-08-25"),
+    ("amanhã 14:30", "2026-08-26 14:30"),
+    ("amanha", "2026-08-26"),
+    ("+3d 09:00", "2026-08-28 09:00"),
+    ("2026-11-05 09:00", "2026-11-05 09:00"),
+    ("  2026-11-05  ", "2026-11-05"),
+  ])
+  func typedTextSendsTheParsedDue(text: String, sent: String) {
+    var draft = TaskDraft(task: nil)
+    draft.title = "X"
+    draft.setTyped(text, now: now, calendar: utc)
+    #expect(draft.createBody.due == sent)
+    #expect(draft.editBody.due == sent)
+  }
+
+  /// While the text does not parse, the date it last stood for stays.
+  @Test func unparsedTextKeepsTheLastDate() {
+    var draft = TaskDraft(task: nil)
+    draft.setTyped("amanhã 14:30", now: now, calendar: utc)
+    draft.setTyped("amanhã 14:3", now: now, calendar: utc)
+    #expect(draft.due == "2026-08-26 14:30")
+    draft.clearTyped()
+    #expect(draft.due == "2026-08-26 14:30")
+    #expect(draft.typed.isEmpty)
+  }
+
+  @Test func timePickerNeedsADay() {
     var draft = TaskDraft(task: nil)
     draft.setTime("10:00")
-    #expect(draft.dueText.isEmpty)
-    draft.dueText = "amanhã"
+    #expect(draft.due.isEmpty)
+    draft.setTyped("amanhã", now: now, calendar: utc)
     draft.setTime("10:00")
-    #expect(draft.dueText == "amanhã 10:00")
-    let parsed = try #require(draft.parsedDue(now: now, calendar: utc))
-    #expect(parsed == ("2026-08-26", "10:00"))
+    #expect(draft.due == "2026-08-26 10:00")
     draft.setTime(nil)
-    #expect(draft.dueText == "amanhã")
+    #expect(draft.due == "2026-08-26")
   }
 }

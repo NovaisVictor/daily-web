@@ -118,6 +118,12 @@ nonisolated enum TaskBoard {
     return ((steps / 10 - 2) * 10).rounded() / 10
   }
 
+  /// `noteCurls`: about one note in three has its bottom corner peeling off
+  /// the board (`lib/taskBoard.ts:156-158`).
+  static func curls(_ id: String) -> Bool {
+    (idHash(id) / 3) % 3 == 0
+  }
+
   static let papers: [NotePaper] = [.yellow, .pink, .blue, .green, .white, .grey]
   static let pins: [PinColor] = [.red, .blue, .yellow, .green]
   static let shapes: [PinShape] = [.classic, .ball, .heart]
@@ -185,5 +191,22 @@ nonisolated enum TaskBoard {
     case .heart: "coração"
     default: shape.rawValue
     }
+  }
+}
+
+/// The narrow board (`TaskBoard.tsx:393-421`): below `@[30rem]` one column
+/// shows at a time, behind tabs, because stacked lanes put "Fazendo" and
+/// "Feito" far below the fold of a panel.
+nonisolated enum BoardTabs {
+  /// `30rem`.
+  static let breakpoint: CGFloat = 480
+
+  static func usesTabs(width: CGFloat) -> Bool {
+    width < breakpoint
+  }
+
+  /// The lanes drawn at `width`: all three, or the active tab's alone.
+  static func columns(width: CGFloat, active: BoardColumn) -> [BoardColumn] {
+    usesTabs(width: width) ? [active] : BoardColumn.allCases
   }
 }

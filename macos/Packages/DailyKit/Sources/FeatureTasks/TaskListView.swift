@@ -60,57 +60,38 @@ struct TaskRow: View {
   @Binding var adding: Bool
   @State private var coloursOpen = false
   @State private var hovering = false
+  /// Wide until measured, so a wide list does not start wrapped.
+  @State private var width = TaskRow.wrapWidth
+
+  /// `@max-[34rem]`: below it the tags, date and counter drop to a second line,
+  /// or the title is the only thing left to shrink and goes to zero.
+  static let wrapWidth: CGFloat = 544
+
+  private var hasMeta: Bool {
+    task.doing || task.priority != .normal || !task.recur.isEmpty || !task.due.isEmpty || !task.subtasks.isEmpty
+  }
 
   var body: some View {
+    let narrow = width < Self.wrapWidth
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 12) {
-        caret
-        Toggle(
-          "concluir \(task.title)",
-          isOn: Binding(get: { task.completed }, set: { _ in actions.toggleComplete(task) })
-        )
-        .toggleStyle(.checkbox)
-        .labelsHidden()
-        .accessibilityLabel("concluir \(task.title)")
-        if let paper = task.paper {
-          Circle()
-            .fill(theme.postitPaper(paper.rawValue) ?? theme.surface2)
-            .overlay { Circle().strokeBorder(theme.lineStrong) }
-            .frame(width: 10, height: 10)
-            .accessibilityLabel("nota \(TaskBoard.paperLabel(paper))")
-            .help("nota \(TaskBoard.paperLabel(paper))")
+      VStack(alignment: .leading, spacing: 4) {
+        line(narrow: narrow)
+        if narrow, hasMeta {
+          // Indented to start under the title: caret, gap, checkbox, gap.
+          FlowLayout(spacing: 12) { metaItems }
+            .padding(.leading, 64)
         }
-        Button {
-          actions.open(task)
-        } label: {
-          Text(task.title)
-            .strikethrough(task.completed)
-            .foregroundStyle(task.completed ? theme.inkDim : theme.ink)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        meta
-        if let schedule = actions.scheduleFocus, !task.completed {
-          Button {
-            schedule(task)
-          } label: {
-            Image(systemName: "calendar.badge.plus")
-          }
-          .iconButtonStyle(size: .extraSmall)
-          .accessibilityLabel("agendar foco para \(task.title)")
-          .help("agendar foco para \(task.title)")
-        }
-        TaskActionsMenu(
-          task: task, actions: actions, coloursOpen: $coloursOpen, startAddingSubtask: startAddingSubtask)
       }
       .padding(.horizontal, 8)
       .padding(.vertical, theme.metrics.rowVerticalPadding)
       .background(hovering ? theme.brandTint : (striped ? theme.lineSoft.opacity(0.25) : .clear))
       .clipShape(.rect(cornerRadius: 6))
       .onHover { hovering = $0 }
+      .onGeometryChange(for: CGFloat.self) {
+        $0.size.width
+      } action: {
+        width = $0
+      }
       .contextMenu {
         TaskMenuItems(
           task: task, actions: actions, startAddingSubtask: startAddingSubtask, openColours: { coloursOpen = true })
@@ -126,6 +107,56 @@ struct TaskRow: View {
           }
       }
       Divider().overlay(theme.lineSoft)
+    }
+  }
+
+  private func line(narrow: Bool) -> some View {
+    HStack(spacing: 12) {
+      caret
+      Toggle(
+        "concluir \(task.title)",
+        isOn: Binding(get: { task.completed }, set: { _ in actions.toggleComplete(task) })
+      )
+      .toggleStyle(.checkbox)
+      // The web's `accent-brand` checkbox (`TasksPanel.tsx:558-564`).
+      .tint(theme.brand)
+      .labelsHidden()
+      .accessibilityLabel("concluir \(task.title)")
+      if let paper = task.paper {
+        Circle()
+          .fill(theme.postitPaper(paper.rawValue) ?? theme.surface2)
+          .overlay { Circle().strokeBorder(theme.lineStrong) }
+          .frame(width: 10, height: 10)
+          .accessibilityLabel("nota \(TaskBoard.paperLabel(paper))")
+          .help("nota \(TaskBoard.paperLabel(paper))")
+      }
+      Button {
+        actions.open(task)
+      } label: {
+        Text(task.title)
+          .strikethrough(task.completed)
+          .foregroundStyle(task.completed ? theme.inkDim : theme.ink)
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(.rect)
+      }
+      .buttonStyle(.plain)
+      if !narrow, hasMeta {
+        HStack(spacing: 12) { metaItems }.fixedSize()
+      }
+      if let schedule = actions.scheduleFocus, !task.completed {
+        Button {
+          schedule(task)
+        } label: {
+          Image(systemName: "calendar.badge.plus")
+        }
+        .iconButtonStyle(size: .extraSmall)
+        .accessibilityLabel("agendar foco para \(task.title)")
+        .help("agendar foco para \(task.title)")
+      }
+      TaskActionsMenu(
+        task: task, actions: actions, coloursOpen: $coloursOpen, startAddingSubtask: startAddingSubtask)
     }
   }
 
@@ -152,26 +183,23 @@ struct TaskRow: View {
   }
 
   @ViewBuilder
-  private var meta: some View {
-    HStack(spacing: 12) {
-      // "Fazendo" is a board column, but the list shows it too: otherwise a
-      // task in progress looks exactly like one nobody started.
-      if task.doing { StatusPill("Fazendo", glyph: .moving, tone: .info) }
-      if task.priority != .normal { PriorityPill(priority: task.priority) }
-      if !task.recur.isEmpty {
-        StatusPill("repete", glyph: .idle, tone: .neutral).help("tarefa recorrente")
-      }
-      if !task.due.isEmpty { DueLabel(task: task, overdue: overdue) }
-      if !task.subtasks.isEmpty {
-        Text("\(task.subtasks.filter(\.completed).count)/\(task.subtasks.count)")
-          .font(.daily(size: 12).monospacedDigit())
-          .foregroundStyle(theme.inkDim)
-          .help("subtarefas concluídas")
-          .accessibilityLabel(
-            "subtarefas concluídas: \(task.subtasks.filter(\.completed).count) de \(task.subtasks.count)")
-      }
+  private var metaItems: some View {
+    // "Fazendo" is a board column, but the list shows it too: otherwise a
+    // task in progress looks exactly like one nobody started.
+    if task.doing { StatusPill("Fazendo", glyph: .moving, tone: .info) }
+    if task.priority != .normal { PriorityPill(priority: task.priority) }
+    if !task.recur.isEmpty {
+      StatusPill("repete", glyph: .idle, tone: .neutral).help("tarefa recorrente")
     }
-    .fixedSize()
+    if !task.due.isEmpty { DueLabel(task: task, overdue: overdue) }
+    if !task.subtasks.isEmpty {
+      Text("\(task.subtasks.filter(\.completed).count)/\(task.subtasks.count)")
+        .font(.daily(size: 12).monospacedDigit())
+        .foregroundStyle(theme.inkDim)
+        .help("subtarefas concluídas")
+        .accessibilityLabel(
+          "subtarefas concluídas: \(task.subtasks.filter(\.completed).count) de \(task.subtasks.count)")
+    }
   }
 
   private func startAddingSubtask() {

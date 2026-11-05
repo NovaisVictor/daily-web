@@ -14,29 +14,27 @@ enum PinPalette {
     default: Color(oklch: 0.6, 0.21, 27)
     }
   }
-
-  static func symbol(_ shape: PinShape) -> String {
-    switch shape {
-    case .ball: "circle.fill"
-    case .heart: "heart.fill"
-    default: "pin.fill"
-    }
-  }
 }
 
-/// A pin head drawn with an SF Symbol in the pin's colour.
-struct PushPinView: View {
-  let color: PinColor
-  let shape: PinShape
-  var size: CGFloat = 14
+/// The note's derived inks (`globals.css:1380-1403`). Only `--postit-ink` is
+/// a `Theme` token; the others are drawn from it here.
+// TODO: read `--postit-ink-mid` and `--postit-shadow` from Theme once DailyDesign has them.
+struct PostitInks {
+  let ink: Color
+  let scheme: ColorScheme
 
-  var body: some View {
-    Image(systemName: PinPalette.symbol(shape))
-      .font(.system(size: size))
-      .foregroundStyle(PinPalette.color(color))
-      .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
-      .accessibilityHidden(true)
+  /// `--postit-ink-mid`: one step lighter than the ink on every paper.
+  var mid: Color { ink.opacity(0.78) }
+  /// `--postit-outline`: the ink at 55%.
+  var outline: Color { ink.opacity(0.55) }
+  /// `--postit-wash`: the hover wash of a control on the paper.
+  var wash: Color { ink.opacity(0.1) }
+  /// `--postit-drop`: `--postit-shadow` at 55% of its alpha, a hard shadow.
+  var drop: Color {
+    scheme == .dark ? Color.black.opacity(0.55 * 0.55) : Color(oklch: 0.3, 0.04, 70).opacity(0.3 * 0.55)
   }
+  /// `.postit-due[data-overdue]`: the warning hue darkened to read on paper.
+  var overdue: Color { Color(oklch: 0.42, 0.15, 88) }
 }
 
 /// Priority is a state: a glyph and a word beside the hue (`PRIORITY_TONE`).

@@ -6,6 +6,7 @@ import SwiftUI
 /// the board share it (`components/tasks/SubtaskList.tsx`).
 struct SubtaskListView: View {
   @Environment(\.theme) private var theme
+  @Environment(\.colorScheme) private var scheme
   let task: TodoTask
   let store: TasksStore
   @Binding var adding: Bool
@@ -26,14 +27,14 @@ struct SubtaskListView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: ink == nil ? 4 : 2) {
       ForEach(task.subtasks) { subtask in
         row(subtask)
       }
       if adding {
         HStack(spacing: 6) {
           TextField("nova subtarefa", text: $newTitle, prompt: Text("nova subtarefa"))
-            .textFieldStyle(.roundedBorder)
+            .modifier(SubtaskFieldStyle(ink: ink))
             .focused($focus, equals: .add)
             .accessibilityLabel("nova subtarefa de \(task.title)")
             .onSubmit(add)
@@ -47,6 +48,17 @@ struct SubtaskListView: View {
             .disabled(saving)
             .accessibilityLabel("Adicionar subtarefa")
         }
+      } else if let ink {
+        // `.postit-subtask-new`: the note's ink and wash.
+        Button {
+          adding = true
+        } label: {
+          Label("adicionar subtarefa", systemImage: "plus")
+        }
+        .buttonStyle(PaperButtonStyle(inks: PostitInks(ink: ink, scheme: scheme)))
+        .font(.daily(size: 13))
+        .padding(.leading, -7)
+        .accessibilityLabel("adicionar subtarefa em \(task.title)")
       } else {
         Button {
           adding = true
@@ -54,7 +66,7 @@ struct SubtaskListView: View {
           Label("adicionar subtarefa", systemImage: "plus").font(.daily(size: 13))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(ink ?? theme.inkDim)
+        .foregroundStyle(theme.inkDim)
         .accessibilityLabel("adicionar subtarefa em \(task.title)")
       }
     }
@@ -70,11 +82,13 @@ struct SubtaskListView: View {
           set: { _ in Task { await store.toggleSubtask(subtask, of: task) } })
       )
       .toggleStyle(.checkbox)
+      // `.postit-check` takes the ink on a note; the list's checkbox the brand.
+      .tint(ink.map { $0.opacity(0.78) } ?? theme.brand)
       .labelsHidden()
       .accessibilityLabel("concluir subtarefa \(subtask.title)")
       if renaming == subtask.id {
         TextField("título da subtarefa", text: $renameText)
-          .textFieldStyle(.roundedBorder)
+          .modifier(SubtaskFieldStyle(ink: ink))
           .focused($focus, equals: .rename(subtask.id))
           .accessibilityLabel("renomear subtarefa \(subtask.title)")
           .onSubmit { commitRename(subtask) }
@@ -88,7 +102,7 @@ struct SubtaskListView: View {
           .font(.daily(size: 13))
           .strikethrough(subtask.completed)
           .foregroundStyle(subtask.completed ? (ink ?? theme.inkDim).opacity(0.7) : (ink ?? theme.inkMid))
-          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
           .contentShape(.rect)
           .focusable()
@@ -149,5 +163,26 @@ struct SubtaskListView: View {
   private func finishAdding() {
     adding = false
     newTitle = ""
+  }
+}
+
+/// The app's input in the list; on a note, `.postit-input`: no box, an ink
+/// underline over a lighter wash of the paper.
+private struct SubtaskFieldStyle: ViewModifier {
+  let ink: Color?
+
+  func body(content: Content) -> some View {
+    if let ink {
+      content
+        .textFieldStyle(.plain)
+        .font(.daily(size: 13))
+        .foregroundStyle(ink)
+        .padding(.horizontal, 6)
+        .frame(height: 28)
+        .background(Color.white.opacity(0.2), in: .rect(cornerRadius: 2))
+        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.35)).frame(height: 1) }
+    } else {
+      content.textFieldStyle(.roundedBorder)
+    }
   }
 }

@@ -75,6 +75,44 @@ import Testing
     #expect(TaskBoard.idHash("ab") == 3105)
   }
 
+  /// `idHash`, `noteTilt` and `noteCurls` of `lib/taskBoard.ts`, run in Node for
+  /// the same ids (SC-014-1): short local ids, a Microsoft To Do id, a UUID,
+  /// and one with non-ASCII letters (UTF-16 units, as `charCodeAt`).
+  @Test(arguments: [
+    ("t1", 3645, 1.7, true),
+    ("t2", 3646, 1.8, true),
+    ("t3", 3647, 1.9, true),
+    ("t4", 3648, 2.0, false),
+    ("t5", 3649, -2.0, false),
+    ("t6", 3650, -1.9, false),
+    ("a", 97, -0.5, false),
+    ("AAMkAGI2TG93AAA=", 1_157_707_754, 0.0, false),
+    ("task-42", 1_537_290_298, -0.7, true),
+    ("ação", 3_118_866, 1.7, false),
+    ("a1b2c3d4-e5f6-7890-abcd-ef1234567890", 1_891_949_682, -1.2, false),
+  ])
+  func tiltAndCurlMatchTheWeb(id: String, hash: Int, tilt: Double, curls: Bool) {
+    #expect(TaskBoard.idHash(id) == hash)
+    #expect(TaskBoard.tilt(id) == tilt)
+    #expect(TaskBoard.curls(id) == curls)
+  }
+
+  @Test func aboutOneNoteInThreeCurls() {
+    let curled = (0..<300).filter { TaskBoard.curls("task-\($0)") }.count
+    #expect((70...130).contains(curled))
+  }
+
+  // MARK: Narrow board (`TaskBoard.tsx:393-421`)
+
+  @Test func narrowBoardShowsOneColumnBehindTabs() {
+    #expect(BoardTabs.usesTabs(width: 320))
+    #expect(BoardTabs.usesTabs(width: 479))
+    #expect(!BoardTabs.usesTabs(width: 480))
+    #expect(BoardTabs.columns(width: 420, active: .doing) == [.doing])
+    #expect(BoardTabs.columns(width: 420, active: .done) == [.done])
+    #expect(BoardTabs.columns(width: 700, active: .doing) == [.todo, .doing, .done])
+  }
+
   @Test func styleDescriptionsForAnnouncements() {
     #expect(NoteStylePatch(paper: .some(.pink)).description == "Papel rosa")
     #expect(NoteStylePatch(paper: .some(nil)).description == "Papel automático")

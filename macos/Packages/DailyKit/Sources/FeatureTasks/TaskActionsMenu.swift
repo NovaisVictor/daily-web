@@ -167,7 +167,9 @@ struct NoteColourPicker: View {
           swatch(label: "Alfinete \(TaskBoard.shapeLabel(shape))", selected: pinShape == value) {
             onChange(NoteStylePatch(pinShape: .some(value)))
           } content: {
-            Circle().fill(theme.surface2).overlay { PushPinView(color: pin ?? .red, shape: shape) }
+            // On a scrap of white paper: the ink outline would vanish on a dark popover.
+            Circle().fill(theme.postitPaper(NotePaper.white.rawValue) ?? theme.surface2)
+              .overlay { PushPinView(color: pin ?? .red, shape: shape, size: CGSize(width: 20, height: 24)) }
           }
         }
       }
@@ -205,12 +207,13 @@ struct NoteColourPicker: View {
         .frame(width: 26, height: 26)
         .overlay {
           if selected {
+            // `.colour-swatch-check`: a brand dot with a check at the bottom right.
             Image(systemName: "checkmark")
-              .font(.system(size: 10, weight: .bold))
-              .foregroundStyle(theme.ink)
-              .padding(3)
-              .background(theme.surface2.opacity(0.85), in: .circle)
-              .offset(x: 9, y: -9)
+              .font(.system(size: 7, weight: .heavy))
+              .foregroundStyle(theme.brandInk)
+              .frame(width: 14, height: 14)
+              .background(theme.brand, in: .circle)
+              .offset(x: 11, y: 11)
           }
         }
         .padding(3)

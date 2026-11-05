@@ -6,10 +6,33 @@ import SwiftUI
 /// The tasks module: list and board, filters, the task form and "agendar foco"
 /// (`components/TasksPanel.tsx`).
 public struct TasksScreen: View {
+  private let environment: AppEnvironment
+  private let store: TasksStore
+
+  public init(environment: AppEnvironment) {
+    self.environment = environment
+    store = TasksStore.shared(in: environment)
+  }
+
+  public var body: some View {
+    TasksContent(environment: environment, store: store, isPanel: false, onOpenWindow: nil)
+      .padding(24)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+/// What the screen and the panel both show. The form, the focus sheet and
+/// the confirmation belong to the view that opened them; filters and the
+/// view choice live in the shared store, so they survive the panel moving.
+struct TasksContent: View {
   @Environment(\.theme) private var theme
-  @State private var store: TasksStore
+  @Bindable var store: TasksStore
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let environment: AppEnvironment
+  /// The panel takes no ⌘T and no menu-bar reveal: those belong to the screen,
+  /// which may be open at the same time in its own window.
+  private let isPanel: Bool
+  private let onOpenWindow: (() -> Void)?
 
   @State private var editing: Editing?
   @State private var focusRequest: FocusRequest?
@@ -18,9 +41,11 @@ public struct TasksScreen: View {
   /// The task just revealed from outside, drawn with a ring for a moment.
   @State private var revealed: String?
 
-  public init(environment: AppEnvironment) {
+  init(environment: AppEnvironment, store: TasksStore, isPanel: Bool, onOpenWindow: (() -> Void)?) {
     self.environment = environment
-    _store = State(initialValue: TasksStore(environment: environment))
+    self.store = store
+    self.isPanel = isPanel
+    self.onOpenWindow = onOpenWindow
   }
 
   private enum Editing: Identifiable {
@@ -47,14 +72,12 @@ public struct TasksScreen: View {
 
   public var body: some View {
     let today = store.now()
-    VStack(alignment: .leading, spacing: 16) {
+    VStack(alignment: .leading, spacing: isPanel ? 12 : 16) {
       header(today: today)
       filters(today: today)
       ActiveFiltersRow(filters: store.activeFilters, remove: store.clear, clearAll: store.clearFilters)
       content(today: today)
     }
-    .padding(24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .sheet(item: $editing) { target in
       TaskFormSheet(task: target.task, store: store, now: today)
     }
@@ -77,17 +100,26 @@ public struct TasksScreen: View {
           selection: Binding(get: { store.view }, set: { next in Task { await store.choose(next) } }),
           style: .toggle
         )
-        Button {
-          editing = .new
-        } label: {
-          Image(systemName: "plus")
+        if isPanel {
+          IconButton("Nova tarefa", systemImage: "plus", variant: .primary) { editing = .new }
+        } else {
+          Button {
+            editing = .new
+          } label: {
+            Image(systemName: "plus")
+          }
+          .iconButtonStyle(variant: .primary)
+          // ⌘T, not the web-like ⌘N: on the Mac ⌘N is "Nova janela" (File menu),
+          // ⇧⌘N "Abrir em nova janela" and ⌥⌘N the notes tree's new folder.
+          .keyboardShortcut("t", modifiers: .command)
+          .accessibilityLabel("Nova tarefa")
+          .help("Nova tarefa (⌘T)")
         }
-        .iconButtonStyle(variant: .primary)
-        // ⌘T, not the web-like ⌘N: on the Mac ⌘N is "Nova janela" (File menu),
-        // ⇧⌘N "Abrir em nova janela" and ⌥⌘N the notes tree's new folder.
-        .keyboardShortcut("t", modifiers: .command)
-        .accessibilityLabel("Nova tarefa")
-        .help("Nova tarefa (⌘T)")
+        if let onOpenWindow {
+          IconMenu("Mais ações", systemImage: "ellipsis", size: .small) {
+            Button("Abrir em nova janela", action: onOpenWindow)
+          }
+        }
       }
     }
   }
@@ -152,8 +184,8 @@ public struct TasksScreen: View {
   /// too: it is never shown, and waiting would only move the list later.
   private func revealPendingTask(_ proxy: ScrollViewProxy) {
     let route = AppRoute.module(.tasks)
-    // Only the main window takes the request; it is the one the navigator moved.
-    guard isPrimaryWindow, let id = environment.navigator.pendingItem(for: route), store.panel?.data != nil
+    // Only the main window's screen takes the request; it is the one the navigator moved.
+    guard !isPanel, isPrimaryWindow, let id = environment.navigator.pendingItem(for: route), store.panel?.data != nil
     else { return }
     environment.navigator.finishPendingItem(id, for: route)
     guard store.all.contains(where: { $0.id == id }) else { return }
