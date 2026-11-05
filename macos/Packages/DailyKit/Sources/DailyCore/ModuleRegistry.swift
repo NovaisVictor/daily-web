@@ -7,10 +7,20 @@ import SwiftUI
 
 /// A place in the main window's sidebar.
 public enum AppRoute: Hashable, Sendable {
+  /// "Início" (`/`).
   case today
   case module(ModuleID)
+  /// "Agentes e atividades": the agents workspace with sessions (`/agents`).
   case agents
   case access
+  /// "Kanban de tarefas" (`/kanban`).
+  case kanban
+  /// "Ferramentas", the integrations (`/tools`).
+  case ferramentas
+  /// "Configuração" (`/config`), also ⌘,.
+  case configuracao
+  /// "Perfil" (`/profile`).
+  case perfil
 }
 
 /// One sidebar entry and the view it shows.
@@ -20,7 +30,7 @@ public struct ModuleEntry: Identifiable {
   /// SF Symbol name.
   public let systemImage: String
   /// Module that must be on in `DashboardState.modules` for the entry to show;
-  /// nil for entries that are always there (Hoje, Agentes, Acesso).
+  /// nil for entries that are always there (Início, Kanban, Ajustes…).
   public let requiresModule: ModuleID?
   public let makeView: () -> AnyView
 

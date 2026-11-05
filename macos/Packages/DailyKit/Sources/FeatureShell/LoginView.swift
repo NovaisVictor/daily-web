@@ -57,19 +57,20 @@ public struct LoginView: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(spacing: 12) {
+        // The brand dot on a raised glass disc (`bg-glass-strong shadow-e1`).
         Circle()
-          .fill(theme.surface2)
-          .overlay(Circle().fill(theme.brand).frame(width: 8, height: 8))
-          .overlay(Circle().stroke(theme.line))
+          .fill(theme.brand)
+          .frame(width: 8, height: 8)
           .frame(width: 40, height: 40)
+          .glassSurface(.pill)
           .accessibilityHidden(true)
         Text("daily-web")
-          .font(.title2.weight(.semibold))
+          .typeRole(.title)
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
       }
       Text("Seu dia, num relance.")
-        .font(.callout)
+        .typeRole(.data)
         .foregroundStyle(theme.inkMid)
 
       labeled("Servidor") {
@@ -91,17 +92,16 @@ public struct LoginView: View {
 
       if let error {
         Text(error)
-          .font(.callout)
+          .typeRole(.data)
           .foregroundStyle(theme.danger)
           .fixedSize(horizontal: false, vertical: true)
       }
 
+      // The one action on the screen, so it gets the single glow budget (page.tsx:80).
       Button(action: submit) {
         Text(isSubmitting ? "Entrando" : "Entrar").frame(maxWidth: .infinity)
       }
-      .buttonStyle(.borderedProminent)
-      .tint(theme.brand)
-      .controlSize(.large)
+      .pillButtonStyle(.primary, glow: true)
       .keyboardShortcut(.defaultAction)
       .disabled(isSubmitting)
     }
@@ -109,12 +109,13 @@ public struct LoginView: View {
     .disabled(isSubmitting)
     .onSubmit(submit)
     .padding(32)
-    .frame(width: 380)
-    .background(theme.surface1, in: RoundedRectangle(cornerRadius: theme.radius))
-    .overlay(RoundedRectangle(cornerRadius: theme.radius).stroke(theme.line))
+    .frame(width: 384)
+    // `rounded-xl border bg-card shadow-e3 backdrop-blur-xl` (page.tsx:40), as Liquid
+    // Glass over the window backdrop (spec 013 FR-013-09).
+    .glassSurface(.panel, elevation: .e3)
+    .overlay(GlassRole.panel.shape().stroke(theme.line))
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(theme.surface0)
     .onAppear { focus = server.isEmpty ? .server : .username }
     .onChange(of: error) { _, message in
       guard let message else { return }
@@ -124,7 +125,7 @@ public struct LoginView: View {
 
   private func labeled(_ title: String, @ViewBuilder field: () -> some View) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(title).font(.callout.weight(.medium)).foregroundStyle(theme.ink)
+      Text(title).typeRole(.data).foregroundStyle(theme.ink)
       field()
     }
   }

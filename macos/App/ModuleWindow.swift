@@ -23,6 +23,7 @@ struct ModuleWindow: View {
     }
     .navigationTitle(entry?.title ?? "Daily Web")
     .focusedSceneValue(\.shellMenu, menuActions)
+    .generalSettingsControls()
   }
 
   private var registry: ModuleRegistry { .app(environment: environment) }
@@ -64,7 +65,7 @@ struct ModuleWindow: View {
   private var menuActions: ShellMenuActions {
     let sidebar = SidebarModel(registry: registry, enabled: environment.dashboard.state?.modules ?? [])
     return ShellMenuActions(
-      items: ShellShortcuts.goMenuItems(sidebar.orderedEntries),
+      items: ShellShortcuts.goMenuItems(sidebar),
       selection: nil,
       isRefreshing: environment.dashboard.isRefreshing,
       select: { route in

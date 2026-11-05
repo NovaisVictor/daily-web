@@ -15,7 +15,7 @@ struct DailyWebApp: App {
     }
     .defaultSize(width: 1180, height: 760)
     .commands {
-      AppCommands()
+      AppCommands(environment: delegate.environment, opener: delegate.opener)
       ShellMenuCommands()
     }
 
@@ -29,14 +29,10 @@ struct DailyWebApp: App {
     }
     .defaultSize(width: 900, height: 640)
 
+    // Configuração is a page of the main window (spec 012 FR-012-05). The scene stays
+    // only so `openSettings()` from a screen still lands there; ⌘, is `AppCommands`.
     Settings {
-      ThemedRoot(preferences: delegate.environment.preferences) {
-        SettingsScreen(environment: delegate.environment)
-      }
-      .environment(
-        \.generalSettingsControls,
-        GeneralSettingsControls(shortcutRecorder: GlobalShortcutRecorder(), launchAtLogin: LaunchAtLoginToggle())
-      )
+      SettingsRedirect(environment: delegate.environment, opener: delegate.opener)
     }
 
     MenuBarExtra {
@@ -50,8 +46,11 @@ struct DailyWebApp: App {
 }
 
 /// ⌘N opens another main window; it replaces the system's "Nova janela", which
-/// would pick a scene on its own.
+/// would pick a scene on its own. ⌘, opens Configuração in the main window instead of
+/// a Settings window.
 struct AppCommands: Commands {
+  let environment: AppEnvironment
+  let opener: WindowOpener
   @Environment(\.openWindow) private var openWindow
 
   var body: some Commands {
@@ -59,5 +58,56 @@ struct AppCommands: Commands {
       Button("Nova janela") { openWindow(id: SceneID.extraMain) }
         .keyboardShortcut("n", modifiers: .command)
     }
+    CommandGroup(replacing: .appSettings) {
+      Button("Ajustes…") {
+        environment.navigator.open(.configuracao)
+        opener.showMain(.settings)
+      }
+      .keyboardShortcut(",", modifiers: .command)
+    }
+  }
+}
+
+/// What the Settings scene shows when a screen still calls `openSettings()`: it sends
+/// the request to the matching page of the main window and closes itself.
+// TODO: remove with the Settings scene once Home and Access open `.ferramentas`
+// through the navigator instead of `openSettings()`.
+struct SettingsRedirect: View {
+  let environment: AppEnvironment
+  let opener: WindowOpener
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    Color.clear
+      .frame(width: 1, height: 1)
+      .onAppear(perform: redirect)
+      .onChange(of: environment.navigator.requestedSettingsTab) { redirect() }
+  }
+
+  private func redirect() {
+    let page = environment.navigator.takeRequestedSettingsTab().map(SettingsPage.init) ?? .configuracao
+    environment.navigator.open(page.route)
+    dismiss()
+    opener.showMain(.settings)
+  }
+}
+
+extension SettingsPage {
+  var route: AppRoute {
+    switch self {
+    case .ferramentas: .ferramentas
+    case .configuracao: .configuracao
+    case .perfil: .perfil
+    }
+  }
+}
+
+extension View {
+  /// The Mac section of Configuração needs the app's own controls.
+  func generalSettingsControls() -> some View {
+    environment(
+      \.generalSettingsControls,
+      GeneralSettingsControls(shortcutRecorder: GlobalShortcutRecorder(), launchAtLogin: LaunchAtLoginToggle())
+    )
   }
 }

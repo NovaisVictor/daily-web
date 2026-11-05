@@ -11,7 +11,6 @@ struct MainWindow: View {
   @Binding var selection: AppRoute?
   let user: CurrentUser
   let opener: WindowOpener
-  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     let registry = ModuleRegistry.app(environment: environment)
@@ -21,6 +20,7 @@ struct MainWindow: View {
       enabledModules: enabled,
       selection: $selection,
       account: account,
+      appearance: appearance,
       accountActions: accountActions,
       isRefreshing: environment.dashboard.isRefreshing,
       onRefresh: { Task { await environment.dashboard.refresh() } },
@@ -39,36 +39,50 @@ struct MainWindow: View {
     )
   }
 
+  private var appearance: ShellAppearance {
+    let current = DesignAppearance(environment.preferences.appearance)
+    return ShellAppearance(theme: current.theme, density: current.density, backdrop: current.backdrop)
+  }
+
+  /// Perfil and Configuração are pages of this window now (spec 012 FR-012-05).
   private var accountActions: ShellAccountActions {
     ShellAccountActions(
-      profile: { showSettings(.profile) },
+      profile: { selection = .perfil },
       connectAgent: { selection = .access },
-      settings: { openSettings() },
+      agentsWorkspace: { selection = .agents },
+      settings: { selection = .configuracao },
+      setTheme: setTheme,
+      setDensity: setDensity,
+      setBackdrop: setBackdrop,
       signOut: { await environment.session.signOut() }
     )
+  }
+
+  private func setTheme(_ value: ThemePreference) {
+    updateAppearance(Appearance(theme: AppearanceTheme(rawValue: value.rawValue)))
+  }
+
+  private func setDensity(_ value: Density) {
+    updateAppearance(Appearance(density: AppearanceDensity(rawValue: value.rawValue)))
+  }
+
+  private func setBackdrop(_ value: Backdrop) {
+    updateAppearance(Appearance(backdrop: AppearanceBackdrop(rawValue: value.rawValue)))
   }
 
   private func paletteCommands(sidebar: SidebarModel) -> [PaletteCommand] {
     ShellCommands.standard(
       sidebar: sidebar,
       navigate: { selection = $0 },
-      setTheme: { value in updateAppearance(Appearance(theme: AppearanceTheme(rawValue: value.rawValue))) },
-      setDensity: { value in updateAppearance(Appearance(density: AppearanceDensity(rawValue: value.rawValue))) },
-      setBackdrop: { value in
-        updateAppearance(Appearance(backdrop: AppearanceBackdrop(rawValue: value.rawValue)))
-      },
-      profile: { showSettings(.profile) },
-      changePassword: { showSettings(.profile) },
-      changePhoto: { showSettings(.profile) },
-      appearance: { showSettings(.appearance) },
+      setTheme: setTheme,
+      setDensity: setDensity,
+      setBackdrop: setBackdrop,
+      profile: { selection = .perfil },
+      changePassword: { selection = .perfil },
+      changePhoto: { selection = .perfil },
+      appearance: { selection = .configuracao },
       signOut: { Task { await environment.session.signOut() } }
     )
-  }
-
-  /// Settings on `tab`; the Settings screen reads the request even when it is already open.
-  private func showSettings(_ tab: SettingsDestination) {
-    environment.navigator.requestSettings(tab)
-    openSettings()
   }
 
   private func updateAppearance(_ patch: Appearance) {

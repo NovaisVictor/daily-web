@@ -15,8 +15,9 @@ public enum ShellCommands {
     appearance: @escaping () -> Void,
     signOut: @escaping () -> Void
   ) -> [PaletteCommand] {
-    // The web's "Ir para" lists its pages; here the sidebar rows are the pages.
-    let navigation = sidebar.orderedEntries.map { entry in
+    // The web's "Ir para" lists its pages (FR-012-07); here the sidebar rows plus the
+    // pages without a row.
+    let navigation = sidebar.paletteEntries.map { entry in
       PaletteCommand(
         id: "navigate.\(routeKey(entry.route))",
         group: "Ir para",
@@ -84,6 +85,10 @@ public enum ShellCommands {
     case .module(let id): "module.\(id.rawValue)"
     case .agents: "agents"
     case .access: "access"
+    case .kanban: "kanban"
+    case .ferramentas: "ferramentas"
+    case .configuracao: "configuracao"
+    case .perfil: "perfil"
     }
   }
 }

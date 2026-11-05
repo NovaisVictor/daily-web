@@ -22,6 +22,7 @@ struct RootView: View {
     // Navigator requests target the window that follows the navigator; module
     // windows keep the default (false).
     .environment(\.isPrimaryWindow, followsNavigator)
+    .generalSettingsControls()
     .modifier(CapturesWindowOpener(opener: opener))
   }
 

@@ -10,6 +10,7 @@ public struct ShellRootView<Accessory: View>: View {
   private let enabledModules: [ModuleID]
   @Binding private var selection: AppRoute?
   private let account: ShellAccount
+  private let appearance: ShellAppearance
   private let accountActions: ShellAccountActions
   private let isRefreshing: Bool
   private let onRefresh: () -> Void
@@ -28,6 +29,7 @@ public struct ShellRootView<Accessory: View>: View {
     enabledModules: [ModuleID],
     selection: Binding<AppRoute?>,
     account: ShellAccount,
+    appearance: ShellAppearance,
     accountActions: ShellAccountActions,
     isRefreshing: Bool,
     onRefresh: @escaping () -> Void,
@@ -39,6 +41,7 @@ public struct ShellRootView<Accessory: View>: View {
     self.enabledModules = enabledModules
     _selection = selection
     self.account = account
+    self.appearance = appearance
     self.accountActions = accountActions
     self.isRefreshing = isRefreshing
     self.onRefresh = onRefresh
@@ -68,18 +71,29 @@ public struct ShellRootView<Accessory: View>: View {
           }
         }
       }
+      // The system sidebar is already Liquid Glass on macOS 26 (DP-1 keeps its native
+      // look); hiding the list's own fill lets the window backdrop show through it.
+      .scrollContentBackground(.hidden)
       .navigationSplitViewColumnWidth(min: 180, ideal: 220)
     } detail: {
       detail
     }
     .toolbar {
-      ToolbarItemGroup(placement: .primaryAction) {
-        Button("Buscar", systemImage: "magnifyingglass") { isPalettePresented = true }
-          .help("Buscar")
-        RefreshButton(isRefreshing: isRefreshing, action: onRefresh)
-        accessory
-        AccountMenu(account: account, actions: accountActions)
+      ToolbarItem(placement: .primaryAction) {
+        // One glass bar of our own, like the web header (spec 013 FR-013-02), instead of
+        // the system's shared toolbar background behind each item.
+        GlassGroup {
+          HStack(spacing: 2) {
+            IconButton("Buscar", systemImage: "magnifyingglass") { isPalettePresented = true }
+            RefreshButton(isRefreshing: isRefreshing, action: onRefresh)
+            accessory
+            AccountMenu(account: account, appearance: appearance, actions: accountActions)
+          }
+          .padding(4)
+          .glassSurface(.bar)
+        }
       }
+      .sharedBackgroundVisibility(.hidden)
     }
     .sheet(isPresented: $isPalettePresented) {
       CommandPalette(commands: paletteCommands) { isPalettePresented = false }
@@ -94,7 +108,7 @@ public struct ShellRootView<Accessory: View>: View {
   /// The menu bar's "Ir", "Atualizar agora" and "Abrir em nova janela" act on this window.
   private var menuActions: ShellMenuActions {
     ShellMenuActions(
-      items: ShellShortcuts.goMenuItems(sidebar.orderedEntries),
+      items: ShellShortcuts.goMenuItems(sidebar),
       selection: selection,
       isRefreshing: isRefreshing,
       select: { selection = $0 },
@@ -126,9 +140,10 @@ struct RefreshButton: View {
       if isRefreshing {
         ProgressView().controlSize(.small)
       } else {
-        Image(systemName: "arrow.clockwise")
+        Image(systemName: "arrow.clockwise").accessibilityHidden(true)
       }
     }
+    .iconButtonStyle()
     .disabled(isRefreshing)
     .help(label)
     .accessibilityLabel(label)
@@ -142,12 +157,13 @@ struct RefreshButton: View {
     enabledModules: ModuleID.known,
     selection: $selection,
     account: PreviewData.account,
+    appearance: PreviewData.appearance,
     accountActions: PreviewData.accountActions,
     isRefreshing: false,
     onRefresh: {},
     paletteCommands: PreviewData.paletteCommands
   ) {
-    Button("Notificações", systemImage: "bell") {}
+    IconButton("Notificações", systemImage: "bell") {}
   }
   .frame(width: 900, height: 600)
 }
@@ -159,6 +175,7 @@ struct RefreshButton: View {
     enabledModules: [.tasks, .agenda],
     selection: $selection,
     account: PreviewData.account,
+    appearance: PreviewData.appearance,
     accountActions: PreviewData.accountActions,
     isRefreshing: true,
     onRefresh: {},

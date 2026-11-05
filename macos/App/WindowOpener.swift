@@ -16,7 +16,7 @@ final class WindowOpener {
   /// Why the app comes forward. Only explicit user actions may activate it
   /// (G-14); the reason goes to the log so an unexpected activation can be traced.
   enum Reason: String {
-    case dock, globalShortcut, menuBar, notification, moduleWindow
+    case dock, globalShortcut, menuBar, notification, moduleWindow, settings
   }
 
   /// Activates the app and shows the main window, reopening it when it was closed.

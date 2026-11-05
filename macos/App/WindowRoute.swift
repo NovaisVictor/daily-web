@@ -5,7 +5,7 @@ import DailyModels
 /// the window, and the frozen `AppRoute` is not.
 struct WindowRoute: Codable, Hashable {
   private enum Kind: String, Codable {
-    case today, module, agents, access
+    case today, module, agents, access, kanban, ferramentas, configuracao, perfil
   }
 
   private let kind: Kind
@@ -17,6 +17,10 @@ struct WindowRoute: Codable, Hashable {
     case .today: (kind, module) = (.today, nil)
     case .agents: (kind, module) = (.agents, nil)
     case .access: (kind, module) = (.access, nil)
+    case .kanban: (kind, module) = (.kanban, nil)
+    case .ferramentas: (kind, module) = (.ferramentas, nil)
+    case .configuracao: (kind, module) = (.configuracao, nil)
+    case .perfil: (kind, module) = (.perfil, nil)
     case .module(let id): (kind, module) = (.module, id.rawValue)
     }
   }
@@ -27,6 +31,10 @@ struct WindowRoute: Codable, Hashable {
     case .today: .today
     case .agents: .agents
     case .access: .access
+    case .kanban: .kanban
+    case .ferramentas: .ferramentas
+    case .configuracao: .configuracao
+    case .perfil: .perfil
     case .module: module.map { .module(ModuleID(rawValue: $0)) }
     }
   }

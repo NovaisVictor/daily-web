@@ -1,17 +1,19 @@
 import DailyCore
 import SwiftUI
 
-/// ⌘1…⌘9 jump to the sidebar rows in order.
+/// ⌘1…⌘9 jump to the pages and then the modules, in sidebar order (FR-012-07).
 public enum ShellShortcuts {
   /// One digit per route, for the first nine routes.
   public static func routeShortcuts(_ routes: [AppRoute]) -> [(key: Character, route: AppRoute)] {
     zip(1...9, routes).map { (key: Character(String($0)), route: $1) }
   }
 
-  /// The "Ir" menu: every sidebar row, top to bottom, the first nine with their digit.
-  public static func goMenuItems(_ entries: [ModuleEntry]) -> [ShellMenuItem] {
-    let keys = Dictionary(uniqueKeysWithValues: routeShortcuts(entries.map(\.route)).map { ($0.route, $0.key) })
-    return entries.map { entry in
+  /// The "Ir" menu: every sidebar row, top to bottom; the pages and modules carry their
+  /// digit while there are digits left, the "Ajustes" rows never do.
+  public static func goMenuItems(_ sidebar: SidebarModel) -> [ShellMenuItem] {
+    let numbered = routeShortcuts(sidebar.numberedEntries.map(\.route))
+    let keys = Dictionary(uniqueKeysWithValues: numbered.map { ($0.route, $0.key) })
+    return sidebar.orderedEntries.map { entry in
       ShellMenuItem(route: entry.route, title: entry.title, systemImage: entry.systemImage, key: keys[entry.route])
     }
   }

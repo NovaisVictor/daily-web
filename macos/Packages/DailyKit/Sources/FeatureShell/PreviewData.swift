@@ -6,10 +6,16 @@ import SwiftUI
 enum PreviewData {
   static let account = ShellAccount(displayName: "Ana Souza", username: "ana", avatar: nil)
 
+  static let appearance = ShellAppearance(theme: .system, density: .comfortable, backdrop: .mesh)
+
   static let accountActions = ShellAccountActions(
     profile: {},
     connectAgent: {},
+    agentsWorkspace: {},
     settings: {},
+    setTheme: { _ in },
+    setDensity: { _ in },
+    setBackdrop: { _ in },
     signOut: {}
   )
 
@@ -26,16 +32,20 @@ enum PreviewData {
 
   static let registry = ModuleRegistry(
     entries: [
-      placeholder(.today, "Hoje", "sun.max", nil),
+      placeholder(.today, "Início", "house", nil),
+      placeholder(.kanban, "Kanban", "rectangle.split.3x1", nil),
+      placeholder(.ferramentas, "Ferramentas", "powerplug", nil),
       placeholder(.module(.email), "E-mail", "envelope", .email),
       placeholder(.module(.tasks), "Tarefas", "checklist", .tasks),
-      placeholder(.module(.notes), "Notas", "note.text", .notes),
+      placeholder(.module(.notes), "Notas rápidas", "note.text", .notes),
       placeholder(.module(.agenda), "Agenda", "calendar", .agenda),
-      placeholder(.module(.jira), "Jira", "ticket", .jira),
-      placeholder(.module(.pulls), "Pull requests", "arrow.triangle.pull", .pulls),
+      placeholder(.module(.jira), "Jira", "list.bullet.rectangle", .jira),
+      placeholder(.module(.pulls), "GitHub", "arrow.triangle.pull", .pulls),
       placeholder(.module(.slack), "Slack", "bubble.left.and.bubble.right", .slack),
-      placeholder(.agents, "Agentes", "cpu", nil),
       placeholder(.access, "Acesso dos agentes", "key", nil),
+      placeholder(.configuracao, "Configuração", "slider.horizontal.3", nil),
+      placeholder(.perfil, "Perfil", "person.crop.circle", nil),
+      placeholder(.agents, "Agentes e atividades", "rectangle.3.group", nil),
     ]
   )
 
@@ -61,7 +71,7 @@ enum PreviewData {
     _ module: ModuleID?
   ) -> ModuleEntry {
     ModuleEntry(route: route, title: title, systemImage: systemImage, requiresModule: module) {
-      AnyView(Text(title).font(.largeTitle).frame(maxWidth: .infinity, maxHeight: .infinity))
+      AnyView(Text(title).typeRole(.title).frame(maxWidth: .infinity, maxHeight: .infinity))
     }
   }
 }

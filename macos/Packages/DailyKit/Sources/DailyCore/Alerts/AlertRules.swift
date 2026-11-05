@@ -41,6 +41,10 @@ public struct AlertTarget: Equatable, Sendable {
     case .today: "today"
     case .agents: "agents"
     case .access: "access"
+    case .kanban: "kanban"
+    case .ferramentas: "ferramentas"
+    case .configuracao: "configuracao"
+    case .perfil: "perfil"
     case .module(let module): "module:\(module.rawValue)"
     }
   }
@@ -50,6 +54,10 @@ public struct AlertTarget: Equatable, Sendable {
     case "today": return .today
     case "agents": return .agents
     case "access": return .access
+    case "kanban": return .kanban
+    case "ferramentas": return .ferramentas
+    case "configuracao": return .configuracao
+    case "perfil": return .perfil
     default:
       guard text.hasPrefix("module:") else { return nil }
       return .module(ModuleID(rawValue: String(text.dropFirst("module:".count))))
