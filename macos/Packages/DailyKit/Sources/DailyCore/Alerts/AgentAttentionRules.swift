@@ -70,12 +70,22 @@ public nonisolated enum AgentAttentionRules {
 
   /// The server's timestamps, with or without fractional seconds.
   public static func date(_ text: String) -> Date? {
+    fractionalFormatter.date(from: text) ?? wholeSecondsFormatter.date(from: text)
+  }
+
+  // `ISO8601DateFormatter` is documented as thread-safe, and these two are
+  // configured once here and never mutated, so sharing them is safe; parsing
+  // every board card with a new formatter is what this cache avoids.
+  nonisolated(unsafe) private static let fractionalFormatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = formatter.date(from: text) { return date }
+    return formatter
+  }()
+  nonisolated(unsafe) private static let wholeSecondsFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
-    return formatter.date(from: text)
-  }
+    return formatter
+  }()
 
   /// `GET /api/agents` with the board's default filters (`AgentBoard.tsx:20-26`),
   /// the same query the agents screen sends before any filter changes.
@@ -91,37 +101,45 @@ public nonisolated enum AgentAttentionRules {
   }
 }
 
-/// FR-006 without the agents screen: once a minute, while that screen is not
-/// polling the board itself, reads the default board only to find the tasks
-/// waiting on the user. The web has no such check: it relies on web push
-/// (`lib/push/dispatch.ts`), which the app does not receive.
+/// FR-006 without the agents screen: once a minute, unless that screen
+/// reported its unfiltered board within the last minute, reads the default
+/// board only to find the tasks waiting on the user. The web has no such
+/// check: it relies on web push (`lib/push/dispatch.ts`), which the app does
+/// not receive.
 @MainActor
 final class AgentAttentionCheck {
   private let client: any APIClient
-  /// Weak: the poller owns the scope that owns this check.
-  private weak var poller: Poller?
   private let alerts: AlertEngine
   private let now: Now
+  private let interval: TimeInterval
 
-  init(client: any APIClient, poller: Poller, alerts: AlertEngine, now: @escaping Now) {
+  init(
+    client: any APIClient, alerts: AlertEngine, now: @escaping Now,
+    interval: Duration = Poller.Cadence.agentAttention
+  ) {
     self.client = client
-    self.poller = poller
     self.alerts = alerts
     self.now = now
+    self.interval = Double(interval.components.seconds) + Double(interval.components.attoseconds) / 1e18
   }
 
-  private var screenIsPolling: Bool {
-    poller?.registeredScopes.contains(Poller.ScopeID.agents) ?? false
+  /// Whether the screen reported at or after `start`. Its scope being
+  /// registered is not enough: it is paused in the background, and a filtered
+  /// board or the sessions tab reports nothing.
+  private func screenReported(since start: Date) -> Bool {
+    guard let last = alerts.lastScreenAgentsReport else { return false }
+    return last >= start
   }
 
   func run() async {
-    // The screen's own 2 s scope reports the same tasks; a second read would
+    // The screen's own 2 s poll reports the same tasks; a second read would
     // only cost a request.
-    guard !screenIsPolling else { return }
+    let started = now()
+    guard !screenReported(since: started.addingTimeInterval(-interval)) else { return }
     do {
       let board = try await client.send(AgentAttentionRules.defaultBoard)
-      // The screen may have opened while the request was out; its answer is newer.
-      guard !screenIsPolling else { return }
+      // The screen may have reported while the request was out; its answer is newer.
+      guard !screenReported(since: started) else { return }
       await alerts.updateAgents(AgentAttentionRules.waiting(board, now: now()))
     } catch {
       if case .cancelled = error { return }

@@ -51,6 +51,33 @@ import Testing
     #expect(!environment.poller.isRunning)
   }
 
+  /// A notification action that launched the app runs before `launch()` ends.
+  @Test func waitUntilSignedInWaitsForTheSessionAndAState() async {
+    let fake = FakeAPIClient()
+    let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: "t")
+    let environment = AppEnvironment(
+      rawClient: fake, tokenStore: storage, settings: storage, cacheDirectory: nil,
+      defaults: Fixtures.defaults(), poster: FakeNotificationPoster(),
+      sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
+    fake.respond { call in
+      call.path == "/api/me" ? FakeAPIClient.json(Fixtures.user) : FakeAPIClient.json(Fixtures.state())
+    }
+    let ready = Task { await environment.waitUntilSignedIn() }
+    await environment.launch()
+    #expect(await ready.value)
+    #expect(environment.dashboard.state == Fixtures.state())
+    environment.poller.stop()
+  }
+
+  @Test func waitUntilSignedInIsFalseWhenSignedOut() async {
+    let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: nil)
+    let environment = AppEnvironment(
+      rawClient: FakeAPIClient(), tokenStore: storage, settings: storage, cacheDirectory: nil,
+      defaults: Fixtures.defaults(), poster: FakeNotificationPoster())
+    await environment.launch()
+    #expect(await environment.waitUntilSignedIn() == false)
+  }
+
   @Test func launchWithAnExpiredSessionClearsThePreviousAccount() async throws {
     let fake = FakeAPIClient()
     let storage = InMemorySessionStorage(server: URL(string: "https://daily.example.com"), token: "t")

@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 
 @testable import DailyCore
@@ -48,5 +49,12 @@ import Testing
     navigator.requestNotifications()
     #expect(navigator.takeNotificationsRequest())
     #expect(!navigator.isNotificationsRequested)
+  }
+}
+
+@Suite struct PrimaryWindowTests {
+  /// A window that does not say it is the main one never consumes a request.
+  @Test func windowsAreNotPrimaryByDefault() {
+    #expect(EnvironmentValues().isPrimaryWindow == false)
   }
 }

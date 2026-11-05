@@ -14,6 +14,27 @@ import Testing
     return SessionStore(client: client, tokenStore: storage, settings: storage)
   }
 
+  @Test func settledWaitsForTheLaunchCheck() async {
+    client.respond { _ in FakeAPIClient.json(Fixtures.user) }
+    let store = makeStore()
+    let waiter = Task { await store.settled() }
+    await store.restore()
+    await waiter.value
+    #expect(store.phase == .signedIn(Fixtures.user))
+    // Already decided: returns at once.
+    await store.settled()
+  }
+
+  @Test func settledReturnsWhenTheServerIsUnreachable() async {
+    client.respond { _ throws(APIError) in throw .offline }
+    let store = makeStore()
+    let waiter = Task { await store.settled() }
+    await store.restore()
+    await waiter.value
+    #expect(store.phase == .restoring)
+    #expect(store.restoreError != nil)
+  }
+
   @Test func restoreWithoutServerSignsOut() async {
     let storage = InMemorySessionStorage()
     let store = SessionStore(client: client, tokenStore: storage, settings: storage)

@@ -91,7 +91,7 @@ public final class AppEnvironment {
       foreground: Poller.Cadence.reminders,
       background: Poller.Cadence.reminders
     ) { await alerts.checkReminders() }
-    let agentCheck = AgentAttentionCheck(client: client, poller: poller, alerts: alerts, now: now)
+    let agentCheck = AgentAttentionCheck(client: client, alerts: alerts, now: now)
     poller.register(
       Poller.ScopeID.agentAttention,
       foreground: Poller.Cadence.agentAttention,
@@ -130,6 +130,21 @@ public final class AppEnvironment {
   /// Checks the stored session; on success the dashboard starts polling.
   public func launch() async {
     await session.restore()
+  }
+
+  /// Waits for `launch()` to decide the session and, when signed in, for a
+  /// dashboard state, so an action that arrives before any window (a
+  /// notification button that launched the app) patches real data.
+  ///
+  /// - Returns: Whether the app is signed in; false when signed out or the
+  ///   server could not be reached.
+  public func waitUntilSignedIn() async -> Bool {
+    await session.settled()
+    guard session.user != nil else { return false }
+    // `onSignedIn` already showed the cache; without one, read the state now
+    // instead of racing the poller's first tick.
+    if dashboard.state == nil { await dashboard.reload() }
+    return session.user != nil
   }
 
   /// From `scenePhase` / window occlusion: hidden counts as background.

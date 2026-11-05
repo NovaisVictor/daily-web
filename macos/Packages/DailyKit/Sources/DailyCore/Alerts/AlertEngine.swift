@@ -25,6 +25,9 @@ public final class AlertEngine {
   @ObservationIgnored private var seen: SeenState
   @ObservationIgnored private var agenda: [AgendaItem] = []
   @ObservationIgnored private var lastUpdatedAt: String?
+  /// When the agents screen last reported its unfiltered board; the minute
+  /// check reads it to skip a request the screen already made.
+  @ObservationIgnored public private(set) var lastScreenAgentsReport: Date?
 
   /// - Parameters:
   ///   - cache: Where the announced keys live (`SEEN_KEY` in the web).
@@ -82,6 +85,14 @@ public final class AlertEngine {
     await show(result.alerts)
   }
 
+  /// The same, from the agents screen's unfiltered default board. Recording
+  /// the time lets the background check stand down only while the screen is
+  /// really reporting: hidden, filtered or on "Sessões" it reports nothing.
+  public func updateAgentsFromScreen(_ waiting: [AgentAttention]) async {
+    lastScreenAgentsReport = now()
+    await updateAgents(waiting)
+  }
+
   /// The pomodoro moved to `phase` (`notifyPhaseChange`, `components/Pomodoro.tsx:29-39`).
   /// Like the web, it does not depend on the dashboard alerts switch, only on
   /// the system permission.
@@ -98,6 +109,7 @@ public final class AlertEngine {
     seen = SeenState()
     agenda = []
     lastUpdatedAt = nil
+    lastScreenAgentsReport = nil
     guard let cache else { return }
     do {
       try cache.remove()

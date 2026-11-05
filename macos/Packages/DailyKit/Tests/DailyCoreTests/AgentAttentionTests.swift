@@ -59,19 +59,26 @@ nonisolated private func board(_ tasks: [AgentTask]) -> AgentsBoard {
 @MainActor
 @Suite struct AgentAttentionCheckTests {
   let client = FakeAPIClient()
-  let poller: Poller
   let poster = FakeNotificationPoster()
   let alerts: AlertEngine
+  let clock = Clock(now)
+
+  /// A settable time the engine and the check share.
+  final class Clock {
+    var date: Date
+    init(_ date: Date) { self.date = date }
+  }
 
   init() {
-    poller = Poller(sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
     let defaults = Fixtures.defaults()
     defaults.set("1", forKey: AlertEngine.enabledKey)
-    alerts = AlertEngine(poster: poster, cache: nil, defaults: defaults)
+    let clock = clock
+    alerts = AlertEngine(poster: poster, cache: nil, defaults: defaults, now: { clock.date })
   }
 
   func makeCheck() -> AgentAttentionCheck {
-    AgentAttentionCheck(client: client, poller: poller, alerts: alerts, now: { now })
+    let clock = clock
+    return AgentAttentionCheck(client: client, alerts: alerts, now: { clock.date })
   }
 
   @Test func alertsANewWaitWithoutTheScreen() async {
@@ -84,10 +91,43 @@ nonisolated private func board(_ tasks: [AgentTask]) -> AgentsBoard {
     #expect(poster.posted.map(\.title) == ["Aguardando sua resposta: Tarefa a"])
   }
 
-  @Test func staysQuietWhileTheScreenPolls() async {
-    poller.register(Poller.ScopeID.agents, foreground: .seconds(2), background: nil) {}
+  @Test func staysQuietWhileTheScreenReportsTheUnfilteredBoard() async {
+    await alerts.updateAgentsFromScreen([])
+    clock.date = now.addingTimeInterval(30)
     await makeCheck().run()
     #expect(client.calls.isEmpty)
+  }
+
+  /// Hidden (the screen's scope is paused in the background), filtered or on
+  /// "Sessões", the screen stops reporting; the check must read the board again.
+  @Test func readsAgainOnceTheScreenStopsReporting() async {
+    await alerts.updateAgentsFromScreen([])
+    clock.date = now.addingTimeInterval(61)
+    client.respond { _ in FakeAPIClient.json(board([agentTask("a", status: .working, attention: .input)])) }
+    await makeCheck().run()
+    #expect(client.calls.map(\.path) == ["/api/agents"])
+  }
+
+  @Test func readsWhenTheScreenNeverReported() async {
+    let poller = Poller(sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
+    // A registered but paused or filtered screen used to silence the check.
+    poller.register(Poller.ScopeID.agents, foreground: .seconds(2), background: nil) {}
+    client.respond { _ in FakeAPIClient.json(board([])) }
+    await makeCheck().run()
+    #expect(client.calls.map(\.path) == ["/api/agents"])
+  }
+
+  @Test func dropsItsAnswerWhenTheScreenReportedMeanwhile() async {
+    let check = makeCheck()
+    let alerts = alerts
+    client.respond { _ in FakeAPIClient.json(board([agentTask("a", status: .working, attention: .input)])) }
+    await check.run()
+    client.respond { _ in
+      await alerts.updateAgentsFromScreen([])
+      return FakeAPIClient.json(board([agentTask("b", status: .working, attention: .input)]))
+    }
+    await check.run()
+    #expect(poster.posted.isEmpty)
   }
 
   @Test func aFailedReadKeepsWhatWasSeen() async {

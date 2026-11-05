@@ -36,6 +36,7 @@ public final class SessionStore {
   /// left in memory or on disk never reaches the next one.
   @ObservationIgnored public var onSignedOut: (() -> Void)?
 
+  @ObservationIgnored private var settleWaiters: [CheckedContinuation<Void, Never>] = []
   @ObservationIgnored private let client: any APIClient
   @ObservationIgnored private let tokenStore: any SessionTokenStore
   @ObservationIgnored private let settings: any ServerSettings
@@ -46,6 +47,15 @@ public final class SessionStore {
     self.client = client
     self.tokenStore = tokenStore
     self.settings = settings
+  }
+
+  /// Returns once the launch check has decided: signed in, signed out, or
+  /// failed to reach the server (`restoreError`). Lets work that arrives
+  /// before the window, like a notification action that launched the app,
+  /// wait instead of calling the API without a session.
+  public func settled() async {
+    guard case .restoring = phase, restoreError == nil else { return }
+    await withCheckedContinuation { settleWaiters.append($0) }
   }
 
   /// The server the user last signed in to, to prefill the login screen.
@@ -81,6 +91,7 @@ public final class SessionStore {
     } catch {
       Logger.core.error("Session restore failed: \(String(describing: error), privacy: .public)")
       restoreError = error
+      resumeSettleWaiters()
     }
   }
 
@@ -120,6 +131,7 @@ public final class SessionStore {
     restoreError = nil
     phase = .signedIn(user)
     onSignedIn?(user)
+    resumeSettleWaiters()
   }
 
   /// The only way into `.signedOut`.
@@ -128,6 +140,13 @@ public final class SessionStore {
     if case .signedOut = phase { wasSignedOut = true } else { wasSignedOut = false }
     phase = .signedOut(message: message)
     if !wasSignedOut { onSignedOut?() }
+    resumeSettleWaiters()
+  }
+
+  private func resumeSettleWaiters() {
+    let waiters = settleWaiters
+    settleWaiters = []
+    for waiter in waiters { waiter.resume() }
   }
 }
 
