@@ -4,21 +4,28 @@ import DailyModels
 import SwiftUI
 
 /// The "Hoje" screen (`app/(app)/page.tsx`): greeting, pomodoro and clock on top
-/// (`components/NowBand.tsx`), then one compact card per module that is on.
-/// The web's draggable panel grid is web-only; each card here opens its module.
+/// (`components/NowBand.tsx`), then one panel per module that is on, in two
+/// columns when the window is wide enough. The panels are read-only previews of
+/// the web's panels; their rows open the module on the item they show.
 public struct HomeScreen: View {
   @Environment(\.theme) private var theme
   @State private var store: HomeStore
+  @State private var gridWidth: CGFloat = 0
   private let open: (AppRoute) -> Void
   private let navigator: AppNavigator
 
-  /// A chosen card moves the window through the app's navigator.
+  /// Below this width the panels stack in one column: two would squeeze each
+  /// row's title next to its lead column.
+  private static let twoColumnWidth: CGFloat = 820
+
+  /// A chosen panel moves the window through the app's navigator.
   public init(environment: AppEnvironment) {
     let navigator = environment.navigator
     self.init(environment: environment, open: { route in navigator.open(route) })
   }
 
-  /// - Parameter open: Called with `.module(id)` when a card is chosen.
+  /// - Parameter open: Called with `.module(id)` when a panel's "Abrir" is chosen.
+  ///   A row that points at one item goes through the navigator, which reveals it.
   public init(environment: AppEnvironment, open: @escaping (AppRoute) -> Void) {
     _store = State(initialValue: HomeStore(environment: environment))
     self.open = open
@@ -29,9 +36,9 @@ public struct HomeScreen: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
         NowBand(store: store)
-        // Re-evaluated every minute so "hoje" and the upcoming events follow the clock.
+        // Re-evaluated every minute so "hoje", ages and the upcoming events follow the clock.
         TimelineView(.everyMinute) { context in
-          content(store.summary(at: context.date))
+          content(store.panels(at: context.date))
         }
       }
       .padding(24)
@@ -41,20 +48,51 @@ public struct HomeScreen: View {
   }
 
   @ViewBuilder
-  private func content(_ summary: HomeSummary?) -> some View {
-    if let summary {
-      if summary.nothingOn {
+  private func content(_ home: HomePanels?) -> some View {
+    if let home {
+      if home.nothingOn {
         NothingOnState(navigator: navigator)
       } else {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16, alignment: .top)], spacing: 16) {
-          ForEach(summary.cards) { card in
-            SummaryCard(card: card) { open(.module(card.module)) }
+        columns(home.panels)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .onGeometryChange(for: CGFloat.self) {
+            $0.size.width
+          } action: {
+            gridWidth = $0
           }
-        }
       }
     } else {
       LoadingState()
     }
+  }
+
+  /// Two independent columns (panels alternate left and right in the web's
+  /// order), so a short panel never leaves a gap under it.
+  @ViewBuilder
+  private func columns(_ panels: [HomePanel]) -> some View {
+    if gridWidth >= Self.twoColumnWidth {
+      HStack(alignment: .top, spacing: 16) {
+        column(panels.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element))
+        column(panels.enumerated().filter { !$0.offset.isMultiple(of: 2) }.map(\.element))
+      }
+    } else {
+      column(panels)
+    }
+  }
+
+  private func column(_ panels: [HomePanel]) -> some View {
+    VStack(spacing: 16) {
+      ForEach(panels) { panel in
+        ModulePanel(panel: panel) { route, itemID in
+          if let itemID {
+            navigator.open(route, itemID: itemID)
+          } else {
+            open(route)
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .top)
   }
 }
 
@@ -172,76 +210,145 @@ private struct PomodoroCard: View {
   }
 }
 
-/// One module's summary; the whole card is the button that opens the module.
-private struct SummaryCard: View {
+/// One module's panel: title, count, "Abrir ›", the web panel's tabs and the
+/// first rows of the selected tab.
+private struct ModulePanel: View {
   @Environment(\.theme) private var theme
-  let card: HomeCard
+  let panel: HomePanel
+  /// The route and, for a row that points at one item, the item to reveal.
+  let open: (AppRoute, String?) -> Void
+  @State private var selectedTab: String?
+
+  private var tab: HomeTab? {
+    panel.tabs.first { $0.id == selectedTab } ?? panel.tabs.first
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      SectionHeader(panel.title, count: tab?.countText) {
+        Button {
+          open(panel.route, nil)
+        } label: {
+          HStack(spacing: 4) {
+            Text("Abrir")
+            Image(systemName: "chevron.right").imageScale(.small)
+          }
+          .typeRole(.caption)
+          .foregroundStyle(theme.brand)
+          .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Abrir \(panel.title)")
+      }
+      if panel.hasTabs {
+        FlowLayout(spacing: 6) {
+          ForEach(panel.tabs) { item in
+            Chip(item.count > 0 ? "\(item.label) \(item.count)" : item.label, isOn: item.id == tab?.id) {
+              selectedTab = item.id
+            }
+          }
+        }
+      }
+      if let tab {
+        TabBody(tab: tab) { open(panel.route, $0.itemID) }
+      }
+    }
+    .padding(18)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(theme.surface1, in: .rect(cornerRadius: Radius.large))
+    .overlay {
+      RoundedRectangle(cornerRadius: Radius.large).strokeBorder(theme.line)
+    }
+  }
+}
+
+private struct TabBody: View {
+  @Environment(\.theme) private var theme
+  let tab: HomeTab
+  let choose: (HomeRow) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if tab.isOff {
+        Text(HomePanels.offText)
+          .typeRole(.data)
+          .foregroundStyle(theme.inkDim)
+      }
+      ForEach(tab.errors, id: \.self) { PanelError($0) }
+      if let empty = tab.emptyText {
+        Text(empty)
+          .typeRole(.data)
+          .foregroundStyle(theme.inkDim)
+      }
+      if !tab.rows.isEmpty {
+        VStack(spacing: 0) {
+          ForEach(tab.rows) { row in
+            PanelRow(row: row) { choose(row) }
+            if row.id != tab.rows.last?.id {
+              Divider().overlay(theme.lineSoft)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/// A read-only row; choosing it opens the module, on the item when it has one.
+private struct PanelRow: View {
+  @Environment(\.theme) private var theme
+  @State private var hovering = false
+  let row: HomeRow
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
-      VStack(alignment: .leading, spacing: 12) {
-        Label(card.title, systemImage: card.systemImage)
-          .typeRole(.subhead)
-          .foregroundStyle(theme.ink)
-        if card.isOff {
-          Text(HomeSummary.offText)
-            .typeRole(.data)
-            .foregroundStyle(theme.inkDim)
-        }
-        ForEach(card.errors, id: \.self) { PanelError($0) }
-        if !card.metrics.isEmpty {
-          HStack(alignment: .firstTextBaseline, spacing: 20) {
-            ForEach(card.metrics, id: \.label) { metric in
-              MetricView(metric: metric)
+      HStack(alignment: .firstTextBaseline, spacing: 12) {
+        Text(row.lead)
+          .typeRole(.data)
+          .foregroundStyle(row.leadIsLate ? theme.warning : theme.brand)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .frame(width: 84, alignment: .leading)
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if row.emphasized {
+              StatusDot(.info)
+            }
+            Text(row.title)
+              .typeRole(.data)
+              .fontWeight(row.emphasized ? .semibold : nil)
+              .foregroundStyle(theme.ink)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
+          if !row.pills.isEmpty || !row.meta.isEmpty {
+            FlowLayout(spacing: 8) {
+              ForEach(row.pills, id: \.label) { pill in
+                StatusPill(pill.label, glyph: pill.glyph, tone: pill.tone)
+              }
+              if !row.meta.isEmpty {
+                Text(row.metaText)
+                  .typeRole(.caption)
+                  .foregroundStyle(theme.inkMid)
+                  .lineLimit(1)
+                  .truncationMode(.tail)
+              }
             }
           }
         }
-        if let empty = card.emptyText {
-          Text(empty)
-            .typeRole(.data)
-            .foregroundStyle(theme.inkDim)
-        }
-        if !card.lines.isEmpty {
-          VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(card.lines.enumerated()), id: \.offset) { _, line in
-              Text(line)
-                .typeRole(.data)
-                .foregroundStyle(theme.inkMid)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            }
-          }
-        }
+        Spacer(minLength: 0)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(16)
-      .background(theme.surface1, in: .rect(cornerRadius: Radius.large))
-      .overlay {
-        RoundedRectangle(cornerRadius: Radius.large).strokeBorder(theme.line)
-      }
-      .contentShape(.rect(cornerRadius: Radius.large))
+      .padding(.vertical, 8)
+      .padding(.horizontal, 6)
+      .background(hovering ? theme.brandTint : .clear, in: .rect(cornerRadius: Radius.small))
+      .contentShape(.rect)
     }
     .buttonStyle(.plain)
-    .accessibilityHint("abrir \(card.title)")
-  }
-}
-
-private struct MetricView: View {
-  @Environment(\.theme) private var theme
-  let metric: HomeMetric
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(metric.value, format: .number)
-        .typeRole(.title)
-        .monospacedDigit()
-        .foregroundStyle(metric.urgent && metric.value > 0 ? theme.danger : theme.ink)
-      Text(metric.label)
-        .typeRole(.caption)
-        .foregroundStyle(theme.inkDim)
-    }
+    .onHover { hovering = $0 }
     .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(.isButton)
+    .accessibilityValue(row.emphasized ? "não lido" : "")
   }
 }
 

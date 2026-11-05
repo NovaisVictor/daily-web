@@ -33,20 +33,28 @@ enum Fixtures {
     AgendaItem(account: "cal-1", accountLabel: "Pessoal", date: date, time: time, title: title)
   }
 
-  static func issue(_ key: String, awaitingApproval: Bool) -> JiraItem {
+  static func issue(
+    _ key: String, awaitingApproval: Bool, status: String = "Em andamento",
+    category: JiraStatusCategory = .indeterminate, updatedAt: String = "2026-11-03T10:00:00.000Z",
+    dueDate: String = "", priority: String? = nil
+  ) -> JiraItem {
     JiraItem(
-      key: key, summary: "Resumo \(key)", status: "Em andamento", statusCategory: .indeterminate, project: "DW",
+      key: key, summary: "Resumo \(key)", status: status, statusCategory: category, project: "DW",
       url: "https://jira.example.com/browse/\(key)", parent: nil, role: .assignee, awaitingApproval: awaitingApproval,
-      kind: "Story", subtask: false, hierarchyLevel: 0, updatedAt: "2026-11-03T10:00:00.000Z", dueDate: "",
-      priority: nil, flag: .none)
+      kind: "Story", subtask: false, hierarchyLevel: 0, updatedAt: updatedAt, dueDate: dueDate,
+      priority: priority.map { JiraPriority(name: $0, rank: nil) }, flag: .none)
   }
 
-  static func pull(_ number: Int) -> PullRequestItem {
+  static func pull(
+    _ number: Int, mine: Bool = false, ci: PullCI = .passing, review: PullReview = .pending,
+    merge: PullMerge = .clean, createdAt: String = "2026-11-03T10:00:00.000Z",
+    updatedAt: String = "2026-11-04T10:00:00.000Z"
+  ) -> PullRequestItem {
     PullRequestItem(
       id: "pr-\(number)", repo: "acme/web", number: number, title: "PR \(number)",
-      url: "https://github.com/acme/web/pull/\(number)", author: "bruno", draft: false, awaitingYou: true, mine: false,
-      isPullRequest: true, updatedAt: "2026-11-04T10:00:00.000Z", createdAt: "2026-11-03T10:00:00.000Z", ci: .passing,
-      failedChecks: [], review: .pending, pendingReviewers: [], reviewers: [], reviewRequestedAt: nil, merge: .clean,
+      url: "https://github.com/acme/web/pull/\(number)", author: "bruno", draft: false, awaitingYou: true, mine: mine,
+      isPullRequest: true, updatedAt: updatedAt, createdAt: createdAt, ci: ci,
+      failedChecks: [], review: review, pendingReviewers: [], reviewers: [], reviewRequestedAt: nil, merge: merge,
       size: nil, headRef: nil, baseRef: nil, headSha: nil)
   }
 

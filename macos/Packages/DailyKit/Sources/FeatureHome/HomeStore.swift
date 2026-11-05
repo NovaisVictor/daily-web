@@ -3,7 +3,7 @@ import DailyModels
 import Foundation
 import Observation
 
-/// What the "Hoje" screen reads: the greeting, the pomodoro and the module summary.
+/// What the "Hoje" screen reads: the greeting, the pomodoro and the module panels.
 /// It has no endpoint of its own; the pomodoro actions go through the shared
 /// `PomodoroController`, which also feeds the menu bar.
 @Observable
@@ -40,8 +40,8 @@ final class HomeStore {
   }
 
   /// Nil until the first state arrives (cache or server).
-  func summary(at now: Date) -> HomeSummary? {
-    dashboard.state.map { HomeSummary(state: $0, now: now) }
+  func panels(at now: Date) -> HomePanels? {
+    dashboard.state.map { HomePanels(state: $0, now: now) }
   }
 
   /// Nil when the server has no timer yet or it is switched off; the web then

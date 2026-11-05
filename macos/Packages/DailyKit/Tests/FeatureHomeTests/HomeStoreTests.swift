@@ -38,10 +38,10 @@ private let parked: Sleeper = { _ in
     dashboard.apply(state)
   }
 
-  @Test func summaryWaitsForTheFirstState() {
-    #expect(store.summary(at: Fixtures.now) == nil)
+  @Test func panelsWaitForTheFirstState() {
+    #expect(store.panels(at: Fixtures.now) == nil)
     serve(timer(running: false))
-    #expect(store.summary(at: Fixtures.now)?.cards.isEmpty == false)
+    #expect(store.panels(at: Fixtures.now)?.panels.isEmpty == false)
   }
 
   @Test func greetsTheSignedInPerson() async {
