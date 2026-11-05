@@ -548,11 +548,16 @@ nonisolated final class FakeServer: Sendable {
     #expect(toasts.toasts.map(\.actionTitle) == ["Abrir a nota", "Abrir tarefas"])
     #expect(store.creating == nil)
 
+    // Opening what was created leaves full screen, which would cover it.
+    store.isFullScreen = true
     toasts.toasts[0].action?()
     #expect(navigator.route == .module(.notes))
     #expect(navigator.pendingItem(for: .module(.notes)) == "n1")
+    #expect(!store.isFullScreen)
+    store.isFullScreen = true
     toasts.toasts[1].action?()
     #expect(navigator.route == .module(.tasks))
+    #expect(!store.isFullScreen)
     #expect(navigator.pending == nil)
 
     server.route { call throws(APIError) in

@@ -11,10 +11,7 @@ public struct EmailScreen: View {
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
 
   public init(environment: AppEnvironment) {
-    _store = State(
-      initialValue: EmailStore(
-        client: environment.client, dashboard: environment.dashboard, toasts: environment.toasts,
-        navigator: environment.navigator))
+    _store = State(initialValue: EmailStore.shared(in: environment))
   }
 
   init(store: EmailStore) {
@@ -48,10 +45,8 @@ public struct EmailScreen: View {
     .onExitCommand {
       if store.openKey != nil { store.closeMessage() }
     }
-    .confirmDialog($store.confirmation)
-    .sheet(isPresented: $store.isMoveSheetPresented) {
-      EmailMoveSheet(store: store)
-    }
+    // While the panel's full screen is open, its sheet owns the dialogs.
+    .emailDialogs(store, isActive: !store.isFullScreen)
   }
 
   /// Only the main window takes the request; it is the one the navigator moved.
@@ -61,10 +56,20 @@ public struct EmailScreen: View {
   }
 }
 
-/// The header, filters, notices and the conversation list.
+/// The header, filters, notices and the conversation list. Under 34rem the
+/// chips, selects and batch buttons fold into the "…" menu, as the web does
+/// under `lg` (`EmailPanel.tsx:949,1019,1135`).
 struct EmailListPane: View {
   @Environment(\.theme) private var theme
   @Bindable var store: EmailStore
+  /// "Abrir em tela cheia" / "Restaurar"; nil where there is no such mode.
+  var fullScreen: EmailFullScreenToggle?
+  var onOpenWindow: (() -> Void)?
+  var padding: CGFloat = 16
+  @State private var isNarrow = false
+
+  /// `34rem`: where the filter bar stops fitting one line beside the search.
+  nonisolated static let narrowWidth: CGFloat = 544
 
   var body: some View {
     let listing = store.listing
@@ -74,7 +79,7 @@ struct EmailListPane: View {
         store.folderTitle,
         count: active.isEmpty ? nil : "\(listing.visible.count) de \(listing.all.count)"
       ) {
-        EmailBatchBar(store: store)
+        headerActions
       }
       filterBar
       activeFilters(active)
@@ -84,27 +89,60 @@ struct EmailListPane: View {
       }
       content(listing)
     }
-    .padding(16)
+    .padding(padding)
+    .onGeometryChange(for: Bool.self) { proxy in
+      proxy.size.width < Self.narrowWidth
+    } action: { narrow in
+      isNarrow = narrow
+    }
     .onChange(of: listing.order) { store.syncSelection() }
+  }
+
+  @ViewBuilder
+  private var headerActions: some View {
+    HStack(spacing: 8) {
+      if isNarrow {
+        let count = store.selection.selected.count
+        if count > 0 {
+          Text("\(count) \(count == 1 ? "conversa" : "conversas")")
+            .font(.daily(size: 14).monospacedDigit())
+            .foregroundStyle(theme.inkDim)
+        }
+      } else {
+        EmailBatchBar(store: store)
+        if let fullScreen {
+          IconButton(fullScreen.buttonLabel, systemImage: fullScreen.systemImage) { fullScreen.toggle() }
+        }
+      }
+      if isNarrow || onOpenWindow != nil {
+        IconMenu("ações dos e-mails", systemImage: "ellipsis") {
+          EmailPaneMenu(
+            store: store, includesFilters: isNarrow, fullScreen: isNarrow ? fullScreen : nil,
+            onOpenWindow: onOpenWindow)
+        }
+      }
+    }
   }
 
   private var filterBar: some View {
     FilterBar("Filtrar e-mails") {
       SearchField(text: $store.filters.query, label: "buscar e-mails", placeholder: "assunto ou remetente")
-      Chip("Não lidos", isOn: store.filters.onlyUnread) { store.filters.onlyUnread.toggle() }
-      // One box needs no box filter.
-      if store.mailboxes.count > 1 {
-        ForEach(store.mailboxes) { box in
-          Chip(box.label, isOn: store.filters.account == box.id) {
-            store.filters.account = store.filters.account == box.id ? nil : box.id
+      if !isNarrow {
+        Chip("Não lidos", isOn: store.filters.onlyUnread) { store.filters.onlyUnread.toggle() }
+        // One box needs no box filter.
+        if store.mailboxes.count > 1 {
+          ForEach(store.mailboxes) { box in
+            Chip(box.label, isOn: store.filters.account == box.id) {
+              store.filters.account = store.filters.account == box.id ? nil : box.id
+            }
           }
         }
+        PillSelect(
+          label: "ordenar e-mails", selection: $store.filters.sort, options: EmailSort.allCases, title: \.label)
+        PillSelect(
+          label: "agrupar e-mails", selection: $store.filters.groupBy, options: EmailGroupBy.allCases,
+          title: \.optionLabel)
       }
-      PillSelect(
-        label: "ordenar e-mails", selection: $store.filters.sort, options: EmailSort.allCases, title: \.label)
-      PillSelect(
-        label: "agrupar e-mails", selection: $store.filters.groupBy, options: EmailGroupBy.allCases,
-        title: \.optionLabel)
     }
   }
 
@@ -273,6 +311,27 @@ struct EmailMoveSheet: View {
     }
     .padding(20)
     .frame(width: 380)
+  }
+}
+
+extension View {
+  /// The delete confirmation and the M move sheet. Only one presenter may own
+  /// them at a time: a second sheet on the same window would be refused.
+  func emailDialogs(_ store: EmailStore, isActive: Bool) -> some View {
+    modifier(EmailDialogs(store: store, isActive: isActive))
+  }
+}
+
+private struct EmailDialogs: ViewModifier {
+  @Bindable var store: EmailStore
+  let isActive: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .confirmDialog(isActive ? $store.confirmation : .constant(nil))
+      .sheet(isPresented: isActive ? $store.isMoveSheetPresented : .constant(false)) {
+        EmailMoveSheet(store: store)
+      }
   }
 }
 

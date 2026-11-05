@@ -81,6 +81,10 @@ final class EmailStore {
   private(set) var dragging: String?
   var confirmation: ConfirmRequest?
   var isMoveSheetPresented = false
+  /// The panel's "Tela cheia": folder tree, list and reader over the window
+  /// (`view.maximized`, `EmailPanel.tsx:1713-1737`). Kept here so moving the
+  /// panel on Início does not close it.
+  var isFullScreen = false
   var tagMenuThread: String?
 
   @ObservationIgnored let client: any APIClient
@@ -803,13 +807,16 @@ final class EmailStore {
         let noteId = try await client.send(EmailEndpoints.toNote(message, noteFolderId: noteFolderId)).noteId
         // `EmailPanel.tsx:1196-1203`: the notice opens what was created.
         let navigator = self.navigator
-        toasts.show(.success, "Nota criada a partir de “\(title)”.", actionTitle: "Abrir a nota") {
+        toasts.show(.success, "Nota criada a partir de “\(title)”.", actionTitle: "Abrir a nota") { [weak self] in
+          // Full screen would cover what was created (`abrirPainelDoCriado`).
+          self?.isFullScreen = false
           navigator.open(.module(.notes), itemID: noteId.isEmpty ? nil : noteId)
         }
       case .task:
         _ = try await client.send(EmailEndpoints.toTask(message))
         let navigator = self.navigator
-        toasts.show(.success, "Tarefa criada a partir de “\(title)”.", actionTitle: "Abrir tarefas") {
+        toasts.show(.success, "Tarefa criada a partir de “\(title)”.", actionTitle: "Abrir tarefas") { [weak self] in
+          self?.isFullScreen = false
           navigator.open(.module(.tasks))
         }
         // The task joins the tasks list from the dashboard state.
