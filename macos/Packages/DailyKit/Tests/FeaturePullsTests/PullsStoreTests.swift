@@ -83,6 +83,27 @@ import Testing
     #expect(harness.client.calls.map(\.description) == ["GET /api/pulls/repos -"])
   }
 
+  @Test func theScreenAndThePanelShareOneLoad() async {
+    let harness = Harness()
+    let gate = Gate()
+    harness.client.respond { _ in
+      await gate.wait()
+      return reposJSON(["acme/web"])
+    }
+    let first = Task { await harness.store.loadRepos() }
+    await settle()
+    let second = Task { await harness.store.loadRepos() }
+    await settle()
+    gate.open()
+    await first.value
+    await second.value
+    #expect(harness.client.calls.map(\.description) == ["GET /api/pulls/repos -"])
+    #expect(harness.store.repos == ["acme/web"])
+    // Once settled, opening again reads the list again.
+    await harness.store.loadRepos()
+    #expect(harness.client.calls.count == 2)
+  }
+
   @Test func aFailedLoadIsShownNotSwallowed() async {
     let harness = Harness()
     harness.failWrites("configure o token")

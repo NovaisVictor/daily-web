@@ -6,10 +6,9 @@ import SwiftUI
 struct TrackedReposView: View {
   @Environment(\.theme) private var theme
   @Bindable var store: PullsStore
-  @State private var expanded = false
 
   var body: some View {
-    DisclosureGroup("Repositórios acompanhados", isExpanded: $expanded) {
+    DisclosureGroup("Repositórios acompanhados", isExpanded: $store.reposExpanded) {
       VStack(alignment: .leading, spacing: 12) {
         ForEach(store.repos, id: \.self) { repo in
           VStack(alignment: .leading, spacing: 6) {

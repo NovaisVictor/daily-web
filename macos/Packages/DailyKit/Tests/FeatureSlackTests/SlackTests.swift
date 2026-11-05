@@ -134,3 +134,15 @@ private let digest = SlackDigest(
     #expect(SlackStore.link(message("c", url: "javascript:alert(1)")) == nil)
   }
 }
+
+@MainActor
+@Suite struct SlackSharedStoreTests {
+  @Test func theScreenAndThePanelGetTheSameStore() {
+    let environment = AppEnvironment.preview()
+    let store = SlackStore.shared(in: environment)
+    store.tab = .directs
+    let again = SlackStore.shared(in: environment)
+    #expect(again === store)
+    #expect(again.tab == .directs)
+  }
+}

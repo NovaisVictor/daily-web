@@ -55,6 +55,11 @@ final class PullsStore {
   private(set) var repos: [String] = []
   private(set) var authors: [String: [String]] = [:]
   private(set) var reposLoaded = false
+  /// The "Repositórios acompanhados" drawer, kept here so it survives the
+  /// panel moving or switching between grid and tabs.
+  var reposExpanded = false
+  /// The screen and the panel both load on appear; one request in flight serves both.
+  @ObservationIgnored private var reposLoading = false
   var newRepo = ""
   var reposError: String?
   /// `RepoAuthors`' inline error, per repository.
@@ -79,6 +84,14 @@ final class PullsStore {
 
   convenience init(environment: AppEnvironment) {
     self.init(client: environment.client, dashboard: environment.dashboard, focus: environment.focus)
+  }
+
+  static let storeKey = "pulls"
+
+  /// The session's one store, shared by the screen and the Início panel so
+  /// both show the same tab, filters and drafts (spec 011 FR-011-10).
+  static func shared(in environment: AppEnvironment) -> PullsStore {
+    environment.featureStores.store(storeKey) { PullsStore(environment: environment) }
   }
 
   // MARK: - Reading
@@ -214,8 +227,11 @@ final class PullsStore {
 
   // MARK: - Tracked repositories
 
-  /// `GET /api/pulls/repos`, when the screen opens.
+  /// `GET /api/pulls/repos`, when the screen or the panel opens.
   func loadRepos() async {
+    guard !reposLoading else { return }
+    reposLoading = true
+    defer { reposLoading = false }
     do {
       apply(try await client.send(PullsEndpoints.repos))
       reposLoaded = true

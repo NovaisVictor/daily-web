@@ -18,6 +18,16 @@ final class SlackStore {
     self.navigator = navigator
   }
 
+  static let storeKey = "slack"
+
+  /// The session's one store, shared by the screen and the Início panel so
+  /// both show the same tab and selection (spec 011 FR-011-10).
+  static func shared(in environment: AppEnvironment) -> SlackStore {
+    environment.featureStores.store(storeKey) {
+      SlackStore(dashboard: environment.dashboard, navigator: environment.navigator)
+    }
+  }
+
   /// nil until the first state arrives (the web's `loading`).
   var panel: PanelResult<SlackDigest>? { dashboard.state?.slack }
 
