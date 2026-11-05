@@ -109,13 +109,13 @@ public final class PreferencesStore {
 
   /// Changes how many days the agenda covers. The server refetches every
   /// integration and answers the whole state, so this is not optimistic.
+  /// Errors are returned, not toasted: the agenda panel shows them inline, as
+  /// the web does (`AgendaPanel.tsx:92-108`, spec 015 FR-015-08).
   @discardableResult
   public func setAgendaDays(_ days: Int) async -> APIError? {
     guard Self.agendaRanges.contains(days) else {
       // Same text as the server's refusal (`route.ts:102`).
-      let error = APIError.server(status: 400, message: "período inválido", code: nil, retry: nil)
-      toasts.error(error.userMessage)
-      return error
+      return APIError.server(status: 400, message: "período inválido", code: nil, retry: nil)
     }
     isUpdatingAgendaDays = true
     defer { isUpdatingAgendaDays = false }
@@ -125,7 +125,6 @@ public final class PreferencesStore {
       return nil
     } catch {
       Logger.core.error("Agenda range update failed: \(String(describing: error), privacy: .public)")
-      toasts.error(error.userMessage)
       return error
     }
   }

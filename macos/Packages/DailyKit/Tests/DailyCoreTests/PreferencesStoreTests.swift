@@ -176,6 +176,14 @@ import Testing
     #expect(dashboard.state == fresh)
   }
 
+  @Test func agendaDaysFailureIsReturnedWithoutAToast() async {
+    client.respond { _ throws(APIError) in throw .offline }
+    let store = makeStore()
+    let error = await store.setAgendaDays(7)
+    #expect(error == .offline)
+    #expect(toasts.toasts.isEmpty)
+  }
+
   @Test func agendaDaysOutsideTheServerRangeIsRefused() async {
     let store = makeStore()
     let error = await store.setAgendaDays(5)
