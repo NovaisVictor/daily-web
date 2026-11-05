@@ -99,7 +99,7 @@ struct TaskRow: View {
           } label: {
             Image(systemName: "calendar.badge.plus")
           }
-          .buttonStyle(.borderless)
+          .iconButtonStyle(size: .extraSmall)
           .accessibilityLabel("agendar foco para \(task.title)")
           .help("agendar foco para \(task.title)")
         }
@@ -144,7 +144,7 @@ struct TaskRow: View {
           .frame(width: 24, height: 24)
           .contentShape(.rect)
       }
-      .buttonStyle(.borderless)
+      .buttonStyle(.plain)
       .foregroundStyle(theme.inkDim)
       .accessibilityLabel("\(expanded ? "recolher" : "expandir") subtarefas de \(task.title)")
       .accessibilityValue(expanded ? "expandido" : "recolhido")
@@ -164,7 +164,7 @@ struct TaskRow: View {
       if !task.due.isEmpty { DueLabel(task: task, overdue: overdue) }
       if !task.subtasks.isEmpty {
         Text("\(task.subtasks.filter(\.completed).count)/\(task.subtasks.count)")
-          .font(.system(size: 12).monospacedDigit())
+          .font(.daily(size: 12).monospacedDigit())
           .foregroundStyle(theme.inkDim)
           .help("subtarefas concluídas")
           .accessibilityLabel(

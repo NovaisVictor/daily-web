@@ -35,7 +35,7 @@ public struct NotificationsBell: View {
     .overlay(alignment: .topTrailing) {
       if store.unreadCount > 0 {
         Text("\(store.unreadCount)")
-          .font(.geist(10, weight: .semibold).monospacedDigit())
+          .font(.daily(size: 10, weight: .semibold).monospacedDigit())
           .foregroundStyle(theme.brandInk)
           .padding(.horizontal, 4)
           .frame(minWidth: 16, minHeight: 16)
@@ -104,21 +104,25 @@ struct NotificationCenterView: View {
         .foregroundStyle(theme.ink)
         .accessibilityAddTraits(.isHeader)
       Spacer(minLength: 0)
-      Menu {
+      // `IconAction variant="outline" size="icon-sm"` with the count badge on its corner
+      // (`NotificationsBell.tsx:256-275`).
+      IconMenu("Filtrar notificações", systemImage: "line.3.horizontal.decrease", variant: .outline) {
         ForEach(NotificationsLogic.filterSources, id: \.self) { source in
           Toggle(
             NotificationsLogic.label(source),
             isOn: Binding(get: { store.isActive(source) }, set: { _ in store.toggle(source) }))
         }
-      } label: {
-        Label(
-          store.activeSources.isEmpty ? "Filtrar" : "Filtrar (\(store.activeSources.count))",
-          systemImage: store.activeSources.isEmpty
-            ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
       }
-      .menuStyle(.borderlessButton)
-      .fixedSize()
-      .accessibilityLabel("Filtrar notificações")
+      .overlay(alignment: .topTrailing) {
+        if !store.activeSources.isEmpty {
+          Badge("\(store.activeSources.count)")
+            .monospacedDigit()
+            .offset(x: 4, y: -4)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+      }
+      .accessibilityValue(store.activeSources.isEmpty ? "" : "\(store.activeSources.count)")
     }
     .padding(16)
     .overlay(alignment: .bottom) { Divider().overlay(theme.line) }
@@ -136,7 +140,7 @@ struct NotificationCenterView: View {
             openURL(url)
           }
         }
-        .buttonStyle(.link)
+        .linkButtonStyle()
         .typeRole(.caption)
       }
       Chip("Avisar no computador", isOn: store.alertsEnabled, isDisabled: store.changingAlerts) {
@@ -290,7 +294,7 @@ private struct ReplyForm: View {
     if let reply = store.reply {
       VStack(alignment: .leading, spacing: 8) {
         TextEditor(text: textBinding)
-          .font(.geist(14))
+          .font(.daily(size: 14))
           .frame(height: 88)
           .scrollContentBackground(.hidden)
           .padding(6)

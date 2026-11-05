@@ -77,14 +77,14 @@ public struct FocusBlockForm: View {
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
         Text(title)
-          .font(.geist(size: TextSize.small))
+          .font(.daily(size: 14))
           .foregroundStyle(theme.inkMid)
       }
 
       if calendars.isEmpty {
         VStack(alignment: .leading, spacing: 12) {
           Text("Para criar blocos de foco, reconecte sua conta do Google.")
-            .font(.geist(size: TextSize.small))
+            .font(.daily(size: 14))
           reconnectButton
         }
       } else {
@@ -149,7 +149,7 @@ public struct FocusBlockForm: View {
   /// `role="alert"` on the web.
   private func announced(_ message: String) -> some View {
     Text(message)
-      .font(.geist(size: TextSize.small))
+      .font(.daily(size: 14))
       .foregroundStyle(theme.danger)
       .onAppear { AccessibilityNotification.Announcement(message).post() }
   }
@@ -157,7 +157,7 @@ public struct FocusBlockForm: View {
   @ViewBuilder private var reconnectButton: some View {
     if let account = reconnectAccount(connectionId) {
       Button("Reconectar \(account)") { onReconnect(connectionId) }
-        .buttonStyle(.link)
+        .linkButtonStyle()
     }
   }
 

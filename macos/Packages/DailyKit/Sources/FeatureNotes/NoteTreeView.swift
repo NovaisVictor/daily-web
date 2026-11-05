@@ -248,7 +248,7 @@ struct NoteTreeView: View {
   private func title(_ text: String, current: Bool) -> some View {
     Text(text)
       .lineLimit(1)
-      .font(.geist(14, weight: current ? .medium : .regular))
+      .font(.daily(size: 14, weight: current ? .medium : .regular))
       .foregroundStyle(current ? theme.brand : theme.inkMid)
       .accessibilityAddTraits(current ? .isSelected : [])
   }
@@ -519,7 +519,7 @@ struct NoteTreeActionList: View {
       VStack(alignment: .leading, spacing: 2) {
         ForEach(items) { item in
           Text(item.label)
-            .font(.geist(14))
+            .font(.daily(size: 14))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -575,7 +575,7 @@ private struct NoteTreeRowChrome: ViewModifier {
   func body(content: Content) -> some View {
     styled(
       content
-        .font(.geist(14))
+        .font(.daily(size: 14))
         // `ROW` (`NoteTree.tsx:66-67`): `py-1.5 pr-1`, the indent starting at 0.5rem.
         .padding(.leading, 8)
         .padding(.trailing, 4)

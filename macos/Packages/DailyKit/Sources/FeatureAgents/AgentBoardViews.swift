@@ -50,7 +50,7 @@ struct AgentStatusBadge: View {
   var body: some View {
     let colors = theme.agentStatusColors(status)
     Text(text)
-      .font(.geist(11, weight: .medium))
+      .font(.daily(size: 11, weight: .medium))
       .lineLimit(1)
       .foregroundStyle(colors.foreground)
       .padding(.horizontal, 8)
@@ -68,10 +68,10 @@ struct NeedsYouLine: View {
   var body: some View {
     HStack(spacing: 6) {
       Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
-      Text(needsYou.label).font(.geist(11, weight: .semibold)).foregroundStyle(theme.danger)
+      Text(needsYou.label).font(.daily(size: 11, weight: .semibold)).foregroundStyle(theme.danger)
       Text("· \(AgentsLogic.waitedFor(needsYou.since, now: now))").foregroundStyle(theme.inkDim)
     }
-    .font(.geist(11))
+    .font(.daily(size: 11))
     .accessibilityElement(children: .combine)
   }
 }
@@ -94,7 +94,7 @@ struct AgentTaskCard: View {
       VStack(alignment: .leading, spacing: 6) {
         if let waiting { NeedsYouLine(needsYou: waiting, now: now) }
         Text(task.title)
-          .font(.geist(13, weight: .semibold))
+          .font(.daily(size: 13, weight: .semibold))
           .foregroundStyle(theme.ink)
           .lineLimit(2)
           .multilineTextAlignment(.leading)
@@ -102,7 +102,7 @@ struct AgentTaskCard: View {
           HStack(spacing: 6) {
             AgentStatusBadge(text: AgentsLogic.holdLabel(hold.reason, status: task.status), status: task.status)
             if let note = hold.note {
-              Text(note).font(.geist(11)).foregroundStyle(theme.inkDim).lineLimit(1)
+              Text(note).font(.daily(size: 11)).foregroundStyle(theme.inkDim).lineLimit(1)
             }
           }
         }
@@ -112,7 +112,7 @@ struct AgentTaskCard: View {
             Circle().fill(theme.liveColor(live)).frame(width: 6, height: 6).accessibilityHidden(true)
             Text(AgentsLogic.liveLabel(live))
           }
-          .font(.geist(11))
+          .font(.daily(size: 11))
           .foregroundStyle(theme.inkMid)
         }
         footer
@@ -160,7 +160,7 @@ struct AgentTaskCard: View {
       }
       Text(AgentsLogic.formatTime(task.lastActivityAt)).monospacedDigit()
     }
-    .font(.geist(11))
+    .font(.daily(size: 11))
     .foregroundStyle(theme.inkDim)
   }
 }
@@ -181,7 +181,7 @@ struct SubtaskProgressView: View {
         Text(current?.title ?? "Subtarefas concluídas").lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
         Text("\(progress.completed)/\(progress.total)").monospacedDigit()
       }
-      .font(.geist(11))
+      .font(.daily(size: 11))
       .foregroundStyle(theme.inkDim)
     }
     .accessibilityElement(children: .ignore)
@@ -251,10 +251,10 @@ struct AgentKanbanView: View {
     let cards = tasks.filter { $0.status == status }
     return VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
-        Text(AgentsLogic.statusLabel(status)).font(.geist(14, weight: .semibold))
+        Text(AgentsLogic.statusLabel(status)).font(.daily(size: 14, weight: .semibold))
         Spacer()
         Text("\(cards.count)")
-          .font(.geist(12))
+          .font(.daily(size: 12))
           .monospacedDigit()
           .foregroundStyle(theme.inkMid)
           .padding(.horizontal, 8)
@@ -265,7 +265,7 @@ struct AgentKanbanView: View {
       .accessibilityAddTraits(.isHeader)
       if cards.isEmpty {
         Text("Nenhuma tarefa")
-          .font(.geist(12))
+          .font(.daily(size: 12))
           .foregroundStyle(theme.inkDim)
           .frame(maxWidth: .infinity)
           .padding(.vertical, 16)
@@ -294,9 +294,9 @@ struct AgentKanbanView: View {
     } label: {
       HStack(spacing: 8) {
         FlowLayout(spacing: 8) {
-          Text("Finalizadas").font(.geist(14, weight: .semibold))
+          Text("Finalizadas").font(.daily(size: 14, weight: .semibold))
           if finishedTotal == 0 {
-            Text("nenhuma neste período").font(.geist(12)).foregroundStyle(theme.inkDim)
+            Text("nenhuma neste período").font(.daily(size: 12)).foregroundStyle(theme.inkDim)
           } else {
             ForEach(counts.filter { $0.count > 0 }, id: \.status) { item in
               if item.status == .failed {
@@ -304,14 +304,14 @@ struct AgentKanbanView: View {
                   AgentsLogic.finishedCountLabel(item.status, count: item.count),
                   systemImage: "exclamationmark.triangle"
                 )
-                .font(.geist(12, weight: .semibold))
+                .font(.daily(size: 12, weight: .semibold))
                 .foregroundStyle(theme.danger)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .background(theme.dangerTint, in: .capsule)
               } else {
                 Text(AgentsLogic.finishedCountLabel(item.status, count: item.count))
-                  .font(.geist(12))
+                  .font(.daily(size: 12))
                   .foregroundStyle(theme.inkMid)
               }
             }
@@ -325,7 +325,7 @@ struct AgentKanbanView: View {
               .rotationEffect(.degrees(showFinished ? 180 : 0))
               .accessibilityHidden(true)
           }
-          .font(.geist(12, weight: .medium))
+          .font(.daily(size: 12, weight: .medium))
           .foregroundStyle(theme.brand)
         }
       }
@@ -373,28 +373,27 @@ struct AgentSessionGrid: View {
     let attention = AgentsLogic.needsYou(session)
     return VStack(alignment: .leading, spacing: 6) {
       Image(systemName: "cpu").foregroundStyle(theme.brand).accessibilityHidden(true)
-      Text(session.agent.displayName).font(.geist(14, weight: .semibold))
+      Text(session.agent.displayName).font(.daily(size: 14, weight: .semibold))
       Text("\(session.agent.provider.rawValue) · \(session.id)")
-        .font(.geist(11))
+        .font(.daily(size: 11))
         .foregroundStyle(theme.inkDim)
         .textSelection(.enabled)
       Text("Última atividade: \(AgentsLogic.formatTime(session.lastActivityAt))")
-        .font(.geist(11))
+        .font(.daily(size: 11))
         .foregroundStyle(theme.inkMid)
-      Text(AgentsLogic.freshnessLabel(session.freshness)).font(.geist(11)).foregroundStyle(theme.inkMid)
+      Text(AgentsLogic.freshnessLabel(session.freshness)).font(.daily(size: 11)).foregroundStyle(theme.inkMid)
       if let live = session.live {
         HStack(spacing: 6) {
           Circle().fill(theme.liveColor(live.state)).frame(width: 6, height: 6).accessibilityHidden(true)
           Text(AgentsLogic.liveLabel(live.state))
         }
-        .font(.geist(11))
+        .font(.daily(size: 11))
         .foregroundStyle(theme.inkMid)
       }
       if let attention { NeedsYouLine(needsYou: attention, now: now) }
-      // `variant="link"`: DailyDesign has no link pill, so the system link stands in.
       Button("Ver tarefas da sessão") { select(session.id) }
-        .buttonStyle(.link)
-        .font(.geist(14, weight: .medium))
+        .linkButtonStyle()
+        .font(.daily(size: 14, weight: .medium))
         .padding(.top, 4)
     }
     .padding(16)
@@ -493,6 +492,16 @@ struct AgentsAlertsToggle: View {
           .pillButtonStyle(.outline, size: .small)
           .disabled(store.isChangingAlerts)
         case .on:
+          // The web's title says "os seus dispositivos" (push to every subscription);
+          // the app's test is local, so it names this one.
+          Button {
+            Task { await store.testAlert() }
+          } label: {
+            Label("Testar aviso", systemImage: "bell.badge")
+          }
+          .pillButtonStyle(.outline, size: .small)
+          .disabled(store.isChangingAlerts)
+          .help("Envia um aviso de teste para este dispositivo")
           Button {
             store.disableAlerts()
           } label: {
@@ -503,14 +512,14 @@ struct AgentsAlertsToggle: View {
           .accessibilityLabel("Desativar avisos neste dispositivo")
         case .denied:
           Text("Avisos bloqueados nas permissões do sistema.")
-            .font(.geist(12))
+            .font(.daily(size: 12))
             .foregroundStyle(theme.inkDim)
         case .unavailable:
           EmptyView()
         }
         if let notice = store.alertsNotice {
           Text(notice)
-            .font(.geist(12))
+            .font(.daily(size: 12))
             .foregroundStyle(theme.inkMid)
         }
       }

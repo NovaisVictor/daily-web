@@ -43,8 +43,7 @@ struct SubtaskListView: View {
             }
             .onAppear { focus = .add }
           Button("Adicionar subtarefa", systemImage: "plus", action: add)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
+            .iconButtonStyle(size: .small, variant: .outline)
             .disabled(saving)
             .accessibilityLabel("Adicionar subtarefa")
         }
@@ -52,9 +51,9 @@ struct SubtaskListView: View {
         Button {
           adding = true
         } label: {
-          Label("adicionar subtarefa", systemImage: "plus").font(.system(size: 13))
+          Label("adicionar subtarefa", systemImage: "plus").font(.daily(size: 13))
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .foregroundStyle(ink ?? theme.inkDim)
         .accessibilityLabel("adicionar subtarefa em \(task.title)")
       }
@@ -86,7 +85,7 @@ struct SubtaskListView: View {
           }
       } else {
         Text(subtask.title)
-          .font(.system(size: 13))
+          .font(.daily(size: 13))
           .strikethrough(subtask.completed)
           .foregroundStyle(subtask.completed ? (ink ?? theme.inkDim).opacity(0.7) : (ink ?? theme.inkMid))
           .lineLimit(2)
@@ -114,7 +113,7 @@ struct SubtaskListView: View {
       } label: {
         Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
       }
-      .buttonStyle(.borderless)
+      .buttonStyle(.plain)
       .foregroundStyle(ink ?? theme.inkDim)
       .accessibilityLabel("apagar subtarefa \(subtask.title)")
       .help("apagar subtarefa \(subtask.title)")

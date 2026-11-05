@@ -2,8 +2,9 @@ import SwiftUI
 
 // MARK: - Pill button
 
-/// The variants of `components/ui/button.tsx` that the app uses. `secondary` and
-/// `link` have no native call site, so they are not reproduced.
+/// The variants of `components/ui/button.tsx` that the app uses. `secondary` has no
+/// native call site, so it is not reproduced; `link` is `LinkButtonStyle`, since it
+/// keeps none of the pill's height, padding or font.
 public enum PillButtonVariant: String, Sendable, CaseIterable {
   /// `default` / `glow`: the brand face (`--button-face`, globals.css:134) with `shadow-button`.
   case primary
@@ -121,13 +122,13 @@ private struct PillButtonBody: View {
 
     return configuration.label
       .labelStyle(PillLabelStyle(spacing: style.size.spacing))
-      .font(.system(size: 14, weight: .medium))
+      .font(.daily(size: 14, weight: .medium))
       .lineLimit(1)
       .foregroundStyle(palette.foreground)
       .padding(.horizontal, style.size.horizontalPadding)
       .frame(height: style.size.height)
       .background {
-        if isPrimary { ButtonFace() }
+        if isPrimary { ButtonFace(shape: Capsule()) }
       }
       .pillSurface(palette, in: Capsule())
       .modifier(GlowShadow(visible: style.glow && isPrimary && hovering && !pressed))
@@ -150,9 +151,11 @@ private struct PillButtonBody: View {
 /// +0.055 L at the top left and dropped by −0.05 L at the bottom right. Relative
 /// OKLCH colours have no SwiftUI form, so a white-to-black wash over the brand fill
 /// stands in for the two stops.
-private struct ButtonFace: View {
+private struct ButtonFace<FaceShape: Shape>: View {
+  var shape: FaceShape
+
   var body: some View {
-    Capsule()
+    shape
       .fill(
         LinearGradient(
           colors: [.white.opacity(0.12), .black.opacity(0.10)],
@@ -222,6 +225,13 @@ public enum IconButtonVariant: String, Sendable, CaseIterable {
   /// Always rimmed and raised: `border-line-strong bg-surface-2 text-ink-mid shadow-e1
   /// hover:bg-accent`, the Jira sort circle (`JiraPanel.tsx:840-848`).
   case outline
+  /// The brand face of `variant="default"`: the pomodoro play/pause
+  /// (`IconAction variant="default"`, `components/Pomodoro.tsx:107-117`).
+  case primary
+  /// The ghost circle whose glyph and rim turn danger under the pointer
+  /// (`hover:border-danger/40 hover:text-danger`, `EmailPanel.tsx:1499-1501`): the
+  /// trash buttons.
+  case destructive
 }
 
 /// A circular glyph-only button. Prefer `IconButton`, which also sets the accessible
@@ -256,6 +266,13 @@ public struct IconButtonStyle: ButtonStyle {
         border: theme.lineStrong,
         shadow: .e1
       )
+    case .primary:
+      // Hover is `brightness-[1.06]` on the face, applied by the body, as in `PillButtonStyle`.
+      return PillPalette(fill: theme.brand, foreground: theme.brandInk, shadow: .button)
+    case .destructive:
+      return highlighted
+        ? PillPalette(fill: theme.surface3, foreground: theme.danger, border: theme.danger.opacity(0.4))
+        : PillPalette(fill: .clear, foreground: theme.inkDim, border: .clear)
     }
   }
 }
@@ -275,12 +292,17 @@ private struct IconButtonBody: View {
       highlighted: hovering || style.isActive || configuration.isPressed,
       theme: theme
     )
+    let isPrimary = style.variant == .primary
     return configuration.label
       .labelStyle(.iconOnly)
       .font(.system(size: style.size.glyphSize))
       .foregroundStyle(palette.foreground)
       .frame(width: style.size.side, height: style.size.side)
+      .background {
+        if isPrimary { ButtonFace(shape: Circle()) }
+      }
       .pillSurface(palette, in: Circle())
+      .brightness(isPrimary ? (configuration.isPressed ? -0.04 : (hovering ? 0.04 : 0)) : 0)
       .dailyFocusRing(isFocused, in: Circle())
       .opacity(isEnabled ? 1 : 0.5)
       .contentShape(.circle)
@@ -324,6 +346,37 @@ public struct IconButton: View {
   }
 }
 
+// MARK: - Link button
+
+/// `variant="link"` of `components/ui/button.tsx`: `text-primary underline-offset-4
+/// hover:underline`. Unlike the pills it keeps the surrounding font and line, since the
+/// web uses it inside sentences ("comentário publicado · abrir no Jira") and as the
+/// "tentar de novo" after an error. Apply it with `View.linkButtonStyle()`.
+public struct LinkButtonStyle: ButtonStyle {
+  public init() {}
+
+  public func makeBody(configuration: Configuration) -> some View {
+    LinkButtonBody(configuration: configuration)
+  }
+}
+
+private struct LinkButtonBody: View {
+  @Environment(\.theme) private var theme
+  @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.isFocused) private var isFocused
+  @State private var hovering = false
+  let configuration: ButtonStyleConfiguration
+
+  var body: some View {
+    configuration.label
+      .foregroundStyle(theme.brand)
+      .underline(hovering || isFocused)
+      .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.5)
+      .contentShape(.rect)
+      .onHover { hovering = $0 && isEnabled }
+  }
+}
+
 extension View {
   /// Applies `PillButtonStyle` and replaces the system focus effect with the web ring.
   public func pillButtonStyle(
@@ -332,6 +385,12 @@ extension View {
     glow: Bool = false
   ) -> some View {
     buttonStyle(PillButtonStyle(variant, size: size, glow: glow)).focusEffectDisabled()
+  }
+
+  /// Applies `LinkButtonStyle`; the focused link shows its underline in place of the
+  /// system focus effect.
+  public func linkButtonStyle() -> some View {
+    buttonStyle(LinkButtonStyle()).focusEffectDisabled()
   }
 
   /// Applies `IconButtonStyle` and replaces the system focus effect with the web ring.

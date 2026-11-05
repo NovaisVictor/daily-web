@@ -31,7 +31,7 @@ struct EmailDetailView: View {
         if shown {
           ScrollView {
             Text(EmailLinks.attributed(quoted))
-              .font(.geist(14))
+              .font(.daily(size: 14))
               .foregroundStyle(theme.inkDim)
               .textSelection(.enabled)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,7 +78,7 @@ struct EmailDetailView: View {
       }
     }
     // `text-sm leading-relaxed` (1.625) over Geist's natural 1.3 line.
-    .font(.geist(14))
+    .font(.daily(size: 14))
     .lineSpacing(14 * (1.625 - 1.3))
     .foregroundStyle(theme.inkMid)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,7 +90,7 @@ struct EmailDetailView: View {
     let sending = detail?.sending ?? false
     return VStack(alignment: .leading, spacing: 8) {
       TextEditor(text: Binding(get: { reply }, set: { store.setReply($0) }))
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .scrollContentBackground(.hidden)
         .padding(8)
         .frame(minHeight: 88)
@@ -98,7 +98,7 @@ struct EmailDetailView: View {
         .overlay(alignment: .topLeading) {
           if reply.isEmpty {
             Text("Escreva sua resposta — ou descreva o que dizer e peça o rascunho para a IA.")
-              .font(.geist(14))
+              .font(.daily(size: 14))
               .foregroundStyle(theme.inkDim)
               .padding(.horizontal, 13)
               .padding(.vertical, 8)
@@ -120,7 +120,7 @@ struct EmailDetailView: View {
         .disabled(sending || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         if detail?.sent == true {
           Text("Resposta enviada.")
-            .font(.geist(14))
+            .font(.daily(size: 14))
             .foregroundStyle(theme.inkMid)
         }
       }

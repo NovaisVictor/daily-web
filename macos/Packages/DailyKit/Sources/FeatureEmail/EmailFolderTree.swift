@@ -33,7 +33,7 @@ struct EmailFolderTree: View {
               .font(.system(size: 9, weight: .semibold))  // SF Symbol sizing
               .rotationEffect(.degrees(open ? 90 : 0))
             Text(group.account.label.uppercased())
-              .font(.geist(11, weight: .medium))
+              .font(.daily(size: 11, weight: .medium))
               .tracking(0.5)
               .lineLimit(1)
           }
@@ -60,7 +60,7 @@ struct EmailFolderTree: View {
             .lineLimit(1)
             .foregroundStyle(theme.danger)
           Button("tentar de novo") { Task { await store.syncMailboxes(group.id) } }
-            .buttonStyle(.link)
+            .linkButtonStyle()
         }
         .typeRole(.caption)
         .padding(.horizontal, 8)
@@ -113,7 +113,7 @@ struct EmailFolderRow: View {
             .foregroundStyle(theme.inkDim)
           Text(name)
             .lineLimit(1)
-            .font(.geist(14, weight: active ? .medium : .regular))
+            .font(.daily(size: 14, weight: active ? .medium : .regular))
           Spacer(minLength: 0)
         }
         .padding(.leading, 8 + CGFloat(Self.depth(of: node)) * 12)
@@ -149,7 +149,7 @@ struct EmailFolderRow: View {
       }
       .frame(width: 28)
     }
-    .font(.geist(14))
+    .font(.daily(size: 14))
     .padding(.trailing, 2)
     // The web's active row, not a system selection (spec 013 FR-013-07).
     .activeRow(active)

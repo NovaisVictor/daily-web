@@ -31,7 +31,7 @@ struct TaskBoardView: View {
       HStack(spacing: 8) {
         Text(column.label).typeRole(.caption).foregroundStyle(theme.inkMid)
         Text("\(list.count)")
-          .font(.system(size: 12).monospacedDigit())
+          .font(.daily(size: 12).monospacedDigit())
           .foregroundStyle(theme.inkDim)
           .accessibilityHidden(true)
       }
@@ -41,7 +41,7 @@ struct TaskBoardView: View {
 
       if list.isEmpty {
         Text(column == .done ? "Arraste uma nota para cá." : "Arraste uma nota para cá ou adicione.")
-          .font(.system(size: 13))
+          .font(.daily(size: 13))
           .foregroundStyle(theme.inkDim)
           .padding(.vertical, 8)
       } else {
@@ -52,7 +52,7 @@ struct TaskBoardView: View {
       }
       if column == .done, list.count > TaskBoard.doneLimit {
         Button(showAllDone ? "Mostrar menos" : "Mostrar todas (\(list.count))") { showAllDone.toggle() }
-          .buttonStyle(.borderless)
+          .pillButtonStyle(.ghost, size: .small)
           .accessibilityValue(showAllDone ? "expandido" : "recolhido")
       }
       if column != .done {
@@ -107,7 +107,7 @@ struct NoteCard: View {
           actions.open(task)
         } label: {
           Text(task.title)
-            .font(.system(size: 14, weight: .medium))
+            .font(.daily(size: 14, weight: .medium))
             .strikethrough(task.completed)
             .foregroundStyle(ink)
             .multilineTextAlignment(.leading)
@@ -147,9 +147,9 @@ struct NoteCard: View {
           Button {
             actions.move(task, previous)
           } label: {
-            Label(previous.label, systemImage: "arrow.left").font(.system(size: 12))
+            Label(previous.label, systemImage: "arrow.left").font(.daily(size: 12))
           }
-          .buttonStyle(.borderless)
+          .buttonStyle(.plain)
           .accessibilityLabel("mover \(task.title) para \(previous.label)")
         }
         Spacer(minLength: 0)
@@ -161,9 +161,9 @@ struct NoteCard: View {
               Text(next.label)
               Image(systemName: "arrow.right")
             }
-            .font(.system(size: 12))
+            .font(.daily(size: 12))
           }
-          .buttonStyle(.borderless)
+          .buttonStyle(.plain)
           .accessibilityLabel("mover \(task.title) para \(next.label)")
         }
       }
@@ -202,7 +202,7 @@ struct NoteCard: View {
 
   private func tag(_ text: String) -> some View {
     Text(text)
-      .font(.system(size: 11, weight: .medium))
+      .font(.daily(size: 11, weight: .medium))
       .foregroundStyle(ink.opacity(0.85))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
@@ -221,7 +221,7 @@ struct NoteCard: View {
           .progressViewStyle(.linear)
           .frame(width: 36)
           .tint(ink.opacity(0.7))
-        Text("\(done)/\(total)").font(.system(size: 11).monospacedDigit())
+        Text("\(done)/\(total)").font(.daily(size: 11).monospacedDigit())
       }
       .foregroundStyle(ink.opacity(0.8))
     }
@@ -268,9 +268,9 @@ struct AddNoteField: View {
       Button {
         open = true
       } label: {
-        Label("Adicionar", systemImage: "plus").font(.system(size: 13))
+        Label("Adicionar", systemImage: "plus").font(.daily(size: 13))
       }
-      .buttonStyle(.borderless)
+      .buttonStyle(.plain)
       .foregroundStyle(theme.inkMid)
       .accessibilityLabel("adicionar tarefa em \(column.label)")
     }

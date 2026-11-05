@@ -94,7 +94,7 @@ public struct JiraScreen: View {
       PersonSwitcher(store: store)
       if store.tab == .open, !active.isEmpty {
         Text("\(visible.count) de \(store.all.count)")
-          .font(.geist(14).monospacedDigit())
+          .font(.daily(size: 14).monospacedDigit())
           .foregroundStyle(theme.inkDim)
           .fixedSize()
       }
@@ -258,7 +258,7 @@ public struct JiraScreen: View {
       if let error = store.watchError { PanelError(error) }
       if let error = watched.error { PanelError(error) }
       if items.isEmpty, store.watchError == nil {
-        Text("Nenhuma issue acompanhada.").font(.geist(14)).foregroundStyle(theme.inkDim).padding(.vertical, 8)
+        Text("Nenhuma issue acompanhada.").font(.daily(size: 14)).foregroundStyle(theme.inkDim).padding(.vertical, 8)
       }
       LazyVStack(alignment: .leading, spacing: 0) {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, issue in

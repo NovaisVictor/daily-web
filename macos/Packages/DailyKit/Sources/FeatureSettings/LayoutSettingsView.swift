@@ -24,8 +24,10 @@ struct LayoutSettingsView: View {
   /// The web tells you to click "Organizar" and "Concluir", which the grid
   /// never had; this follows how the native grid is arranged (spec 010
   /// FR-010-02/03 and FR-010-11).
+  // TODO(spec 010): add back "(ou use Visualizar → Organizar painéis)" after "meio segundo"
+  // once that menu item exists (FR-010-02).
   static let explanation =
-    "No Início, segure um painel por meio segundo (ou use Visualizar → Organizar painéis) para "
+    "No Início, segure um painel por meio segundo para "
     + "movê-lo arrastando e redimensioná-lo pelo canto. Salvar guarda a disposição para o tamanho "
     + "da janela."
 

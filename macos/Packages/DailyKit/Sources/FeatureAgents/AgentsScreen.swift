@@ -129,7 +129,7 @@ public struct AgentsScreen: View {
       } label: {
         HStack(spacing: 6) {
           Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
-          Text("\(waiting.count) aguardando você").font(.geist(12, weight: .semibold))
+          Text("\(waiting.count) aguardando você").font(.daily(size: 12, weight: .semibold))
         }
         .foregroundStyle(theme.danger)
         .padding(.horizontal, 12)
@@ -215,7 +215,7 @@ public struct AgentsScreen: View {
       HStack(spacing: 8) {
         if next != nil {
           Text("Mais resultados disponíveis; esta página não representa todo o workspace.")
-            .font(.geist(12))
+            .font(.daily(size: 12))
             .foregroundStyle(theme.inkMid)
         }
         Spacer()

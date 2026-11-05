@@ -118,11 +118,11 @@ struct EmailGroupHeader: View {
       .accessibilityLabel("selecionar todo o grupo \(group.label)")
       .accessibilityValue(all ? "marcado" : (some ? "parcial" : "desmarcado"))
       Text(group.label)
-        .font(.geist(12, weight: .semibold))
+        .font(.daily(size: 12, weight: .semibold))
         .lineLimit(1)
         .accessibilityAddTraits(.isHeader)
       Text("\(group.threads.count)")
-        .font(.geist(12).monospacedDigit())
+        .font(.daily(size: 12).monospacedDigit())
     }
     .foregroundStyle(theme.inkDim)
     .padding(.horizontal, 8)
@@ -202,7 +202,7 @@ struct EmailThreadRow: View {
       } label: {
         VStack(alignment: .leading, spacing: 2) {
           Text(title)
-            .font(.geist(14, weight: thread.unreadCount > 0 ? .medium : .regular))
+            .font(.daily(size: 14, weight: thread.unreadCount > 0 ? .medium : .regular))
             .foregroundStyle(thread.unreadCount > 0 ? theme.ink : theme.inkMid)
           Text(thread.participants.isEmpty ? "—" : thread.participants.joined(separator: ", "))
             .typeRole(.caption)
@@ -242,9 +242,9 @@ struct EmailThreadRow: View {
         Badge(label, style: .secondary)
       }
       EmailTagButton(store: store, thread: thread, title: title)
-      // The delete glyph turns danger on hover (`hover:text-danger`, EmailPanel.tsx:1501);
-      // the shared ghost style keeps the neutral rim.
-      IconButton("excluir \(title)", systemImage: "trash", size: .small) { store.requestDelete(thread) }
+      IconButton("excluir \(title)", systemImage: "trash", size: .small, variant: .destructive) {
+        store.requestDelete(thread)
+      }
       EmailCreateMenu(store: store, thread: thread, title: title)
     }
     .modifier(EmailRowShell(index: index, isOpen: isOpen, isSelected: isSelected, isCursor: isCursor))
@@ -266,7 +266,7 @@ struct EmailThreadRow: View {
         } label: {
           HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(message.from.isEmpty ? "—" : message.from)
-              .font(.geist(14, weight: message.mailbox == .inbox && message.unread ? .medium : .regular))
+              .font(.daily(size: 14, weight: message.mailbox == .inbox && message.unread ? .medium : .regular))
               .foregroundStyle(
                 message.mailbox == .sent ? theme.inkDim : (message.unread ? theme.ink : theme.inkMid)
               )
@@ -385,12 +385,12 @@ struct EmailTagButton: View {
     VStack(alignment: .leading, spacing: 2) {
       if let error = store.accountFoldersError[account], folders.isEmpty {
         Text(error)
-          .font(.geist(14))
+          .font(.daily(size: 14))
           .foregroundStyle(theme.danger)
           .padding(8)
       } else if folders.isEmpty {
         Text("Carregando etiquetas…")
-          .font(.geist(14))
+          .font(.daily(size: 14))
           .foregroundStyle(theme.inkDim)
           .padding(8)
       } else {
@@ -401,7 +401,7 @@ struct EmailTagButton: View {
                 Task { await store.applyTag(folder, to: thread) }
               } label: {
                 Text(folder)
-                  .font(.geist(14))
+                  .font(.daily(size: 14))
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .padding(.horizontal, 10)
                   .padding(.vertical, 6)
@@ -469,14 +469,14 @@ struct EmailDragPreview: View {
       Text(title).lineLimit(1)
       if count > 1 {
         Text("\(count)")
-          .font(.geist(12).monospacedDigit())
+          .font(.daily(size: 12).monospacedDigit())
           .foregroundStyle(.white)
           .padding(.horizontal, 8)
           .padding(.vertical, 1)
           .background(theme.brand, in: .capsule)
       }
     }
-    .font(.geist(13, weight: .medium))
+    .font(.daily(size: 13, weight: .medium))
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
     .frame(maxWidth: 320)

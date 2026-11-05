@@ -126,6 +126,18 @@ final class FakeNotificationPoster: NotificationPosting {
     #expect(store.alertsNotice == nil)
   }
 
+  @Test func testingPostsALocalNoticeWhileOn() async throws {
+    let poster = FakeNotificationPoster(grants: true)
+    let alerts = try makeAlerts(poster)
+    await alerts.enable()
+    let store = makeStore(mode: .kanban, alerts: alerts)
+
+    await store.testAlert()
+
+    #expect(poster.posted.map(\.tag) == ["agents-test"])
+    #expect(store.alertsNotice == "Aviso de teste enviado.")
+  }
+
   @Test func disablingTurnsTheSharedSwitchOff() async throws {
     let poster = FakeNotificationPoster(grants: true)
     let alerts = try makeAlerts(poster)

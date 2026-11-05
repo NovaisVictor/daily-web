@@ -32,7 +32,7 @@ struct TransitionPicker: View {
     .accessibilityLabel("mudar status de \(issue.key) (\(issue.status))")
     .popover(isPresented: $open, arrowEdge: .bottom) {
       content
-        .font(.geist(12))
+        .font(.daily(size: 12))
         .padding(10)
         .frame(width: 288, alignment: .leading)
     }
@@ -75,7 +75,7 @@ struct TransitionPicker: View {
     case .confirming(let transitions, let chosen, let sending, let refusal):
       VStack(alignment: .leading, spacing: 8) {
         Text("Mover \(issue.key) de \(issue.status) para \(chosen.to.name)?")
-          .font(.geist(13))
+          .font(.daily(size: 13))
           .foregroundStyle(theme.ink)
           .fixedSize(horizontal: false, vertical: true)
         JiraRefusal(message: refusal, issue: issue)

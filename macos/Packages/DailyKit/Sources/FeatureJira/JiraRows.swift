@@ -23,7 +23,7 @@ struct JiraIssueMenu: View {
   let actions: JiraRowActions
 
   var body: some View {
-    JiraIconMenu("ações de \(issue.key)", systemImage: "ellipsis", size: .small) {
+    IconMenu("ações de \(issue.key)", systemImage: "ellipsis", size: .small) {
       JiraIssueMenuItems(issue: issue, actions: actions)
     }
   }
@@ -124,9 +124,9 @@ struct JiraRowView: View {
             TransitionPicker(issue: issue, store: store)
           }
           JiraPriorityLabel(issue: issue)
-          if let stale { Text(stale).font(.geist(12)).foregroundStyle(theme.warning) }
+          if let stale { Text(stale).font(.daily(size: 12)).foregroundStyle(theme.warning) }
           if let due {
-            Text(due).font(.geist(12)).foregroundStyle(overdue ? theme.danger : theme.inkDim)
+            Text(due).font(.daily(size: 12)).foregroundStyle(overdue ? theme.danger : theme.inkDim)
           }
         }
         JiraPullLinks(key: issue.key, pulls: actions.pulls[issue.key] ?? [])
@@ -295,9 +295,9 @@ struct JiraWatchedRowView: View {
         }
         FlowLayout(spacing: 10) {
           JiraStatusLabel(issue: issue)
-          if let stale { Text(stale).font(.geist(12)).foregroundStyle(theme.warning) }
+          if let stale { Text(stale).font(.daily(size: 12)).foregroundStyle(theme.warning) }
           if let due {
-            Text(due).font(.geist(12))
+            Text(due).font(.daily(size: 12))
               .foregroundStyle(JiraText.isOverdue(issue.dueDate, now: actions.now) ? theme.danger : theme.inkDim)
           }
         }

@@ -18,7 +18,7 @@ struct TrackedReposView: View {
           }
         }
         if store.repos.isEmpty, store.reposLoaded {
-          Text("Nenhum repositório acompanhado ainda.").font(.geist(14)).foregroundStyle(theme.inkDim)
+          Text("Nenhum repositório acompanhado ainda.").font(.daily(size: 14)).foregroundStyle(theme.inkDim)
         }
         HStack(spacing: 8) {
           TextField("owner/repo", text: $store.newRepo)
@@ -49,11 +49,11 @@ private struct RepoAuthorsView: View {
     VStack(alignment: .leading, spacing: 6) {
       FlowLayout(spacing: 6) {
         if authors.isEmpty {
-          Text("todos os autores").font(.geist(12)).foregroundStyle(theme.inkDim)
+          Text("todos os autores").font(.daily(size: 12)).foregroundStyle(theme.inkDim)
         }
         ForEach(authors, id: \.self) { author in
           HStack(spacing: 2) {
-            Text(author).font(.geist(12)).foregroundStyle(theme.inkMid)
+            Text(author).font(.daily(size: 12)).foregroundStyle(theme.inkMid)
             Button {
               Task { await store.removeAuthor(author, from: repo) }
             } label: {
@@ -81,7 +81,7 @@ private struct RepoAuthorsView: View {
         }
       }
       if let error = store.authorErrors[repo] {
-        Text(error).font(.geist(12)).foregroundStyle(theme.danger)
+        Text(error).font(.daily(size: 12)).foregroundStyle(theme.danger)
       }
     }
     .padding(.leading, 12)

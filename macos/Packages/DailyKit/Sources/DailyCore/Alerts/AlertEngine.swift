@@ -103,6 +103,18 @@ public final class AlertEngine {
       DesktopAlert(tag: "pomodoro", title: "daily-web", body: message, target: AlertTarget(route: .today)))
   }
 
+  /// "Testar aviso" (`test`, `components/agents/PushToggle.tsx:84-88`; spec 012
+  /// FR-012-03). The web asks the server for a push; the app posts the same kind of
+  /// notice locally. Only while alerts are on and the system allows them, so the test
+  /// proves the path a real alert takes. Returns whether it was posted.
+  @discardableResult
+  public func postTest() async -> Bool {
+    guard isEnabled, await poster.isAuthorized() else { return false }
+    await poster.post(
+      DesktopAlert(tag: "agents-test", title: "daily-web", body: "Aviso de teste", target: AlertTarget(route: .kanban)))
+    return true
+  }
+
   /// Forgets what was announced (sign-out), so the next account's first load
   /// is a baseline instead of a flood.
   public func reset() {

@@ -100,11 +100,11 @@ private struct AgendaRow: View {
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       // An all-day event has no time (`AgendaPanel.tsx:161`).
       Text(item.time.isEmpty ? "dia" : item.time)
-        .font(.geist(14).monospacedDigit())
+        .font(.daily(size: 14).monospacedDigit())
         .foregroundStyle(theme.ink)
         .frame(width: 44, alignment: .leading)
       Text(item.title.isEmpty ? "—" : item.title)
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .foregroundStyle(theme.inkMid)
         .lineLimit(1)
         .truncationMode(.tail)

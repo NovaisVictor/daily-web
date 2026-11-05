@@ -230,6 +230,16 @@ final class AgentsStore {
     alertsNotice = alerts.isEnabled ? "Avisos ativados neste dispositivo." : nil
   }
 
+  /// "Testar aviso" (`PushToggle.tsx:84-88`): a local test notice and the web's notices.
+  func testAlert() async {
+    guard let alerts, alerts.isEnabled, !isChangingAlerts else { return }
+    isChangingAlerts = true
+    alertsNotice = nil
+    defer { isChangingAlerts = false }
+    let posted = await alerts.postTest()
+    alertsNotice = posted ? "Aviso de teste enviado." : "Não foi possível enviar o aviso de teste."
+  }
+
   func disableAlerts() {
     guard let alerts, alerts.isEnabled else { return }
     alerts.disable()

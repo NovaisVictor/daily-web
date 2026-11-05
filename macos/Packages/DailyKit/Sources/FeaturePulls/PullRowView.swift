@@ -80,11 +80,11 @@ struct PullRowView: View {
         Text(item.title.isEmpty ? "—" : item.title).foregroundStyle(theme.ink).lineLimit(1)
       }
     }
-    .font(.geist(14))
+    .font(.daily(size: 14))
   }
 
   private var actionsMenu: some View {
-    PullIconMenu("ações de \(ref)", systemImage: "ellipsis") {
+    IconMenu("ações de \(ref)", systemImage: "ellipsis", size: .small) {
       menuContent(includeExtras: false)
     }
   }
@@ -299,14 +299,14 @@ private struct MoveCardButton: View {
     case .confirming(let transition, let sending, let refusal):
       if transition.requires == .screen {
         VStack(alignment: .leading, spacing: 8) {
-          Text("\(transition.name) → \(transition.to.name)").font(.geist(14))
+          Text("\(transition.name) → \(transition.to.name)").font(.daily(size: 14))
           if let url = URL(string: jira.url) {
             Link("pede campos — abrir no Jira", destination: url).foregroundStyle(theme.warning)
           }
         }
       } else {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Mover \(jira.key) de \(jira.status) para \(transition.to.name)?").font(.geist(14))
+          Text("Mover \(jira.key) de \(jira.status) para \(transition.to.name)?").font(.daily(size: 14))
           if let refusal {
             HStack(spacing: 4) {
               Text("\(refusal) ·").foregroundStyle(theme.danger)

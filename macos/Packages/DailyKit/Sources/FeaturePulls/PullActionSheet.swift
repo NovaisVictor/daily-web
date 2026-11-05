@@ -33,7 +33,7 @@ struct PullActionSheet: View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text(title).typeRole(.subhead).foregroundStyle(theme.ink)
-        Text(item.title).font(.geist(13)).foregroundStyle(theme.inkDim)
+        Text(item.title).font(.daily(size: 13)).foregroundStyle(theme.inkDim)
           .fixedSize(horizontal: false, vertical: true)
       }
       if let outcome {
@@ -68,7 +68,7 @@ struct PullActionSheet: View {
           Link("abrir \(ref) no GitHub", destination: url).underline()
         }
       }
-      .font(.geist(14))
+      .font(.daily(size: 14))
       .foregroundStyle(theme.ink)
       .accessibilityElement(children: .combine)
       HStack {
@@ -108,7 +108,7 @@ struct PullActionSheet: View {
   private var textForm: some View {
     VStack(alignment: .leading, spacing: 8) {
       TextEditor(text: $text)
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .frame(minHeight: 96)
         .scrollContentBackground(.hidden)
         .padding(6)
@@ -163,7 +163,7 @@ struct PullActionSheet: View {
         .disabled(sending)
       }
       VStack(alignment: .leading, spacing: 4) {
-        Text("outros logins (separados por vírgula)").font(.geist(13))
+        Text("outros logins (separados por vírgula)").font(.daily(size: 13))
         TextField("outros logins (separados por vírgula)", text: $typed)
           .textFieldStyle(.roundedBorder)
           .labelsHidden()
@@ -207,7 +207,7 @@ struct PullActionSheet: View {
 
   private var rerunForm: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("roda de novo só os jobs que falharam no GitHub Actions deste commit").font(.geist(14))
+      Text("roda de novo só os jobs que falharam no GitHub Actions deste commit").font(.daily(size: 14))
       if !item.failedChecks.isEmpty {
         VStack(alignment: .leading, spacing: 2) {
           ForEach(item.failedChecks, id: \.name) { check in

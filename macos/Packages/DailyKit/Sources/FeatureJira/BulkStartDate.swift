@@ -141,7 +141,7 @@ private struct BulkStartDateSheet: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("Preencher data de início").typeRole(.subhead).foregroundStyle(theme.ink)
         Text("Confira a data sugerida de cada história. Nada é gravado no Jira até você confirmar.")
-          .font(.geist(13)).foregroundStyle(theme.inkDim)
+          .font(.daily(size: 13)).foregroundStyle(theme.inkDim)
       }
       if case .failed(let error) = phase {
         Text("Não foi possível sugerir as datas: \(error)").foregroundStyle(theme.danger)
@@ -171,7 +171,7 @@ private struct BulkStartDateSheet: View {
         }
       }
     }
-    .font(.geist(13))
+    .font(.daily(size: 13))
     .padding(20)
     .frame(width: 640)
   }
@@ -216,14 +216,14 @@ private struct BulkStartDateSheet: View {
       }
       switch row.kind {
       case .editable(_, let basis, _):
-        if let note = JiraText.basisNote(basis) { Text(note).font(.geist(12)).foregroundStyle(theme.inkDim) }
+        if let note = JiraText.basisNote(basis) { Text(note).font(.daily(size: 12)).foregroundStyle(theme.inkDim) }
       case .unavailable(let error):
-        Text("Sem sugestão: \(error)").font(.geist(12)).foregroundStyle(theme.danger)
+        Text("Sem sugestão: \(error)").font(.daily(size: 12)).foregroundStyle(theme.danger)
       }
       if result?.outcome == .written {
-        Text("gravada ✓").font(.geist(12)).foregroundStyle(theme.success)
+        Text("gravada ✓").font(.daily(size: 12)).foregroundStyle(theme.success)
       } else if result?.outcome == .refused {
-        Text("Jira recusou: \(result?.error ?? "sem detalhe")").font(.geist(12)).foregroundStyle(theme.danger)
+        Text("Jira recusou: \(result?.error ?? "sem detalhe")").font(.daily(size: 12)).foregroundStyle(theme.danger)
       }
     }
   }

@@ -119,6 +119,13 @@ extension Font {
   /// sets tracking and leading.
   public static func daily(_ role: TypeRole) -> Font { role.font }
 
+  /// Geist Sans at a size the type scale does not name (the web's `text-xs`, `text-sm`
+  /// and bracketed sizes such as `text-[11px]`). Unlike a `TypeRole`, it sets no
+  /// tracking, leading or tabular digits.
+  public static func daily(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    Font(DailyFonts.ctFont(.sans, size: size, weight: weight))
+  }
+
   /// Geist Mono, the web's `--font-mono` (globals.css:697), for code and identifiers.
   public static func dailyMono(size: CGFloat, weight: Font.Weight = .regular) -> Font {
     Font(DailyFonts.ctFont(.mono, size: size, weight: weight))

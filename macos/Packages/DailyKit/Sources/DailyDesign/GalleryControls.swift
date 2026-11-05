@@ -92,8 +92,8 @@ private struct ControlsGalleryContent: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
               ListRow(index: index, isLast: index == rows.count - 1, isActive: index == 2) {
                 HStack(spacing: 12) {
-                  Text(row.0).font(.system(size: 14).monospacedDigit()).foregroundStyle(theme.inkDim)
-                  Text(row.1).font(.system(size: 14)).foregroundStyle(theme.ink)
+                  Text(row.0).font(.daily(size: 14).monospacedDigit()).foregroundStyle(theme.inkDim)
+                  Text(row.1).font(.daily(size: 14)).foregroundStyle(theme.ink)
                   Spacer(minLength: 0)
                   IconButton("Abrir no Jira", systemImage: "arrow.up.right", size: .small) {}
                 }
@@ -103,7 +103,7 @@ private struct ControlsGalleryContent: View {
           VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(folders.enumerated()), id: \.offset) { index, folder in
               HStack(spacing: 4) {
-                Text(folder.0).font(.system(size: 14))
+                Text(folder.0).font(.daily(size: 14))
                 Spacer(minLength: 0)
                 CountSlot(folder.1)
               }

@@ -145,14 +145,14 @@ struct JiraMultiFilter: View {
       HStack(spacing: 6) {
         if !group.values.isEmpty {
           Text(exclude ? "≠" : "=")
-            .font(.geist(11, weight: .bold))
+            .font(.daily(size: 11, weight: .bold))
             .foregroundStyle(exclude ? Color.white : theme.brandInk)
             .padding(.horizontal, 4)
             .background(exclude ? theme.danger : theme.brand, in: .rect(cornerRadius: 3))
             .help(exclude ? "Modo: não é igual a (exclusão)" : "Modo: é igual a (inclusão)")
         }
         Text(triggerText)
-          .font(.geist(12))
+          .font(.daily(size: 12))
           .foregroundStyle(group.values.isEmpty ? theme.inkDim : theme.ink)
           .lineLimit(1)
           .frame(maxWidth: 176, alignment: .leading)
@@ -178,7 +178,7 @@ struct JiraMultiFilter: View {
       onChange(JiraFilterGroup(group.values, mode: mode))
     } label: {
       Text(mode.title)
-        .font(.geist(11, weight: .medium))
+        .font(.daily(size: 11, weight: .medium))
         .foregroundStyle(current ? (mode == .exclude ? Color.white : theme.ink) : theme.inkDim)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
@@ -239,10 +239,10 @@ struct JiraMultiFilter: View {
         Spacer()
         if exclude { Text("Excluindo selecionados").foregroundStyle(theme.danger) }
       }
-      .font(.geist(11))
+      .font(.daily(size: 11))
       .foregroundStyle(theme.inkDim)
     }
-    .font(.geist(12))
+    .font(.daily(size: 12))
     .padding(12)
     .frame(width: 288)
   }

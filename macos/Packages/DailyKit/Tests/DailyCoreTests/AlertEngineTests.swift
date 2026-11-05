@@ -52,6 +52,31 @@ import Testing
     return poster.posted
   }
 
+  @Test func testNoticeGoesThroughThePosterWhenEnabledAndAllowed() async {
+    let posted = await makeEngine().postTest()
+    #expect(posted)
+    #expect(
+      poster.posted == [
+        DesktopAlert(
+          tag: "agents-test", title: "daily-web", body: "Aviso de teste", target: AlertTarget(route: .kanban))
+      ])
+  }
+
+  @Test func testNoticeNeedsTheSwitchOn() async {
+    let engine = makeEngine()
+    engine.disable()
+    let posted = await engine.postTest()
+    #expect(!posted)
+    #expect(poster.posted.isEmpty)
+  }
+
+  @Test func testNoticeNeedsThePermission() async {
+    poster.authorized = false
+    let posted = await makeEngine().postTest()
+    #expect(!posted)
+    #expect(poster.posted.isEmpty)
+  }
+
   @Test func firstLoadOnlyRecordsTheBaseline() async throws {
     let engine = makeEngine()
     await engine.process(try Fixtures.dashboard())

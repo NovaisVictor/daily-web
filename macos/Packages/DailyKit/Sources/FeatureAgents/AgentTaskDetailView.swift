@@ -63,13 +63,13 @@ struct AgentTaskDetailView: View {
         } label: {
           Label("Ver tarefa principal", systemImage: "arrow.left")
         }
-        .buttonStyle(.link)
+        .linkButtonStyle()
       }
       HStack(spacing: 8) {
         AgentStatusBadge(text: AgentsLogic.statusLabel(task.status), status: task.status)
         if let hold = task.hold {
           AgentStatusBadge(text: AgentsLogic.holdLabel(hold.reason, status: task.status), status: task.status)
-          if let note = hold.note { Text(note).font(.geist(12)).foregroundStyle(theme.inkMid) }
+          if let note = hold.note { Text(note).font(.daily(size: 12)).foregroundStyle(theme.inkMid) }
         }
       }
       Text(task.title)
@@ -79,13 +79,13 @@ struct AgentTaskDetailView: View {
         .accessibilityAddTraits(.isHeader)
       if !task.description.isEmpty {
         Text(task.description)
-          .font(.geist(13))
+          .font(.daily(size: 13))
           .foregroundStyle(theme.inkMid)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
       Text("Referência: \(task.externalId) · Versão \(task.version)")
-        .font(.geist(11))
+        .font(.daily(size: 11))
         .foregroundStyle(theme.inkDim)
         .textSelection(.enabled)
       Divider()
@@ -102,9 +102,9 @@ struct AgentTaskDetailView: View {
     let items = detail.subtasks.items
     let statuses = AgentTaskStatus.known.filter { status in items.contains { $0.status == status } }
     return VStack(alignment: .leading, spacing: 12) {
-      Text("Subtarefas").font(.geist(14, weight: .semibold)).accessibilityAddTraits(.isHeader)
+      Text("Subtarefas").font(.daily(size: 14, weight: .semibold)).accessibilityAddTraits(.isHeader)
       Text("Subtarefas agrupadas por status. O status da tarefa principal é definido separadamente.")
-        .font(.geist(11))
+        .font(.daily(size: 11))
         .foregroundStyle(theme.inkMid)
       if items.isEmpty {
         EmptyState(
@@ -118,7 +118,7 @@ struct AgentTaskDetailView: View {
               HStack {
                 AgentStatusBadge(text: AgentsLogic.statusLabel(status), status: status)
                 Spacer()
-                Text("\(children.count)").font(.geist(11)).foregroundStyle(theme.inkDim)
+                Text("\(children.count)").font(.daily(size: 11)).foregroundStyle(theme.inkDim)
               }
               ForEach(children) { child in
                 AgentTaskCard(task: child, now: now, open: openTask)
@@ -134,7 +134,7 @@ struct AgentTaskDetailView: View {
       }
       HStack(spacing: 12) {
         Text("\(items.count) nesta página\(detail.subtasks.nextCursor == nil ? "" : " · Há mais subtarefas")")
-          .font(.geist(11))
+          .font(.daily(size: 11))
           .foregroundStyle(theme.inkDim)
         if store.subtaskCursor != nil {
           Button("Primeiras subtarefas") { store.setSubtaskCursor(nil) }
@@ -155,7 +155,7 @@ struct AgentTaskDetailView: View {
 
   private func activity(_ detail: AgentTaskDetail) -> some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Atividade recente").font(.geist(14, weight: .semibold)).accessibilityAddTraits(.isHeader)
+      Text("Atividade recente").font(.daily(size: 14, weight: .semibold)).accessibilityAddTraits(.isHeader)
       if detail.activity.items.isEmpty {
         EmptyState("Sem atualizações de atividade", description: "Novos relatos do agente aparecerão aqui.")
       } else {
@@ -163,11 +163,11 @@ struct AgentTaskDetailView: View {
           ForEach(detail.activity.items) { item in
             VStack(alignment: .leading, spacing: 4) {
               Text(item.summary)
-                .font(.geist(13))
+                .font(.daily(size: 13))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
               Text("\(AgentsLogic.formatTime(item.receivedAt)) · \(item.kind.rawValue)")
-                .font(.geist(11))
+                .font(.daily(size: 11))
                 .foregroundStyle(theme.inkDim)
             }
             .padding(.leading, 16)
@@ -197,39 +197,39 @@ struct AgentTaskDetailView: View {
     VStack(alignment: .leading, spacing: 20) {
       VStack(alignment: .leading, spacing: 6) {
         Label("Agente responsável", systemImage: "cpu")
-          .font(.geist(13, weight: .semibold))
+          .font(.daily(size: 13, weight: .semibold))
           .accessibilityAddTraits(.isHeader)
         if let assignment = task.assignment {
-          Text(assignment.displayName).font(.geist(13))
-          Text(assignment.provider.rawValue).font(.geist(11)).foregroundStyle(theme.inkMid)
+          Text(assignment.displayName).font(.daily(size: 13))
+          Text(assignment.provider.rawValue).font(.daily(size: 11)).foregroundStyle(theme.inkMid)
           Button("Sessão \(assignment.sessionId)") { openSession(assignment.sessionId) }
-            .buttonStyle(.link)
-            .font(.geist(11))
-          Text(AgentsLogic.freshnessLabel(assignment.freshness)).font(.geist(11)).foregroundStyle(theme.inkMid)
+            .linkButtonStyle()
+            .font(.daily(size: 11))
+          Text(AgentsLogic.freshnessLabel(assignment.freshness)).font(.daily(size: 11)).foregroundStyle(theme.inkMid)
         } else {
-          Text("Nenhum agente atribuído.").font(.geist(13)).foregroundStyle(theme.inkMid)
+          Text("Nenhum agente atribuído.").font(.daily(size: 13)).foregroundStyle(theme.inkMid)
         }
       }
       VStack(alignment: .leading, spacing: 8) {
         Label("Histórico", systemImage: "clock")
-          .font(.geist(13, weight: .semibold))
+          .font(.daily(size: 13, weight: .semibold))
           .accessibilityAddTraits(.isHeader)
         fact("Criada em", AgentsLogic.formatTime(task.createdAt))
         fact("Última atividade", AgentsLogic.formatTime(task.lastActivityAt))
         Text("A tarefa e seu histórico expiram após 30 dias sem atividade aceita. Consultas não renovam esse prazo.")
-          .font(.geist(11))
+          .font(.daily(size: 11))
           .foregroundStyle(theme.inkMid)
           .fixedSize(horizontal: false, vertical: true)
       }
       if let source = task.source {
         VStack(alignment: .leading, spacing: 4) {
-          Text("Origem vinculada").font(.geist(13, weight: .semibold)).accessibilityAddTraits(.isHeader)
+          Text("Origem vinculada").font(.daily(size: 13, weight: .semibold)).accessibilityAddTraits(.isHeader)
           Text("\(source.provider.rawValue): \(source.resource)")
-            .font(.geist(11))
+            .font(.daily(size: 11))
             .foregroundStyle(theme.inkMid)
             .textSelection(.enabled)
           Text("O vínculo não altera o item de origem automaticamente.")
-            .font(.geist(11))
+            .font(.daily(size: 11))
             .foregroundStyle(theme.inkDim)
         }
       }
@@ -243,7 +243,7 @@ struct AgentTaskDetailView: View {
       Text(title).foregroundStyle(theme.inkDim)
       Text(value)
     }
-    .font(.geist(11))
+    .font(.daily(size: 11))
     .accessibilityElement(children: .combine)
   }
 }
@@ -290,7 +290,7 @@ struct AgentTaskActions: View {
       .disabled(store.isSaving)
       if let error = store.actionError {
         Text(error)
-          .font(.geist(13))
+          .font(.daily(size: 13))
           .foregroundStyle(theme.danger)
           .accessibilityAddTraits(.isStaticText)
       }
@@ -404,7 +404,7 @@ struct EditTaskSheet: View {
             get: { draft.description },
             set: { draft.description = String($0.prefix(AgentsLogic.descriptionMax)) })
         )
-        .font(.geist(13))
+        .font(.daily(size: 13))
         .frame(minHeight: 120)
         .accessibilityLabel("Descrição")
       }

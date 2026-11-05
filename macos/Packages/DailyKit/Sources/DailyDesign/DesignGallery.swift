@@ -145,7 +145,7 @@ private struct GalleryContent: View {
       FlowLayout(spacing: 6) {
         ForEach(colors, id: \.0) { name, color in
           Text(name)
-            .font(.geist(size: 11))
+            .font(.daily(size: 11))
             .foregroundStyle(theme.inkMid)
             .frame(width: 72, height: 40, alignment: .bottomLeading)
             .padding(4)
@@ -157,7 +157,7 @@ private struct GalleryContent: View {
         ForEach(PostitPaper.allCases, id: \.self) { paper in
           if let color = theme.postit[paper.rawValue] {
             Text(paper.rawValue)
-              .font(.geist(size: TextSize.extraSmall, weight: .medium))
+              .font(.daily(size: 12, weight: .medium))
               .foregroundStyle(theme.postitInk)
               .frame(width: 72, height: 56)
               .background(color, in: .rect(cornerRadius: 2))

@@ -72,16 +72,20 @@ public struct MenuBarPanel: View {
         signedIn
       } else {
         Button("Entrar…", action: actions.openApp)
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary, size: .small)
       }
       Divider()
       HStack {
         Button("Abrir Daily Web", action: actions.openApp)
+          .pillButtonStyle(.ghost, size: .small)
         Spacer()
         Button("Sair", action: actions.quit)
           .keyboardShortcut("q", modifiers: .command)
+          .pillButtonStyle(.ghost, size: .small)
       }
     }
+    // The web's body copy (`text-sm`); the rows below inherit it.
+    .font(.daily(size: 14))
     .padding(14)
     .frame(width: 320, alignment: .leading)
   }
@@ -131,7 +135,7 @@ public struct MenuBarPanel: View {
               HStack(spacing: 6) {
                 Text(task.title).lineLimit(1)
                 if task.isOverdue {
-                  Text("atrasada").font(.caption).foregroundStyle(theme.danger)
+                  Text("atrasada").typeRole(.caption).foregroundStyle(theme.danger)
                 }
                 Spacer(minLength: 0)
               }
@@ -145,6 +149,7 @@ public struct MenuBarPanel: View {
         Label(unreadCaption(summary.unreadNotifications), systemImage: "bell")
         Spacer()
         Button("Abrir notificações", action: actions.openNotifications)
+          .pillButtonStyle(.ghost, size: .small)
       }
     }
   }
@@ -155,25 +160,25 @@ public struct MenuBarPanel: View {
     return VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
-          Text(display.isFocus ? "foco" : "descanso").font(.caption).foregroundStyle(theme.inkDim)
-          Text("\(display.completedFocusCount) focos").font(.caption).foregroundStyle(theme.inkDim)
+          Text(display.isFocus ? "foco" : "descanso").typeRole(.caption).foregroundStyle(theme.inkDim)
+          Text("\(display.completedFocusCount) focos").typeRole(.caption).foregroundStyle(theme.inkDim)
             .help("focos concluídos")
         }
         Text(display.formattedRemaining)
-          .font(.title2.monospacedDigit())
+          .typeRole(.subhead)
+          .monospacedDigit()
         Spacer()
-        Button(
+        IconButton(
           display.running ? "pausar foco" : "iniciar foco",
           systemImage: display.running ? "pause.fill" : "play.fill",
+          variant: .primary,
           action: actions.togglePomodoro
         )
-        .labelStyle(.iconOnly)
-        Button("zerar pomodoro", systemImage: "arrow.counterclockwise", action: actions.resetPomodoro)
-          .labelStyle(.iconOnly)
+        IconButton("zerar pomodoro", systemImage: "arrow.counterclockwise", action: actions.resetPomodoro)
       }
       .disabled(pomodoro.isBusy)
       if let error = pomodoro.errorMessage {
-        Text(error).font(.caption).foregroundStyle(theme.danger)
+        Text(error).typeRole(.caption).foregroundStyle(theme.danger)
       }
     }
   }
@@ -186,12 +191,12 @@ public struct MenuBarPanel: View {
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Button(action: action) {
-        Text(title).font(.headline)
+        Text(title).font(.daily(size: 14, weight: .semibold))
       }
       .buttonStyle(.plain)
       .help("Abrir \(title)")
       if let error {
-        Text(error).font(.caption).foregroundStyle(theme.danger)
+        Text(error).typeRole(.caption).foregroundStyle(theme.danger)
       }
       content()
     }

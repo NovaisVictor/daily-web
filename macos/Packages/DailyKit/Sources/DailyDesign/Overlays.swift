@@ -89,12 +89,12 @@ public struct ConfirmDialogView: View {
     VStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 8) {
         Text(request.title)
-          .font(.system(size: 18, weight: .semibold))
+          .font(.daily(size: 18, weight: .semibold))
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
         if let message = request.message {
           Text(message)
-            .font(.system(size: 14))
+            .font(.daily(size: 14))
             .foregroundStyle(theme.inkMid)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -110,7 +110,7 @@ public struct ConfirmDialogView: View {
           }
         }
         .keyboardShortcut(.cancelAction)
-        .buttonStyle(.bordered)
+        .pillButtonStyle(.outline)
 
         Button(role: request.destructive ? .destructive : nil, action: confirm) {
           HStack(spacing: 6) {
@@ -119,8 +119,7 @@ public struct ConfirmDialogView: View {
           }
         }
         .keyboardShortcut(.defaultAction)
-        .buttonStyle(.borderedProminent)
-        .tint(request.destructive ? theme.danger : theme.brand)
+        .pillButtonStyle(request.destructive ? .destructive : .primary)
       }
     }
     .padding(24)
@@ -187,7 +186,7 @@ public struct ToastView: View {
         .foregroundStyle(tone)
         .accessibilityHidden(true)
       Text(message.text)
-        .font(.system(size: 14))
+        .font(.daily(size: 14))
         .foregroundStyle(theme.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
       if let action = message.action {
@@ -195,8 +194,7 @@ public struct ToastView: View {
           action.perform()
           dismiss()
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
+        .pillButtonStyle(.outline, size: .small)
       }
       Button(action: dismiss) {
         Image(systemName: "xmark")
@@ -277,7 +275,7 @@ public struct FocusDropTarget<Payload: Transferable>: View {
 
   public var body: some View {
     Text(label)
-      .font(.system(size: 14))
+      .font(.daily(size: 14))
       .foregroundStyle(targeted ? theme.brand : theme.inkDim)
       .frame(maxWidth: .infinity)
       .padding(12)

@@ -37,7 +37,7 @@ private struct GlassGalleryContent: View {
           ForEach(["Hoje", "7 dias", "30 dias"], id: \.self) { label in
             Button(label) {}
               .buttonStyle(.plain)
-              .font(.system(size: 13, weight: .medium))
+              .font(.daily(size: 13, weight: .medium))
               .foregroundStyle(theme.ink)
               .padding(.horizontal, 14)
               .padding(.vertical, 6)
@@ -48,7 +48,7 @@ private struct GlassGalleryContent: View {
       HStack(spacing: 20) {
         ForEach(Elevation.allCases, id: \.self) { level in
           Text("e\(level.rawValue)")
-            .font(.system(size: 13, weight: .medium))
+            .font(.daily(size: 13, weight: .medium))
             .foregroundStyle(theme.ink)
             .frame(width: 72, height: 56)
             .background(theme.surface2, in: .rect(cornerRadius: Radius.medium))
@@ -61,10 +61,10 @@ private struct GlassGalleryContent: View {
   private func sample(_ title: String, detail: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Text(title)
-        .font(.system(size: 16, weight: .semibold))
+        .font(.daily(size: 16, weight: .semibold))
         .foregroundStyle(theme.ink)
       Text(detail)
-        .font(.system(size: 13))
+        .font(.daily(size: 13))
         .foregroundStyle(theme.inkMid)
     }
     .padding(16)

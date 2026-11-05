@@ -79,7 +79,7 @@ public struct StatusPill: View {
       .overlay { Capsule().strokeBorder(theme.border(for: tone)) }
       if let note {
         Text(note)
-          .font(.geist(size: TextSize.extraSmall))
+          .font(.daily(size: 12))
           .foregroundStyle(theme.inkDim)
       }
     }
@@ -122,7 +122,7 @@ public struct Badge: View {
 
   public var body: some View {
     Text(text)
-      .font(.geist(size: TextSize.extraSmall, weight: .medium).monospacedDigit())
+      .font(.daily(size: 12, weight: .medium).monospacedDigit())
       .lineLimit(1)
       .foregroundStyle(colors.foreground)
       .padding(.horizontal, 8)

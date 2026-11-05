@@ -73,7 +73,7 @@ struct PeopleSearchCard: View {
       }
       if let error = store.peopleError { PanelError(error) }
       if store.peopleSearching {
-        Text("Buscando…").font(.geist(13)).foregroundStyle(theme.inkDim)
+        Text("Buscando…").font(.daily(size: 13)).foregroundStyle(theme.inkDim)
       } else if !store.peopleCandidates.isEmpty {
         FlowLayout(spacing: 8) {
           ForEach(store.peopleCandidates) { person in

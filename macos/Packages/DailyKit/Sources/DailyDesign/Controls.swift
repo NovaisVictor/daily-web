@@ -103,7 +103,7 @@ public struct Chip: View {
   public var body: some View {
     let palette = Self.palette(isOn: isOn, hovering: hovering, theme: theme)
     Text(title)
-      .font(.system(size: 14))
+      .font(.daily(size: 14))
       .lineLimit(1)
       .foregroundStyle(palette.foreground)
       .padding(.horizontal, 14)
@@ -173,7 +173,7 @@ public struct SearchField: View {
         .accessibilityHidden(true)
       TextField(label, text: $text, prompt: Text(placeholder).foregroundStyle(theme.inkDim))
         .textFieldStyle(.plain)
-        .font(.system(size: 14))
+        .font(.daily(size: 14))
         .foregroundStyle(theme.ink)
         .focused($focused)
         .accessibilityLabel(label)
@@ -221,7 +221,7 @@ public struct Avatar: View {
           .scaledToFill()
       } else {
         Text(Self.initials(for: name))
-          .font(.system(size: size * 0.4, weight: .medium))
+          .font(.daily(size: size * 0.4, weight: .medium))
           .foregroundStyle(theme.inkDim)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
           .background(theme.neutralTint)
@@ -273,7 +273,7 @@ public struct SectionHeader<Actions: View>: View {
           .accessibilityAddTraits(.isHeader)
         if let count {
           Text(count)
-            .font(.system(size: 14).monospacedDigit())
+            .font(.daily(size: 14).monospacedDigit())
             .foregroundStyle(theme.inkDim)
         }
       }
@@ -300,7 +300,7 @@ public struct ShortcutKey: View {
 
   public var body: some View {
     Text(key)
-      .font(.system(size: 10))
+      .font(.daily(size: 10))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .overlay { Capsule().strokeBorder(.foreground.opacity(0.3)) }
@@ -455,7 +455,7 @@ private struct SegmentedPill: View {
         Text("\(count)").monospacedDigit().foregroundStyle(theme.inkDim)
       }
     }
-    .font(.system(size: 14, weight: style.weight))
+    .font(.daily(size: 14, weight: style.weight))
     .lineLimit(1)
     .foregroundStyle(palette.foreground)
     .padding(.horizontal, style.pillPadding)
@@ -492,7 +492,7 @@ public struct RepoPill: View {
   public var body: some View {
     HStack(spacing: 4) {
       Text(title)
-        .font(.system(size: 14))
+        .font(.daily(size: 14))
         .lineLimit(1)
       Button("×", action: onRemove)
         .buttonStyle(RemoveGlyphStyle())
@@ -531,7 +531,7 @@ private struct RemoveGlyph: View {
 
   var body: some View {
     configuration.label
-      .font(.system(size: 14))
+      .font(.daily(size: 14))
       .foregroundStyle(hovering ? theme.danger : theme.inkDim)
       .frame(width: 20, height: 20)
       .dailyFocusRing(isFocused, in: Circle())

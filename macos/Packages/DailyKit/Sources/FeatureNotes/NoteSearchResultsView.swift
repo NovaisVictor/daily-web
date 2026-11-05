@@ -66,7 +66,7 @@ struct NoteSearchResultsView: View {
   private func row(_ result: NoteSearchResult) -> some View {
     VStack(alignment: .leading, spacing: 2) {
       Label(result.note.title.isEmpty ? "sem título" : result.note.title, systemImage: "doc.text")
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .lineLimit(1)
       if !result.snippet.isEmpty {
         Text(result.snippet)

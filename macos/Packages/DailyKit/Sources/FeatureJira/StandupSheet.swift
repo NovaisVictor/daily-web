@@ -19,7 +19,7 @@ struct StandupSheet: View {
     VStack(alignment: .leading, spacing: 14) {
       VStack(alignment: .leading, spacing: 4) {
         Text("Resumo para a daily").typeRole(.subhead).foregroundStyle(theme.ink).accessibilityAddTraits(.isHeader)
-        Text(range.description).font(.geist(13)).foregroundStyle(theme.inkDim)
+        Text(range.description).font(.daily(size: 13)).foregroundStyle(theme.inkDim)
           .fixedSize(horizontal: false, vertical: true)
       }
       HStack(spacing: 8) {
@@ -45,7 +45,7 @@ struct StandupSheet: View {
       .accessibilityLabel("texto do resumo")
       if copied == false {
         Text("Não deu para copiar. Selecione o texto acima e copie com ⌘C.")
-          .font(.geist(13)).foregroundStyle(theme.danger)
+          .font(.daily(size: 13)).foregroundStyle(theme.danger)
       }
       HStack {
         Spacer()

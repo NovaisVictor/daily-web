@@ -114,7 +114,7 @@ public struct CommandPalette: View {
       Divider().overlay(theme.line)
       if groups.isEmpty {
         Text("Nada encontrado.")
-          .font(.callout)
+          .font(.daily(size: 14))
           .foregroundStyle(theme.inkMid)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
@@ -134,7 +134,7 @@ public struct CommandPalette: View {
         .accessibilityHidden(true)
       TextField("Buscar", text: $query, prompt: Text("Buscar telas e ajustes…"))
         .textFieldStyle(.plain)
-        .font(.title3)
+        .font(.daily(size: 14))
         .focused($isSearchFocused)
         .onSubmit(runHighlighted)
         .onKeyPress(.upArrow) {
@@ -158,8 +158,9 @@ public struct CommandPalette: View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 2) {
           ForEach(groups) { group in
+            // `[cmdk-group-heading]` (components/ui/command.tsx:121): `text-xs font-medium`.
             Text(group.title)
-              .font(.caption)
+              .font(.daily(size: 12, weight: .medium))
               .foregroundStyle(theme.inkDim)
               .padding(.horizontal, 12)
               .padding(.top, 8)
@@ -191,7 +192,7 @@ public struct CommandPalette: View {
             .foregroundStyle(theme.inkMid)
             .accessibilityHidden(true)
         }
-        Text(command.title).foregroundStyle(theme.ink)
+        Text(command.title).font(.daily(size: 14)).foregroundStyle(theme.ink)
         Spacer(minLength: 0)
       }
       .padding(.horizontal, 12)

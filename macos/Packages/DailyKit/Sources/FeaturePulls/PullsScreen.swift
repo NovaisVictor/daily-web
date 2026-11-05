@@ -247,7 +247,7 @@ struct DefaultBranchAlert: View {
           }
         }
       }
-      .font(.geist(14))
+      .font(.daily(size: 14))
       .foregroundStyle(theme.inkMid)
       .tint(theme.inkMid)
       .padding(.horizontal, 16)

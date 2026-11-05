@@ -48,7 +48,7 @@ struct TaskFormSheet: View {
                 titleError = nil
               }
             if let titleError {
-              Text(titleError).font(.system(size: 13)).foregroundStyle(theme.danger)
+              Text(titleError).font(.daily(size: 13)).foregroundStyle(theme.danger)
             }
           }
 
@@ -100,12 +100,15 @@ struct TaskFormSheet: View {
 
           if task == nil {
             field("Coluna") {
-              Picker("Coluna", selection: $draft.column) {
-                Text(BoardColumn.todo.label).tag(BoardColumn.todo)
-                Text(BoardColumn.doing.label).tag(BoardColumn.doing)
-              }
-              .pickerStyle(.segmented)
-              .labelsHidden()
+              SegmentedPills(
+                "Coluna",
+                items: [
+                  .init(id: BoardColumn.todo, label: BoardColumn.todo.label),
+                  .init(id: BoardColumn.doing, label: BoardColumn.doing.label),
+                ],
+                selection: $draft.column,
+                style: .toggle
+              )
             }
           }
 
@@ -126,21 +129,23 @@ struct TaskFormSheet: View {
       }
 
       if let error {
-        Text(error).font(.system(size: 13)).foregroundStyle(theme.danger)
+        Text(error).font(.daily(size: 13)).foregroundStyle(theme.danger)
       }
 
       HStack {
         if task != nil {
           Button(deleting ? "Apagando…" : "Apagar", role: .destructive, action: askDelete)
+            .pillButtonStyle(.destructive)
             .disabled(busy)
         }
         Spacer()
         Button("Cancelar", action: requestClose)
           .keyboardShortcut(.cancelAction)
+          .pillButtonStyle(.outline)
           .disabled(busy)
         Button(saving ? "Salvando…" : "Salvar", action: save)
           .keyboardShortcut(.defaultAction)
-          .buttonStyle(.borderedProminent)
+          .pillButtonStyle(.primary)
           .disabled(busy)
       }
     }
@@ -196,7 +201,7 @@ struct TaskFormSheet: View {
             } label: {
               Image(systemName: "xmark.circle.fill")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .help("Sem hora")
             .accessibilityLabel("Sem hora")
           }
@@ -217,7 +222,7 @@ struct TaskFormSheet: View {
 
   private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text(label).font(.system(size: 14)).foregroundStyle(theme.inkMid)
+      Text(label).font(.daily(size: 14)).foregroundStyle(theme.inkMid)
       content()
     }
     .frame(maxWidth: .infinity, alignment: .leading)

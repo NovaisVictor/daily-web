@@ -129,7 +129,7 @@ private struct NowBand: View {
         .foregroundStyle(theme.ink)
         .accessibilityAddTraits(.isHeader)
       Text(greeting.welcome)
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .foregroundStyle(theme.inkMid)
     }
   }
@@ -179,16 +179,10 @@ private struct PomodoroCard: View {
             .foregroundStyle(theme.ink)
           HStack(spacing: 8) {
             let label = timer.running ? "pausar foco" : "iniciar foco"
-            // `IconAction variant="default"` (Pomodoro.tsx:106-117): the brand face. The icon
-            // button has no primary variant, so the small primary pill carries the glyph.
-            Button {
+            // `IconAction variant="default"` (Pomodoro.tsx:106-117): the brand face.
+            IconButton(label, systemImage: timer.running ? "pause.fill" : "play.fill", variant: .primary) {
               Task { await store.toggleTimer() }
-            } label: {
-              Image(systemName: timer.running ? "pause.fill" : "play.fill")
             }
-            .pillButtonStyle(.primary, size: .small)
-            .help(label)
-            .accessibilityLabel(label)
             IconButton("zerar pomodoro", systemImage: "arrow.counterclockwise") {
               Task { await store.resetTimer() }
             }
@@ -345,10 +339,9 @@ private struct PanelRow: View {
 }
 
 /// The empty state of `app/(app)/page.tsx:126-137`. The web's link goes to the
-/// integrations page; the native app keeps integrations in Settings.
+/// integrations page, the app's Ferramentas.
 private struct NothingOnState: View {
   let navigator: AppNavigator
-  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     EmptyState(
@@ -359,8 +352,7 @@ private struct NothingOnState: View {
       systemImage: "powerplug"
     ) {
       Button("Conectar minhas contas") {
-        navigator.requestSettings(.integrations)
-        openSettings()
+        navigator.open(.ferramentas)
       }
       .pillButtonStyle()
     }

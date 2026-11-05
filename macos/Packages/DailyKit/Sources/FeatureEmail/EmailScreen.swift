@@ -142,7 +142,7 @@ struct EmailListPane: View {
       HStack(alignment: .firstTextBaseline) {
         PanelError(error)
         Button("tentar de novo") { Task { await store.loadFolder() } }
-          .buttonStyle(.link)
+          .linkButtonStyle()
       }
     }
     if let error = store.batchError {
@@ -152,7 +152,7 @@ struct EmailListPane: View {
       HStack(alignment: .firstTextBaseline) {
         PanelError(unprocessedText)
         Button("tentar de novo") { Task { await store.retryUnprocessed() } }
-          .buttonStyle(.link)
+          .linkButtonStyle()
       }
     }
   }
@@ -198,7 +198,7 @@ struct EmailBatchBar: View {
     if count > 0 {
       HStack(spacing: 8) {
         Text("\(count) \(count == 1 ? "conversa" : "conversas")")
-          .font(.geist(14).monospacedDigit())
+          .font(.daily(size: 14).monospacedDigit())
           .foregroundStyle(theme.inkDim)
         // The only hint that E and M exist.
         HStack(spacing: 4) {
@@ -225,16 +225,9 @@ struct EmailBatchBar: View {
             Task { await store.runBatch(.move, folder: store.effectiveTargetFolder) }
           }
         }
-        // The web's `IconAction variant="destructive"` has no glyph-only twin in
-        // DailyDesign yet; the outline circle with the danger glyph stands in.
-        Button(role: .destructive) {
-          store.requestDeleteSelected()
-        } label: {
-          Image(systemName: "trash").foregroundStyle(theme.danger)
-        }
-        .iconButtonStyle(variant: .outline)
-        .help("Excluir")
-        .accessibilityLabel("Excluir")
+        // The web fills this one (`IconAction variant="destructive"`, EmailPanel.tsx:993-998);
+        // the app keeps one destructive glyph button, the danger-on-hover circle of the rows.
+        IconButton("Excluir", systemImage: "trash", variant: .destructive) { store.requestDeleteSelected() }
       }
     }
   }

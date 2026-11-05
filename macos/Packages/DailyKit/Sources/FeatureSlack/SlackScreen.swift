@@ -123,7 +123,7 @@ private struct SlackMessageRow: View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(message.author)
-          .font(.geist(14, weight: .medium))
+          .font(.daily(size: 14, weight: .medium))
           .foregroundStyle(theme.ink)
         Text(message.channel)
           .typeRole(.caption)
@@ -136,7 +136,7 @@ private struct SlackMessageRow: View {
         }
       }
       Text(message.text)
-        .font(.geist(14))
+        .font(.daily(size: 14))
         .foregroundStyle(theme.inkMid)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

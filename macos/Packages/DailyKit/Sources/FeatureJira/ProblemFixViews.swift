@@ -84,7 +84,7 @@ private struct StartDateFix: View {
         if let error { Text(error).foregroundStyle(theme.danger) }
       }
     }
-    .font(.geist(12))
+    .font(.daily(size: 12))
     .controlSize(.small)
   }
 
@@ -156,7 +156,7 @@ private struct EpicFix: View {
         if let error { Text(error).foregroundStyle(theme.danger) }
       }
     }
-    .font(.geist(12))
+    .font(.daily(size: 12))
     .controlSize(.small)
   }
 

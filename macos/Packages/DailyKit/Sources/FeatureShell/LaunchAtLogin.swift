@@ -74,12 +74,14 @@ public struct LaunchAtLoginToggle: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       Toggle("Abrir ao iniciar a sessão", isOn: Binding(get: { model.isOn }, set: { model.setOn($0) }))
-      Text(model.statusText).font(.caption).foregroundStyle(theme.inkDim)
+        .font(.daily(size: 14))
+      Text(model.statusText).typeRole(.caption).foregroundStyle(theme.inkDim)
       if model.needsApproval {
         Button("Abrir Itens de Início") { SMAppService.openSystemSettingsLoginItems() }
+          .linkButtonStyle()
       }
       if let error = model.errorMessage {
-        Text(error).font(.caption).foregroundStyle(theme.danger)
+        Text(error).typeRole(.caption).foregroundStyle(theme.danger)
       }
     }
     .onAppear { model.reload() }

@@ -49,7 +49,7 @@ struct JiraDialogChrome<Content: View, Footer: View>: View {
     VStack(alignment: .leading, spacing: 14) {
       VStack(alignment: .leading, spacing: 4) {
         Text(title).typeRole(.subhead).foregroundStyle(theme.ink).accessibilityAddTraits(.isHeader)
-        Text(description).font(.geist(13)).foregroundStyle(theme.inkMid)
+        Text(description).font(.daily(size: 13)).foregroundStyle(theme.inkMid)
           .fixedSize(horizontal: false, vertical: true)
       }
       content
@@ -88,23 +88,23 @@ struct CommentSheet: View {
           Button("abrir \(issue.key) no Jira") {
             if let url = URL(string: issue.url) { openURL(url) }
           }
-          .buttonStyle(.link)
+          .linkButtonStyle()
         }
-        .font(.geist(13))
+        .font(.daily(size: 13))
       } else {
         VStack(alignment: .leading, spacing: 6) {
           TextEditor(text: $text)
-            .font(.geist(13))
+            .font(.daily(size: 13))
             .frame(minHeight: 96)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
             .accessibilityLabel("comentário em \(issue.key)")
           if let problem = refusal ?? (tooLong ? "passou de \(JiraLimits.comment) caracteres (\(trimmed.count))" : nil)
           {
-            Text(problem).font(.geist(12)).foregroundStyle(theme.danger)
+            Text(problem).font(.daily(size: 12)).foregroundStyle(theme.danger)
           }
           Text("vai aparecer como seu comentário em \(issue.key)")
-            .font(.geist(12)).foregroundStyle(theme.inkDim)
+            .font(.daily(size: 12)).foregroundStyle(theme.inkDim)
         }
       }
     } footer: {
@@ -166,7 +166,7 @@ struct FlagSheet: View {
       JiraDialogChrome(
         title: flagging ? "Impedimento marcado" : "Impedimento removido", description: "\(issue.key) — \(issue.summary)"
       ) {
-        Text(warning).font(.geist(13)).foregroundStyle(theme.warning)
+        Text(warning).font(.daily(size: 13)).foregroundStyle(theme.warning)
       } footer: {
         Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
       }
@@ -176,9 +176,9 @@ struct FlagSheet: View {
         description: "\(issue.key) — \(issue.summary)"
       ) {
         VStack(alignment: .leading, spacing: 6) {
-          Text(flagging ? "Motivo" : "Observação (opcional)").font(.geist(13, weight: .medium))
+          Text(flagging ? "Motivo" : "Observação (opcional)").font(.daily(size: 13, weight: .medium))
           TextEditor(text: $text)
-            .font(.geist(13))
+            .font(.daily(size: 13))
             .frame(minHeight: 72)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
@@ -191,8 +191,8 @@ struct FlagSheet: View {
             flagging
               ? "o motivo vira um comentário na issue" : "se preenchida, a observação vira um comentário na issue"
           )
-          .font(.geist(11)).foregroundStyle(theme.inkDim)
-          if let error { Text(error).font(.geist(13)).foregroundStyle(theme.danger) }
+          .font(.daily(size: 11)).foregroundStyle(theme.inkDim)
+          if let error { Text(error).font(.daily(size: 13)).foregroundStyle(theme.danger) }
         }
       } footer: {
         Button("Cancelar") { dismiss() }.pillButtonStyle(.outline).disabled(sending).keyboardShortcut(.cancelAction)
@@ -259,7 +259,7 @@ struct ApprovalSheet: View {
               Button("abrir no Jira") {
                 if let url = URL(string: issue.url) { openURL(url) }
               }
-              .buttonStyle(.link)
+              .linkButtonStyle()
             }
           }
           if confirming == nil {
@@ -279,7 +279,7 @@ struct ApprovalSheet: View {
           if let error { Text(error).foregroundStyle(theme.danger) }
         }
       }
-      .font(.geist(13))
+      .font(.daily(size: 13))
     } footer: {
       if let confirming {
         Button("Voltar") {
@@ -384,7 +384,7 @@ struct DueSheet: View {
   var body: some View {
     JiraDialogChrome(title: "Prazo de \(issue.key)", description: issue.summary) {
       VStack(alignment: .leading, spacing: 8) {
-        Text("Novo prazo").font(.geist(13, weight: .medium))
+        Text("Novo prazo").font(.daily(size: 13, weight: .medium))
         HStack(spacing: 8) {
           if value.isEmpty {
             Button("Escolher data") { value = JiraDates.dayString(store.now()) }
@@ -401,7 +401,7 @@ struct DueSheet: View {
         }
         if changed {
           Text("de \(JiraText.formatDate(issue.dueDate)) para \(JiraText.formatDate(value))")
-            .font(.geist(12)).foregroundStyle(theme.ink)
+            .font(.daily(size: 12)).foregroundStyle(theme.ink)
         }
         JiraRefusal(message: refusal, issue: issue)
       }
@@ -486,7 +486,7 @@ struct PrioritySheet: View {
           JiraRefusal(message: refusal, issue: issue)
         }
       }
-      .font(.geist(13))
+      .font(.daily(size: 13))
     } footer: {
       JiraDialogActions(
         sending: sending, disabled: !changed, idle: "Salvar", busy: "Salvando…", cancel: { dismiss() }, confirm: save)
@@ -566,10 +566,10 @@ struct CreateStorySheet: View {
           Button(created.key) {
             if let url = URL(string: created.url) { openURL(url) }
           }
-          .buttonStyle(.link)
+          .linkButtonStyle()
           Text("criada")
         }
-        .font(.geist(13))
+        .font(.daily(size: 13))
       } footer: {
         Button("Fechar") { dismiss() }.pillButtonStyle(.outline).keyboardShortcut(.defaultAction)
       }
@@ -578,16 +578,16 @@ struct CreateStorySheet: View {
         title: "Criar história", description: "nova história em \(issue.project) dentro de \(issue.key)"
       ) {
         VStack(alignment: .leading, spacing: 6) {
-          Text("Resumo").font(.geist(13, weight: .medium))
+          Text("Resumo").font(.daily(size: 13, weight: .medium))
           TextField("Resumo", text: $summary)
             .labelsHidden()
             .disabled(sending)
             .onChange(of: summary) { _, next in
               if next.count > JiraLimits.summary { summary = String(next.prefix(JiraLimits.summary)) }
             }
-          Text("Descrição (opcional)").font(.geist(13, weight: .medium))
+          Text("Descrição (opcional)").font(.daily(size: 13, weight: .medium))
           TextEditor(text: $description)
-            .font(.geist(13))
+            .font(.daily(size: 13))
             .frame(minHeight: 72)
             .disabled(sending)
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }

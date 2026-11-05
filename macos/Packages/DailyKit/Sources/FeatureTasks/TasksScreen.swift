@@ -71,23 +71,18 @@ public struct TasksScreen: View {
     let count = store.activeFilters.isEmpty ? nil : "\(store.visibleCount(today: today)) de \(store.all.count)"
     return SectionHeader("Tarefas", count: count) {
       HStack(spacing: 8) {
-        Picker(
+        SegmentedPills(
           "Visualização das tarefas",
-          selection: Binding(get: { store.view }, set: { next in Task { await store.choose(next) } })
-        ) {
-          Label("Lista", systemImage: "list.bullet").tag(TasksView.list)
-          Label("Quadro", systemImage: "note.text").tag(TasksView.board)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
-        .accessibilityLabel("Visualização das tarefas")
+          items: [.init(id: TasksView.list, label: "Lista"), .init(id: TasksView.board, label: "Quadro")],
+          selection: Binding(get: { store.view }, set: { next in Task { await store.choose(next) } }),
+          style: .toggle
+        )
         Button {
           editing = .new
         } label: {
           Image(systemName: "plus")
         }
-        .buttonStyle(.borderedProminent)
+        .iconButtonStyle(variant: .primary)
         // ⌘T, not the web-like ⌘N: on the Mac ⌘N is "Nova janela" (File menu),
         // ⇧⌘N "Abrir em nova janela" and ⌥⌘N the notes tree's new folder.
         .keyboardShortcut("t", modifiers: .command)
@@ -122,7 +117,7 @@ public struct TasksScreen: View {
       if store.view == .list, all.isEmpty, panel.error == nil {
         EmptyState("Nenhuma tarefa por aqui. Crie a primeira.") {
           Button("Nova tarefa", systemImage: "plus") { editing = .new }
-            .buttonStyle(.borderedProminent)
+            .pillButtonStyle(.primary)
         }
       } else if !all.isEmpty, store.visibleCount(today: today) == 0 {
         EmptyState("Nenhuma tarefa com esses filtros.")

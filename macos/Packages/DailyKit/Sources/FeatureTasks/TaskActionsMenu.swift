@@ -75,14 +75,14 @@ struct TaskActionsMenu: View {
         .contentShape(.rect)
     }
     .menuStyle(.button)
-    .buttonStyle(.borderless)
+    .buttonStyle(.plain)
     .menuIndicator(.hidden)
     .fixedSize()
     .accessibilityLabel("ações de \(task.title)")
     .help("ações de \(task.title)")
     .popover(isPresented: $coloursOpen, arrowEdge: .bottom) {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Cor da nota").font(.system(size: 14, weight: .medium)).foregroundStyle(theme.ink)
+        Text("Cor da nota").font(.daily(size: 14, weight: .medium)).foregroundStyle(theme.ink)
         NoteColourPicker(
           paper: task.paper,
           pin: task.pin,
@@ -138,7 +138,7 @@ struct NoteColourPicker: View {
           swatch(label: "Alfinete automático", selected: pin == nil) {
             onChange(NoteStylePatch(pin: .some(nil)))
           } content: {
-            Circle().strokeBorder(theme.lineStrong).overlay { Text("A").font(.system(size: 11, weight: .semibold)) }
+            Circle().strokeBorder(theme.lineStrong).overlay { Text("A").font(.daily(size: 11, weight: .semibold)) }
           }
           ForEach(TaskBoard.pins, id: \.self) { option in
             let clashes = TaskBoard.clashes(option, on: shownPaper)
@@ -176,7 +176,7 @@ struct NoteColourPicker: View {
 
   private func group<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text(label).font(.system(size: 14)).foregroundStyle(theme.inkMid)
+      Text(label).font(.daily(size: 14)).foregroundStyle(theme.inkMid)
       HStack(spacing: 6) { content() }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
@@ -189,7 +189,7 @@ struct NoteColourPicker: View {
       .overlay { Circle().strokeBorder(theme.line) }
       .overlay {
         if automatic {
-          Text("A").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.postitInk)
+          Text("A").font(.daily(size: 11, weight: .semibold)).foregroundStyle(theme.postitInk)
         }
       }
   }

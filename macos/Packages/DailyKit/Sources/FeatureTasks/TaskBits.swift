@@ -65,7 +65,7 @@ struct DueLabel: View {
       if overdue { Text(StatusGlyph.alert.rawValue).accessibilityHidden(true) }
       Text(TaskText.formatDue(task.due, time: task.time))
     }
-    .font(.system(size: 12, weight: overdue ? .medium : .regular).monospacedDigit())
+    .font(.daily(size: 12, weight: overdue ? .medium : .regular).monospacedDigit())
     .foregroundStyle(overdue ? theme.warning : (ink ?? theme.inkDim))
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(
@@ -102,8 +102,7 @@ struct ActiveFiltersRow: View {
         }
         if filters.count > 1 {
           Button("Limpar tudo", systemImage: "xmark", action: clearAll)
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
         }
       }
     }
