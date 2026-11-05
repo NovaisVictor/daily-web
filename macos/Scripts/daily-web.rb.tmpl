@@ -8,7 +8,7 @@ cask "daily-web" do
   homepage "https://github.com/NovaisVictor/daily-web"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
 
   app "DailyWeb.app"
 

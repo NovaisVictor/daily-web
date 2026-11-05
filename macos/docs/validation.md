@@ -234,3 +234,20 @@ menos de 25 MB de `.app`.
 - `codesign --verify --strict` passa.
 - Requisito designado: `identifier "io.github.novaisvictor.dailyweb" and certificate leaf = H"7770…e88a"`.
   Ele é estável entre builds; com ad-hoc, era o cdhash de cada build.
+
+## Onda 6: distribuição (2026-11-04)
+
+- **T602:** `Scripts/release.sh 0.1.0` compilou em Release, assinou com a
+  identidade estável e gerou `DailyWeb-0.1.0.zip` (sha256 `ee1e0022…c426`). Depois
+  publicou a release
+  [macos-v0.1.0](https://github.com/NovaisVictor/daily-web/releases/tag/macos-v0.1.0)
+  no fork e enviou `Casks/daily-web.rb` ao `NovaisVictor/homebrew-tap`.
+- **T603:** o brew avisou que `depends_on macos: ">= :tahoe"` está
+  descontinuado. O modelo e o cask publicado passaram a usar `:tahoe`.
+- **T605 (parcial):** testado nesta conta, não numa conta limpa.
+  - `brew tap novaisvictor/tap && brew install --cask daily-web` instala em
+    `/Applications`, na versão 0.1.0, com quarentena, assinado por
+    "Daily Web Self-Signed", e mostra as instruções de primeiro uso.
+  - `spctl --assess` resulta em `rejected`, o esperado sem Developer ID.
+  - **Não verificado:** a liberação por "Abrir mesmo assim" e o primeiro login
+    no app instalado pelo brew, que dependem de uma ação manual nos Ajustes.
