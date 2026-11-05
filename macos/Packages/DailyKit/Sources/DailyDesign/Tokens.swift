@@ -6,8 +6,8 @@ import SwiftUI
 /// 1rem = 16pt. Each role carries size, line height, weight and tracking together so
 /// a call site never picks them one by one.
 ///
-/// The web sets Geist; the native app uses the system face (SF Pro), a deliberate
-/// divergence: Geist would have to be bundled, and SF is what a Mac reader expects.
+/// Every role sets Geist, as on the web: `--font-display` and `--font-sans` both read
+/// `--font-body` (globals.css:696, :700), which is Geist Sans (:29, app/layout.tsx:3).
 public enum TypeRole: String, Sendable, CaseIterable {
   case display, title, heading, subhead, body, data, caption
 
@@ -57,20 +57,18 @@ public enum TypeRole: String, Sendable, CaseIterable {
   /// Tracking in points for `View.tracking(_:)`.
   public var tracking: CGFloat { size * trackingEm }
 
-  /// Extra leading to reach the CSS line height. SF's natural line is about 1.2× the
-  /// size, so a role tighter than that gets none rather than a negative spacing.
-  public var lineSpacing: CGFloat { max(0, size * (lineHeight - 1.2)) }
+  /// Geist's natural line (ascent 1.005 + descent 0.295 em, no line gap).
+  static let naturalLineHeight: CGFloat = 1.3
+
+  /// Extra leading to reach the CSS line height. A role tighter than Geist's natural
+  /// line gets none rather than a negative spacing.
+  public var lineSpacing: CGFloat { max(0, size * (lineHeight - Self.naturalLineHeight)) }
 
   public var font: Font {
-    let font = Font.system(size: size, weight: weight)
+    let font = Font(DailyFonts.ctFont(.sans, size: size, weight: weight))
     // `type-data` sets tabular-nums (:894); numbers use the body face, never mono.
     return self == .data ? font.monospacedDigit() : font
   }
-}
-
-extension Font {
-  /// The font of a type role. Prefer `View.typeRole(_:)`, which also sets tracking and leading.
-  public static func daily(_ role: TypeRole) -> Font { role.font }
 }
 
 extension View {
