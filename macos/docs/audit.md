@@ -38,7 +38,7 @@ Legenda: **feito**, **divergente** (com o motivo e onde ele está registrado),
 | Ação do web | Status | Onde |
 |---|---|---|
 | Alternar Lista/Quadro (grava em preferências) | feito | `FeatureTasks/TasksScreen.swift:71-81`, `TasksStore.swift:154` |
-| Criar pelo formulário (⌘N) e criar rápido na coluna | feito | `TasksScreen.swift:82-90`, `TaskBoardView.swift:246-275` |
+| Criar pelo formulário (⌘T) e criar rápido na coluna | feito | `TasksScreen.swift:82-90`, `TaskBoardView.swift:246-275` |
 | Editar título, prioridade, repetição, cor | feito | `TaskFormSheet.swift:42-118` |
 | Atalhos de data (Hoje/Amanhã/Próx. semana/Sem data) | feito | `TaskFormSheet.swift:56-62` |
 | Data em linguagem natural | divergente sem motivo: campo sempre visível, sem a prévia ao vivo "→ …" → **G-7** | `TaskFormSheet.swift:63-68` |
