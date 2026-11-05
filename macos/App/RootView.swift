@@ -19,6 +19,9 @@ struct RootView: View {
         .frame(minWidth: 900, minHeight: 560)
         .overlay(alignment: .bottomTrailing) { toasts }
     }
+    // Navigator requests target the window that follows the navigator; module
+    // windows keep the default (false).
+    .environment(\.isPrimaryWindow, followsNavigator)
     .modifier(CapturesWindowOpener(opener: opener))
   }
 

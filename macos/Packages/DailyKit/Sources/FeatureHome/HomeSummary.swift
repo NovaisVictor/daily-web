@@ -1,3 +1,4 @@
+import DailyCore
 import DailyModels
 import Foundation
 
@@ -74,9 +75,7 @@ struct HomeSummary: Equatable, Sendable {
   static func tasks(_ panel: PanelResult<[TodoTask]>, today: String) -> HomeCard {
     var card = HomeCard(module: .tasks, title: "Tarefas", systemImage: "checklist")
     guard let tasks = card.receive(panel) else { return card }
-    let open = tasks.filter { !$0.completed && !$0.due.isEmpty }
-    let overdue = open.filter { $0.due < today }.sorted(by: dueThenPriority)
-    let dueToday = open.filter { $0.due == today }.sorted(by: dueThenPriority)
+    let (overdue, dueToday) = TaskDay.dueByToday(tasks, today: today)
     card.metrics = [
       HomeMetric(value: overdue.count, label: "atrasadas", urgent: true),
       HomeMetric(value: dueToday.count, label: "para hoje"),
@@ -142,19 +141,6 @@ struct HomeSummary: Equatable, Sendable {
     return card
   }
 
-  /// `lib/taskGrouping.ts:61-64` without the completed key: only open tasks get here.
-  private static func dueThenPriority(_ a: TodoTask, _ b: TodoTask) -> Bool {
-    if a.due != b.due { return a.due < b.due }
-    return priorityRank(a.priority) < priorityRank(b.priority)
-  }
-
-  private static func priorityRank(_ priority: TaskPriority) -> Int {
-    switch priority {
-    case .high: 0
-    case .low: 2
-    default: 1
-    }
-  }
 }
 
 extension HomeCard {

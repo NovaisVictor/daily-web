@@ -78,13 +78,9 @@ enum AgendaLogic {
     Set(items.map(\.account)).count > 1
   }
 
-  /// Gregorian in `timeZone`, like JavaScript's `Date`: the server's
-  /// `YYYY-MM-DD` and the name tables assume it, and a Buddhist or Japanese
-  /// system calendar would number the years and eras differently.
+  /// Gregorian in `timeZone` (`TaskDay`): the name tables assume it too.
   static func gregorian(in timeZone: TimeZone) -> Calendar {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = timeZone
-    return calendar
+    TaskDay.gregorian(in: timeZone)
   }
 
   /// `relativeDayLabel` (`AgendaPanel.tsx:56-67`): "hoje", "amanhã", or the
@@ -108,8 +104,7 @@ enum AgendaLogic {
 
   /// `YYYY-MM-DD` in `calendar`'s time zone, always Gregorian.
   static func localDateString(_ date: Date, calendar: Calendar) -> String {
-    let parts = gregorian(in: calendar.timeZone).dateComponents([.year, .month, .day], from: date)
-    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    TaskDay.isoDay(date, calendar: calendar)
   }
 
   /// The first dropped item that `parseFocusSource` (`lib/focusBlock.ts:12-37`)

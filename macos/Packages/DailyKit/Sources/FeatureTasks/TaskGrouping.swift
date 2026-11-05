@@ -1,3 +1,4 @@
+import DailyCore
 import DailyModels
 import Foundation
 
@@ -29,37 +30,19 @@ nonisolated struct TaskGroup: Equatable, Sendable {
 }
 
 nonisolated enum TaskGrouping {
-  /// `YYYY-MM-DD` of the person's own calendar day, like `toLocalDateString`.
-  static func localISO(_ date: Date, calendar: Calendar = .current) -> String {
-    let parts = calendar.dateComponents([.year, .month, .day], from: date)
-    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+  /// `YYYY-MM-DD` of the person's own calendar day, like `toLocalDateString`;
+  /// Gregorian whatever the system calendar is.
+  static func localISO(_ date: Date, calendar: Calendar = TaskDay.calendar) -> String {
+    TaskDay.isoDay(date, calendar: calendar)
   }
 
-  /// Day arithmetic on a `YYYY-MM-DD` string in UTC, as `addDays` does, so a
-  /// daylight-saving change never moves a window edge.
   static func addDays(_ iso: String, _ days: Int) -> String {
-    let parts = iso.split(separator: "-").compactMap { Int($0) }
-    guard parts.count == 3 else { return iso }
-    var utc = Calendar(identifier: .gregorian)
-    utc.timeZone = .gmt
-    let start = utc.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
-    guard let start, let shifted = utc.date(byAdding: .day, value: days, to: start) else { return iso }
-    return localISO(shifted, calendar: utc)
-  }
-
-  /// Unknown priorities sort with "normal": the web's rank table has no entry
-  /// for them, and the middle is the least surprising place.
-  static func priorityRank(_ priority: TaskPriority) -> Int {
-    switch priority {
-    case .high: 0
-    case .low: 2
-    default: 1
-    }
+    TaskDay.addDays(iso, days)
   }
 
   /// `groupTasksByDueWindow`: empty windows are left out, each window lists
   /// open tasks first, then by due date, then by priority.
-  static func group(_ tasks: [TodoTask], today: Date, calendar: Calendar = .current) -> [TaskGroup] {
+  static func group(_ tasks: [TodoTask], today: Date, calendar: Calendar = TaskDay.calendar) -> [TaskGroup] {
     let todayISO = localISO(today, calendar: calendar)
     let weekEnd = addDays(todayISO, 6)
     let monthEnd = addDays(todayISO, 29)
@@ -74,8 +57,8 @@ nonisolated enum TaskGrouping {
   }
 
   /// Late and still open, with the same day boundary as "ATRASADAS".
-  static func isOverdue(_ task: TodoTask, today: Date, calendar: Calendar = .current) -> Bool {
-    !task.completed && !task.due.isEmpty && task.due < localISO(today, calendar: calendar)
+  static func isOverdue(_ task: TodoTask, today: Date, calendar: Calendar = TaskDay.calendar) -> Bool {
+    TaskDay.isOverdue(task, today: localISO(today, calendar: calendar))
   }
 
   private static func key(of due: String, today: String, weekEnd: String, monthEnd: String) -> TaskGroupKey {
@@ -95,8 +78,8 @@ nonisolated enum TaskGrouping {
         let b = rhs.element
         if a.completed != b.completed { return !a.completed }
         if a.due != b.due { return a.due < b.due }
-        let rankA = priorityRank(a.priority)
-        let rankB = priorityRank(b.priority)
+        let rankA = TaskDay.priorityRank(a.priority)
+        let rankB = TaskDay.priorityRank(b.priority)
         if rankA != rankB { return rankA < rankB }
         return lhs.offset < rhs.offset
       }

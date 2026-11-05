@@ -8,6 +8,7 @@ import SwiftUI
 public struct TasksScreen: View {
   @Environment(\.theme) private var theme
   @State private var store: TasksStore
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let environment: AppEnvironment
 
   @State private var editing: Editing?
@@ -87,9 +88,11 @@ public struct TasksScreen: View {
           Image(systemName: "plus")
         }
         .buttonStyle(.borderedProminent)
-        .keyboardShortcut("n", modifiers: .command)
+        // ⌘T, not the web-like ⌘N: on the Mac ⌘N is "Nova janela" (File menu),
+        // ⇧⌘N "Abrir em nova janela" and ⌥⌘N the notes tree's new folder.
+        .keyboardShortcut("t", modifiers: .command)
         .accessibilityLabel("Nova tarefa")
-        .help("Nova tarefa (⌘N)")
+        .help("Nova tarefa (⌘T)")
       }
     }
   }
@@ -154,7 +157,9 @@ public struct TasksScreen: View {
   /// too: it is never shown, and waiting would only move the list later.
   private func revealPendingTask(_ proxy: ScrollViewProxy) {
     let route = AppRoute.module(.tasks)
-    guard let id = environment.navigator.pendingItem(for: route), store.panel?.data != nil else { return }
+    // Only the main window takes the request; it is the one the navigator moved.
+    guard isPrimaryWindow, let id = environment.navigator.pendingItem(for: route), store.panel?.data != nil
+    else { return }
     environment.navigator.finishPendingItem(id, for: route)
     guard store.all.contains(where: { $0.id == id }) else { return }
     withAnimation { proxy.scrollTo(id, anchor: .center) }

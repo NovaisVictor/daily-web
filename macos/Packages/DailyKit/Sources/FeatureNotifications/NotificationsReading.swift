@@ -17,14 +17,18 @@ public enum NotificationsReading {
     await markRead(ids: ids, client: environment.client, dashboard: environment.dashboard)
   }
 
+  /// - Parameter alwaysAsList: Sends `{ids}` even for one notice, the shape of
+  ///   the web's "Marcar todas como lidas" (`markAllRead`).
   @discardableResult
-  static func markRead(ids: [String], client: any APIClient, dashboard: DashboardStore) async -> APIError? {
+  static func markRead(
+    ids: [String], client: any APIClient, dashboard: DashboardStore, alwaysAsList: Bool = false
+  ) async -> APIError? {
     guard !ids.isEmpty else { return nil }
     var delivered = 0
     let failure = await dashboard.mutate { state in
       NotificationsLogic.markRead(ids, in: &state)
     } commit: { () async throws(APIError) in
-      if ids.count == 1 {
+      if ids.count == 1, !alwaysAsList {
         _ = try await client.send(NotificationsEndpoints.markRead(id: ids[0]))
         return
       }

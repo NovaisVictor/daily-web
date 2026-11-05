@@ -1,3 +1,4 @@
+import DailyCore
 import DailyModels
 import Foundation
 
@@ -49,11 +50,7 @@ enum ClockText {
 
   /// Gregorian in the local time zone, like JavaScript's `Date`: the name tables
   /// above assume seven weekdays and twelve months, which other calendars break.
-  static var calendar: Calendar {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = .current
-    return calendar
-  }
+  static var calendar: Calendar { TaskDay.calendar }
 
   static func time(_ date: Date, calendar: Calendar = ClockText.calendar) -> String {
     let c = { calendar.component($0, from: date) }
@@ -68,13 +65,11 @@ enum ClockText {
   /// `YYYY-MM-DD` in local time, the form task and agenda dates come in
   /// (`toLocalDateString` in `lib/taskGrouping.ts:22-27`).
   static func isoDay(_ date: Date, calendar: Calendar = ClockText.calendar) -> String {
-    let c = { calendar.component($0, from: date) }
-    return String(format: "%04d-%02d-%02d", c(.year), c(.month), c(.day))
+    TaskDay.isoDay(date, calendar: calendar)
   }
 
   /// `HH:MM` in local time, the form agenda times come in.
   static func minuteOfDay(_ date: Date, calendar: Calendar = ClockText.calendar) -> String {
-    let c = { calendar.component($0, from: date) }
-    return String(format: "%02d:%02d", c(.hour), c(.minute))
+    TaskDay.minuteOfDay(date, calendar: calendar)
   }
 }

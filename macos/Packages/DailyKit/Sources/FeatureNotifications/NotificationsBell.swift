@@ -9,6 +9,7 @@ public struct NotificationsBell: View {
   @Environment(\.theme) private var theme
   @State private var store: NotificationsStore
   @State private var isOpen = false
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
@@ -55,7 +56,10 @@ public struct NotificationsBell: View {
     .onChange(of: navigator.isNotificationsRequested) { takeRequest() }
   }
 
+  /// Only the main window's bell takes the request: an extra ⌘N window has a
+  /// bell too, and the request targets the window the menu bar brings forward.
   private func takeRequest() {
+    guard isPrimaryWindow else { return }
     if navigator.takeNotificationsRequest() { isOpen = true }
   }
 }

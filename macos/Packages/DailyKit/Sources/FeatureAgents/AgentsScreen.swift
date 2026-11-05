@@ -12,6 +12,7 @@ public struct AgentsScreen: View {
   /// The card "N aguardando você" moves the keyboard to (`card.focus()` in the web).
   @FocusState private var focusedCard: String?
   @Environment(\.theme) private var theme
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
@@ -48,10 +49,16 @@ public struct AgentsScreen: View {
     }
     .onAppear {
       store.setVisible(true)
-      store.openPendingTask(from: navigator)
+      openPendingTask()
     }
     .onDisappear { store.setVisible(false) }
-    .onChange(of: navigator.pending) { store.openPendingTask(from: navigator) }
+    .onChange(of: navigator.pending) { openPendingTask() }
+  }
+
+  /// Only the main window takes the request; it is the one the navigator moved.
+  private func openPendingTask() {
+    guard isPrimaryWindow else { return }
+    store.openPendingTask(from: navigator)
   }
 
   // MARK: - Header

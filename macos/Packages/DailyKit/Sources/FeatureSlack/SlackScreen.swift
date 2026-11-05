@@ -10,6 +10,7 @@ public struct SlackScreen: View {
   @Environment(\.theme) private var theme
   @Environment(\.openURL) private var openURL
   @State private var store: SlackStore
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
 
   public init(environment: AppEnvironment) {
     _store = State(initialValue: SlackStore(dashboard: environment.dashboard, navigator: environment.navigator))
@@ -38,9 +39,15 @@ public struct SlackScreen: View {
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .task { store.revealPending() }
-    .onChange(of: store.pendingItemID) { store.revealPending() }
-    .onChange(of: store.panel?.data) { store.revealPending() }
+    .task { revealPending() }
+    .onChange(of: store.pendingItemID) { revealPending() }
+    .onChange(of: store.panel?.data) { revealPending() }
+  }
+
+  /// Only the main window takes the request; it is the one the navigator moved.
+  private func revealPending() {
+    guard isPrimaryWindow else { return }
+    store.revealPending()
   }
 
   @ViewBuilder private var content: some View {

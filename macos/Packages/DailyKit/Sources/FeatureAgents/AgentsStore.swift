@@ -58,7 +58,7 @@ final class AgentsStore {
     self.init(
       client: environment.client,
       poller: environment.poller,
-      reportWaiting: { waiting in await alerts.updateAgents(waiting) })
+      reportWaiting: { waiting in await alerts.updateAgentsFromScreen(waiting) })
   }
 
   // MARK: - Derived

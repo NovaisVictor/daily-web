@@ -11,11 +11,18 @@ public struct JiraScreen: View {
   @State private var dialog: JiraDialog?
   @State private var standupOpen = false
   @State private var filtersOpen = false
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let environment: AppEnvironment
 
   public init(environment: AppEnvironment) {
     self.environment = environment
     _store = State(initialValue: JiraStore(environment: environment))
+  }
+
+  /// Only the main window takes the request; it is the one the navigator moved.
+  private func revealPending() {
+    guard isPrimaryWindow else { return }
+    store.revealPending(from: environment.navigator)
   }
 
   /// What makes a person's view load again: another person, or a new state.
@@ -73,9 +80,9 @@ public struct JiraScreen: View {
     ) {
       await store.loadPersonView()
     }
-    .onAppear { store.revealPending(from: environment.navigator) }
-    .onChange(of: environment.navigator.pending) { store.revealPending(from: environment.navigator) }
-    .onChange(of: environment.dashboard.lastUpdated) { store.revealPending(from: environment.navigator) }
+    .onAppear { revealPending() }
+    .onChange(of: environment.navigator.pending) { revealPending() }
+    .onChange(of: environment.dashboard.lastUpdated) { revealPending() }
     .sheet(item: $dialog) { dialog in sheet(dialog) }
     .sheet(isPresented: $standupOpen) { StandupSheet(source: store.standupSource, now: store.now()) }
   }

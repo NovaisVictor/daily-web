@@ -9,6 +9,7 @@ import SwiftUI
 public struct PullsScreen: View {
   @Environment(\.theme) private var theme
   @State private var store: PullsStore
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let environment: AppEnvironment
 
   @State private var actionRequest: PullActionRequest?
@@ -51,11 +52,17 @@ public struct PullsScreen: View {
         source: request.source, calendars: store.calendars, serverURL: environment.session.serverURL, store: store)
     }
     .task {
-      store.revealPending(from: environment.navigator)
+      revealPending()
       await store.loadRepos()
     }
-    .onChange(of: environment.navigator.pending) { store.revealPending(from: environment.navigator) }
-    .onChange(of: environment.dashboard.lastUpdated) { store.revealPending(from: environment.navigator) }
+    .onChange(of: environment.navigator.pending) { revealPending() }
+    .onChange(of: environment.dashboard.lastUpdated) { revealPending() }
+  }
+
+  /// Only the main window takes the request; it is the one the navigator moved.
+  private func revealPending() {
+    guard isPrimaryWindow else { return }
+    store.revealPending(from: environment.navigator)
   }
 
   // MARK: - Lists

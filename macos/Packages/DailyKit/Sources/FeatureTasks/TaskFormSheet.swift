@@ -1,3 +1,4 @@
+import DailyCore
 import DailyDesign
 import DailyModels
 import SwiftUI
@@ -155,7 +156,8 @@ struct TaskFormSheet: View {
   /// it parses and write back into it; "Hora" waits for a day, as on the web.
   private var dayAndTimePickers: some View {
     let parsed = draft.parsedDue(now: now)
-    let calendar = Calendar.current
+    // The text the pickers write is Gregorian `YYYY-MM-DD`, whatever the system calendar is.
+    let calendar = TaskDay.calendar
     return HStack(alignment: .top, spacing: 16) {
       VStack(alignment: .leading, spacing: 6) {
         Text("Dia").typeRole(.caption).foregroundStyle(theme.inkDim)

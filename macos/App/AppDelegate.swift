@@ -109,7 +109,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Self.logger.error("A \"Marcar como lida\" action came without a notification id")
         return
       }
-      Task { await NotificationActions.markRead(id, environment: environment) }
+      Task { [environment, opener] in
+        // A click on the button can launch the app; the session is restored
+        // asynchronously, so marking now would call the API without it.
+        guard await environment.waitUntilSignedIn() else {
+          Self.logger.notice("\"Marcar como lida\" arrived signed out; opening the main window")
+          opener.showMain(.notification)
+          return
+        }
+        await NotificationActions.markRead(id, environment: environment)
+      }
     case NotificationActions.open, UNNotificationDefaultActionIdentifier:
       guard let target = AlertTarget(userInfo: userInfo) else {
         Self.logger.error("A clicked notification had no target")

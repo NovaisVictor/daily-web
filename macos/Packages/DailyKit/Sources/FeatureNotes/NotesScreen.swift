@@ -11,6 +11,7 @@ public struct NotesScreen: View {
   @State private var editor = NoteEditorController()
   @State private var confirmation: ConfirmRequest?
   @Environment(\.theme) private var theme
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
   private let navigator: AppNavigator
   private let shutdown: ShutdownTasks
 
@@ -33,7 +34,8 @@ public struct NotesScreen: View {
   /// Reads the list opening the note another screen asked for. The request is
   /// finished only once a list arrived: with it the note opened or is gone.
   private func loadRevealingPending() async {
-    let id = navigator.pendingItem(for: Self.route)
+    // Only the main window takes the request; it is the one the navigator moved.
+    let id = isPrimaryWindow ? navigator.pendingItem(for: Self.route) : nil
     await store.load(activate: id)
     if let id, store.hasLoaded { navigator.finishPendingItem(id, for: Self.route) }
   }
@@ -51,7 +53,7 @@ public struct NotesScreen: View {
     // A note another screen asked to show ("Abrir a nota", a notification).
     .task { await loadRevealingPending() }
     .onChange(of: navigator.pending) {
-      guard navigator.pendingItem(for: Self.route) != nil else { return }
+      guard isPrimaryWindow, navigator.pendingItem(for: Self.route) != nil else { return }
       Task { await loadRevealingPending() }
     }
     .onAppear {

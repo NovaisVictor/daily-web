@@ -8,6 +8,7 @@ import SwiftUI
 /// web's full-screen e-mail (`components/EmailPanel.tsx`).
 public struct EmailScreen: View {
   @State private var store: EmailStore
+  @Environment(\.isPrimaryWindow) private var isPrimaryWindow
 
   public init(environment: AppEnvironment) {
     _store = State(
@@ -34,9 +35,9 @@ public struct EmailScreen: View {
     .task(id: store.mailboxes.map(\.id)) { await store.loadMailboxes() }
     .task { await store.loadNoteFolders() }
     // A clicked notification: shown now, or once the inbox arrives.
-    .task { store.revealPending() }
-    .onChange(of: store.pendingItemID) { store.revealPending() }
-    .onChange(of: store.inbox.data) { store.revealPending() }
+    .task { revealPending() }
+    .onChange(of: store.pendingItemID) { revealPending() }
+    .onChange(of: store.inbox.data) { revealPending() }
     // Esc closes the open message from any pane, as the web's window listener
     // (`EmailPanel.tsx:1765-1771`); the list handles it first to clear a selection.
     .onExitCommand {
@@ -46,6 +47,12 @@ public struct EmailScreen: View {
     .sheet(isPresented: $store.isMoveSheetPresented) {
       EmailMoveSheet(store: store)
     }
+  }
+
+  /// Only the main window takes the request; it is the one the navigator moved.
+  private func revealPending() {
+    guard isPrimaryWindow else { return }
+    store.revealPending()
   }
 }
 

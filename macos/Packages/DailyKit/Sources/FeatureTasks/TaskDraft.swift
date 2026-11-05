@@ -1,3 +1,4 @@
+import DailyCore
 import DailyModels
 import Foundation
 
@@ -99,7 +100,7 @@ nonisolated struct TaskDraft: Equatable, Sendable {
 
   /// The text as the server will read it, or nil while it does not parse
   /// (or is empty). Drives the "Dia" and "Hora" pickers.
-  func parsedDue(now: Date, calendar: Calendar = .current) -> (day: String, time: String)? {
+  func parsedDue(now: Date, calendar: Calendar = TaskDay.calendar) -> (day: String, time: String)? {
     guard hasDue else { return nil }
     do {
       let parsed = try DueDateParser.parse(dueText, now: now, calendar: calendar)
@@ -112,7 +113,7 @@ nonisolated struct TaskDraft: Equatable, Sendable {
 
   /// The line under the date field (`TaskFormModal.tsx:160-165`, `:431-432`):
   /// the preview, the refusal, or the examples while empty.
-  func dueHint(now: Date, calendar: Calendar = .current) -> (text: String, isError: Bool) {
+  func dueHint(now: Date, calendar: Calendar = TaskDay.calendar) -> (text: String, isError: Bool) {
     guard hasDue else { return ("hoje, amanhã, +3d ou AAAA-MM-DD, com hora opcional no fim", false) }
     if let preview = DueDateParser.preview(dueText, now: now, calendar: calendar) { return ("→ \(preview)", false) }
     return ("Não reconheci \"\(trimmedDue)\". Exemplos: hoje, amanhã 14:30, +3d, 2026-11-05 09:00.", true)
@@ -155,7 +156,10 @@ nonisolated struct TaskDraft: Equatable, Sendable {
   }
 
   /// Dates for the chips "Hoje", "Amanhã" and "Próx. semana" (the coming Monday).
-  static func quickDays(now: Date, calendar: Calendar = .current) -> (today: String, tomorrow: String, monday: String) {
+  static func quickDays(now: Date, calendar: Calendar = TaskDay.calendar)
+    -> (today: String, tomorrow: String, monday: String)
+  {
+    let calendar = TaskDay.gregorian(in: calendar.timeZone)
     let today = calendar.startOfDay(for: now)
     let weekday = calendar.component(.weekday, from: today)
     // `((8 - getDay()) % 7) || 7`, with Sunday = 1 in Foundation and 0 in JS.
@@ -167,10 +171,10 @@ nonisolated struct TaskDraft: Equatable, Sendable {
   }
 
   private static func isISODay(_ value: String) -> Bool {
-    value.wholeMatch(of: /\d{4}-\d{2}-\d{2}/) != nil
+    value.wholeMatch(of: /[0-9]{4}-[0-9]{2}-[0-9]{2}/) != nil
   }
 
   private static func isTime(_ value: String) -> Bool {
-    value.wholeMatch(of: /\d{2}:\d{2}/) != nil
+    value.wholeMatch(of: /[0-9]{2}:[0-9]{2}/) != nil
   }
 }

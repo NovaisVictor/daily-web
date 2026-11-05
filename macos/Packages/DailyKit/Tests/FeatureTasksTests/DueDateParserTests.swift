@@ -72,6 +72,22 @@ import Testing
       try DueDateParser.parse("hoje", now: lateLocal, calendar: saoPaulo) == ParsedDue(due: "2026-08-25", time: "none"))
   }
 
+  /// A Buddhist system calendar numbers 2026 as 2569; the server's days are Gregorian.
+  @Test func buddhistSystemCalendarStillWritesGregorianDays() throws {
+    var buddhist = Calendar(identifier: .buddhist)
+    buddhist.timeZone = .gmt
+    #expect(try DueDateParser.parse("hoje", now: now, calendar: buddhist).due == "2026-08-25")
+    #expect(try DueDateParser.parse("+3d", now: now, calendar: buddhist).due == "2026-08-28")
+    #expect(DueDateParser.preview("2026-08-30", now: now, calendar: buddhist) == "dom, 30/08")
+    #expect(TaskDraft.quickDays(now: now, calendar: buddhist).today == "2026-08-25")
+  }
+
+  @Test func refusesNonASCIIDigits() {
+    // Arabic-Indic digits match `\d` but are not what the server reads.
+    #expect(message("٢٠٢٦-٠٨-٢٥")?.hasPrefix("data inválida") == true)
+    #expect(message("hoje ١٤:٣٠")?.hasPrefix("hora inválida") == true)
+  }
+
   // MARK: - Preview (`describeDue`, `TaskFormModal.tsx`)
 
   @Test func previewNamesTheWeekday() {

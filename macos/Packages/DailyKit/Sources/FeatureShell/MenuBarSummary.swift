@@ -1,3 +1,4 @@
+import DailyCore
 import DailyModels
 import Foundation
 
@@ -27,9 +28,9 @@ public struct MenuBarSummary: Equatable, Sendable {
   public let tasksError: String?
   public let unreadNotifications: Int
 
-  public init(state: DashboardState, now: Date, calendar: Calendar = MenuBarSummary.calendar) {
-    let today = Self.isoDay(now, calendar: calendar)
-    let minute = Self.minuteOfDay(now, calendar: calendar)
+  public init(state: DashboardState, now: Date, calendar: Calendar = TaskDay.calendar) {
+    let today = TaskDay.isoDay(now, calendar: calendar)
+    let minute = TaskDay.minuteOfDay(now, calendar: calendar)
 
     let agendaOn = state.modules.contains(.agenda)
     events = agendaOn ? state.agenda.data.map { Self.events($0, today: today, minute: minute) } : nil
@@ -42,8 +43,7 @@ public struct MenuBarSummary: Equatable, Sendable {
     unreadNotifications = (state.notifications.data ?? []).count { !$0.read }
   }
 
-  /// The same day boundary as the "Hoje" screen (`FeatureHome/HomeSummary.swift`),
-  /// which a feature cannot share with another.
+  /// Today's events still ahead, with the day boundary of `TaskDay`.
   static func events(_ items: [AgendaItem], today: String, minute: String) -> [Event] {
     // The web's sort (`components/AgendaPanel.tsx:34-37`): all-day ("") first.
     items.filter { $0.date == today }
@@ -63,39 +63,9 @@ public struct MenuBarSummary: Equatable, Sendable {
   /// `isOverdue` and the "HOJE" group of `lib/taskGrouping.ts:29-33,77-79`, sorted by
   /// due date then priority (`lib/taskGrouping.ts:61-64`).
   static func tasks(_ items: [TodoTask], today: String) -> [DueTask] {
-    let open = items.filter { !$0.completed && !$0.due.isEmpty && $0.due <= today }
-    return open.sorted { a, b in
-      if a.due != b.due { return a.due < b.due }
-      return priorityRank(a.priority) < priorityRank(b.priority)
-    }
-    .prefix(limit)
-    .map { DueTask(id: $0.id, title: $0.title, isOverdue: $0.due < today) }
-  }
-
-  private static func priorityRank(_ priority: TaskPriority) -> Int {
-    switch priority {
-    case .high: 0
-    case .low: 2
-    default: 1
-    }
-  }
-
-  /// Gregorian in the local time zone, like JavaScript's `Date`.
-  public static var calendar: Calendar {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = .current
-    return calendar
-  }
-
-  /// `YYYY-MM-DD`, the form task and agenda dates come in.
-  static func isoDay(_ date: Date, calendar: Calendar) -> String {
-    let c = { calendar.component($0, from: date) }
-    return String(format: "%04d-%02d-%02d", c(.year), c(.month), c(.day))
-  }
-
-  /// `HH:MM`, the form agenda times come in.
-  static func minuteOfDay(_ date: Date, calendar: Calendar) -> String {
-    let c = { calendar.component($0, from: date) }
-    return String(format: "%02d:%02d", c(.hour), c(.minute))
+    let due = TaskDay.dueByToday(items, today: today)
+    return (due.overdue + due.today)
+      .prefix(limit)
+      .map { DueTask(id: $0.id, title: $0.title, isOverdue: TaskDay.isOverdue($0, today: today)) }
   }
 }

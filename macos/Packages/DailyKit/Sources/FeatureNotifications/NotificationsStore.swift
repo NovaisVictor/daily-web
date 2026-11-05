@@ -107,21 +107,9 @@ final class NotificationsStore {
     markingAll = true
     defer { markingAll = false }
     error = nil
-    // `{ids}` even for one notice: the "all" request keeps the web's shape.
-    var delivered = 0
-    let failure = await dashboard.mutate { state in
-      NotificationsLogic.markRead(ids, in: &state)
-    } commit: { () async throws(APIError) in
-      for chunk in NotificationsLogic.chunks(ids) {
-        _ = try await client.send(NotificationsEndpoints.markRead(ids: chunk))
-        delivered += 1
-      }
-    }
-    guard let failure else { return }
-    error = failure.userMessage
-    // Some pieces were saved before the failure; the rollback shows them
-    // unread, so the server, the source of truth, decides.
-    if delivered > 0 { await dashboard.reload() }
+    let failure = await NotificationsReading.markRead(
+      ids: ids, client: client, dashboard: dashboard, alwaysAsList: true)
+    if let failure { error = failure.userMessage }
   }
 
   // MARK: - Replying
