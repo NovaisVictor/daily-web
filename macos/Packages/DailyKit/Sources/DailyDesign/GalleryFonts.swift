@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Geist next to SF for every type role, plus Geist Mono, to check the switch by eye.
 /// Sample text only.
-private struct FontsGallery: View {
+struct FontsGallery: View {
   private let sample = "Reunião às 14:30 · 1.234 tarefas"
 
   var body: some View {

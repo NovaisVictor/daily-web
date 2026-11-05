@@ -102,14 +102,13 @@ public struct NotesScreen: View {
 
   private var creationButtons: some View {
     HStack(spacing: 4) {
-      iconButton("Nova pasta", systemImage: "folder.badge.plus") {
+      IconButton("Nova pasta", systemImage: "folder.badge.plus", variant: .outline) {
         Task { await store.createFolder(in: store.scope.folderID) }
       }
-      iconButton("Nova nota", systemImage: "plus") {
+      IconButton("Nova nota", systemImage: "plus", variant: .outline) {
         Task { await store.createNote() }
       }
     }
-    .buttonStyle(.bordered)
   }
 
   // MARK: - Sidebar
@@ -180,7 +179,6 @@ public struct NotesScreen: View {
         store.isReading.toggle()
       }
     }
-    .buttonStyle(.borderless)
   }
 
   @ViewBuilder private var noteBody: some View {
@@ -211,7 +209,7 @@ public struct NotesScreen: View {
           .overlay(alignment: .topLeading) {
             if store.draft.isEmpty {
               Text("Escreva aqui, em Markdown. O que você digita é salvo sozinho.")
-                .font(.system(size: 13, design: .monospaced))
+                .font(.dailyMono(size: NoteEditor.fontSize))
                 .foregroundStyle(theme.inkDim)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
@@ -279,14 +277,9 @@ public struct NotesScreen: View {
   private func iconButton(
     _ label: String, systemImage: String, isOn: Bool? = nil, action: @escaping () -> Void
   ) -> some View {
-    Button(action: action) {
-      Image(systemName: systemImage)
-        .frame(width: 18, height: 18)
-        .foregroundStyle(isOn == true ? theme.brand : theme.inkMid)
-    }
-    .help(label)
-    .accessibilityLabel(label)
-    .accessibilityAddTraits(isOn == true ? .isSelected : [])
+    // `aria-pressed` keeps the rim on, as the ghost style's open state.
+    IconButton(label, systemImage: systemImage, isActive: isOn == true, action: action)
+      .accessibilityAddTraits(isOn == true ? .isSelected : [])
   }
 }
 

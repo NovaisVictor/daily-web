@@ -30,10 +30,10 @@ struct EmailFolderTree: View {
         } label: {
           HStack(spacing: 4) {
             Image(systemName: "chevron.right")
-              .font(.system(size: 9, weight: .semibold))
+              .font(.system(size: 9, weight: .semibold))  // SF Symbol sizing
               .rotationEffect(.degrees(open ? 90 : 0))
             Text(group.account.label.uppercased())
-              .font(.system(size: 11, weight: .medium))
+              .font(.geist(11, weight: .medium))
               .tracking(0.5)
               .lineLimit(1)
           }
@@ -62,7 +62,7 @@ struct EmailFolderTree: View {
           Button("tentar de novo") { Task { await store.syncMailboxes(group.id) } }
             .buttonStyle(.link)
         }
-        .font(.system(size: 12))
+        .typeRole(.caption)
         .padding(.horizontal, 8)
       }
 
@@ -82,7 +82,7 @@ struct EmailFolderTree: View {
 
   private func caption(_ text: String) -> some View {
     Text(text)
-      .font(.system(size: 12))
+      .typeRole(.caption)
       .foregroundStyle(theme.inkDim)
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
@@ -113,8 +113,7 @@ struct EmailFolderRow: View {
             .foregroundStyle(theme.inkDim)
           Text(name)
             .lineLimit(1)
-            .foregroundStyle(active ? theme.brand : theme.inkMid)
-            .fontWeight(active ? .medium : .regular)
+            .font(.geist(14, weight: active ? .medium : .regular))
           Spacer(minLength: 0)
         }
         .padding(.leading, 8 + CGFloat(Self.depth(of: node)) * 12)
@@ -128,23 +127,18 @@ struct EmailFolderRow: View {
       )
       .accessibilityAddTraits(active ? .isSelected : [])
 
-      if node.unread > 0 {
-        Text("\(node.unread)")
-          .font(.system(size: 12).monospacedDigit())
-          .foregroundStyle(theme.brand)
-          .padding(.horizontal, 6)
-          .background(theme.brandTint, in: .capsule)
-          .overlay { Capsule().strokeBorder(theme.brandEdge) }
-          .accessibilityHidden(true)
-      }
+      // Always laid out, a transparent "0" when empty, so names never shift (EM-24).
+      CountSlot(node.unread)
       // The slot is kept even without the button, so the count does not dance.
       ZStack {
         if node.unread > 0 {
-          Button("Marcar a pasta \(name) de \(account.label) como lida", systemImage: "envelope.open") {
+          Button {
             store.requestMarkFolderRead(account: account.id, node: node)
+          } label: {
+            Image(systemName: "envelope.open")
           }
-          .labelStyle(.iconOnly)
-          .buttonStyle(.borderless)
+          .iconButtonStyle(size: .extraSmall)
+          .accessibilityLabel("Marcar a pasta \(name) de \(account.label) como lida")
           .focused($markReadFocused)
           // Shown when focused too, as the web's `focus-visible:opacity-100` (`FolderTree.tsx:248`).
           .opacity(hovering || markReadFocused ? 1 : 0)
@@ -153,11 +147,13 @@ struct EmailFolderRow: View {
           )
         }
       }
-      .frame(width: 24)
+      .frame(width: 28)
     }
-    .font(.system(size: 14))
+    .font(.geist(14))
     .padding(.trailing, 2)
-    .background(background, in: .rect(cornerRadius: 6))
+    // The web's active row, not a system selection (spec 013 FR-013-07).
+    .activeRow(active)
+    .background(targeted ? theme.brandTint : .clear, in: .rect(cornerRadius: 6))
     .overlay {
       RoundedRectangle(cornerRadius: 6).strokeBorder(theme.brandEdge).opacity(targeted ? 1 : 0)
     }
@@ -176,11 +172,6 @@ struct EmailFolderRow: View {
     } isTargeted: {
       targeted = $0
     }
-  }
-
-  private var background: Color {
-    if targeted || store.highlightedFolder == selection { return theme.brandTint }
-    return hovering ? theme.neutralTint : .clear
   }
 
   /// The icon comes from the special-use flag the server declares, not the
@@ -243,7 +234,8 @@ struct EmailActionDropTargets: View {
           .overlay { Capsule().strokeBorder(theme.brandEdge) }
         Text(noun)
       }
-      .font(.system(size: 12).monospacedDigit())
+      .typeRole(.caption)
+      .monospacedDigit()
       .foregroundStyle(theme.brand)
       ForEach(targets) { target in
         EmailDropTargetButton(

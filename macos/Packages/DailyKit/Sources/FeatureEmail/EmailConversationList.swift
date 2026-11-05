@@ -20,9 +20,10 @@ struct EmailConversationList: View {
             if store.filters.groupBy != .none {
               EmailGroupHeader(store: store, group: group)
             }
-            ForEach(group.threads) { thread in
+            ForEach(Array(group.threads.enumerated()), id: \.element.id) { index, thread in
               EmailThreadRow(
-                store: store, thread: thread, group: group, isCursor: focused && store.selection.cursor == thread.id
+                store: store, thread: thread, group: group, index: index,
+                isCursor: focused && store.selection.cursor == thread.id
               )
               .id(thread.id)
               .simultaneousGesture(TapGesture().onEnded { focused = true })
@@ -117,11 +118,11 @@ struct EmailGroupHeader: View {
       .accessibilityLabel("selecionar todo o grupo \(group.label)")
       .accessibilityValue(all ? "marcado" : (some ? "parcial" : "desmarcado"))
       Text(group.label)
-        .font(.system(size: 12, weight: .semibold))
+        .font(.geist(12, weight: .semibold))
         .lineLimit(1)
         .accessibilityAddTraits(.isHeader)
       Text("\(group.threads.count)")
-        .font(.system(size: 12).monospacedDigit())
+        .font(.geist(12).monospacedDigit())
     }
     .foregroundStyle(theme.inkDim)
     .padding(.horizontal, 8)
@@ -136,8 +137,9 @@ struct EmailThreadRow: View {
   let store: EmailStore
   let thread: EmailThread
   let group: EmailThreadGroup
+  /// Position in the group, for the zebra of `ListRow`.
+  let index: Int
   let isCursor: Bool
-  @State private var hovering = false
 
   private var title: String { thread.subject.isEmpty ? "(sem assunto)" : thread.subject }
   private var single: EmailEnvelope? { thread.messages.count == 1 ? thread.messages.first : nil }
@@ -200,15 +202,15 @@ struct EmailThreadRow: View {
       } label: {
         VStack(alignment: .leading, spacing: 2) {
           Text(title)
-            .font(.system(size: 14, weight: thread.unreadCount > 0 ? .medium : .regular))
+            .font(.geist(14, weight: thread.unreadCount > 0 ? .medium : .regular))
             .foregroundStyle(thread.unreadCount > 0 ? theme.ink : theme.inkMid)
           Text(thread.participants.isEmpty ? "—" : thread.participants.joined(separator: ", "))
-            .font(.system(size: 12))
+            .typeRole(.caption)
             .foregroundStyle(theme.inkDim)
           if let actionError {
             // The action that ran out of retries does not vanish quietly.
             Text(actionError)
-              .font(.system(size: 12))
+              .typeRole(.caption)
               .foregroundStyle(theme.danger)
               .accessibilityAddTraits(.isStaticText)
           }
@@ -221,7 +223,8 @@ struct EmailThreadRow: View {
       .accessibilityValue(isOpen ? "aberta" : "fechada")
       if thread.messages.count > 1 {
         Text("\(thread.messages.count)")
-          .font(.system(size: 12).monospacedDigit())
+          .typeRole(.caption)
+          .monospacedDigit()
           .padding(.horizontal, 6)
           .foregroundStyle(thread.unreadCount > 0 ? theme.brand : theme.inkDim)
           .background(thread.unreadCount > 0 ? theme.brandTint : theme.neutralTint, in: .capsule)
@@ -231,40 +234,27 @@ struct EmailThreadRow: View {
               ? "\(thread.messages.count) mensagens, \(sent) enviadas por você" : "\(thread.messages.count) mensagens")
       }
       Text(relative(thread.lastDate))
-        .font(.system(size: 12).monospacedDigit())
+        .typeRole(.caption)
+        .monospacedDigit()
         .foregroundStyle(theme.inkDim)
         .frame(minWidth: 36, alignment: .trailing)
       if store.mailboxes.count > 1, let label = thread.messages.first?.accountLabel {
         Badge(label, style: .secondary)
       }
       EmailTagButton(store: store, thread: thread, title: title)
-      Button("excluir \(title)", systemImage: "trash") { store.requestDelete(thread) }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.borderless)
-        .help("Excluir")
+      // The delete glyph turns danger on hover (`hover:text-danger`, EmailPanel.tsx:1501);
+      // the shared ghost style keeps the neutral rim.
+      IconButton("excluir \(title)", systemImage: "trash", size: .small) { store.requestDelete(thread) }
       EmailCreateMenu(store: store, thread: thread, title: title)
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 10)
-    .background(rowBackground)
-    .overlay {
-      // Where the keyboard is, so the arrows do not walk blind.
-      Rectangle().strokeBorder(theme.brandEdge).opacity(isCursor ? 1 : 0)
-    }
-    .overlay(alignment: .bottom) { Rectangle().fill(theme.lineSoft).frame(height: 1) }
+    .modifier(EmailRowShell(index: index, isOpen: isOpen, isSelected: isSelected, isCursor: isCursor))
     .opacity(store.dragging != nil && isSelected ? 0.7 : 1)
     .onHover { inside in
-      hovering = inside
       // The tag menu and the move destinations need the account's folders.
       if inside, let account = thread.messages.first?.account {
         Task { await store.loadAccountFolders(account) }
       }
     }
-  }
-
-  private var rowBackground: Color {
-    if isOpen || hovering { return theme.brandTint }
-    return isSelected ? theme.brandTint.opacity(0.7) : .clear
   }
 
   private var messages: some View {
@@ -276,7 +266,7 @@ struct EmailThreadRow: View {
         } label: {
           HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(message.from.isEmpty ? "—" : message.from)
-              .font(.system(size: 14, weight: message.mailbox == .inbox && message.unread ? .medium : .regular))
+              .font(.geist(14, weight: message.mailbox == .inbox && message.unread ? .medium : .regular))
               .foregroundStyle(
                 message.mailbox == .sent ? theme.inkDim : (message.unread ? theme.ink : theme.inkMid)
               )
@@ -286,7 +276,8 @@ struct EmailThreadRow: View {
               Badge("enviada", style: .secondary)
             }
             Text(relative(message.date))
-              .font(.system(size: 12).monospacedDigit())
+              .typeRole(.caption)
+              .monospacedDigit()
               .foregroundStyle(theme.inkDim)
           }
           .padding(.horizontal, 12)
@@ -364,13 +355,20 @@ struct EmailTagButton: View {
   var body: some View {
     let account = thread.messages.first?.account ?? ""
     let tagged = !store.tags(of: thread).isEmpty
-    Button("etiquetar \(title)", systemImage: tagged ? "tag.fill" : "tag") {
-      store.tagMenuThread = store.tagMenuThread == thread.id ? nil : thread.id
+    let isOpen = store.tagMenuThread == thread.id
+    Button {
+      store.tagMenuThread = isOpen ? nil : thread.id
+    } label: {
+      // A tagged conversation keeps the brand glyph over the ghost style's ink.
+      if tagged {
+        Image(systemName: "tag.fill").foregroundStyle(theme.brand)
+      } else {
+        Image(systemName: "tag")
+      }
     }
-    .labelStyle(.iconOnly)
-    .buttonStyle(.borderless)
-    .foregroundStyle(tagged ? theme.brand : theme.inkDim)
-    .help("Etiquetar")
+    .iconButtonStyle(size: .small, isActive: isOpen)
+    .help("etiquetar \(title)")
+    .accessibilityLabel("etiquetar \(title)")
     .popover(
       isPresented: Binding(
         get: { store.tagMenuThread == thread.id },
@@ -387,12 +385,12 @@ struct EmailTagButton: View {
     VStack(alignment: .leading, spacing: 2) {
       if let error = store.accountFoldersError[account], folders.isEmpty {
         Text(error)
-          .font(.system(size: 14))
+          .font(.geist(14))
           .foregroundStyle(theme.danger)
           .padding(8)
       } else if folders.isEmpty {
         Text("Carregando etiquetas…")
-          .font(.system(size: 14))
+          .font(.geist(14))
           .foregroundStyle(theme.inkDim)
           .padding(8)
       } else {
@@ -403,6 +401,7 @@ struct EmailTagButton: View {
                 Task { await store.applyTag(folder, to: thread) }
               } label: {
                 Text(folder)
+                  .font(.geist(14))
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .padding(.horizontal, 10)
                   .padding(.vertical, 6)
@@ -445,10 +444,12 @@ struct EmailCreateMenu: View {
     } label: {
       Image(systemName: "ellipsis")
     }
-    .menuStyle(.borderlessButton)
+    .menuStyle(.button)
     .menuIndicator(.hidden)
+    .iconButtonStyle(size: .small)
     .fixedSize()
     .disabled(store.creating != nil)
+    .help("Ações de \(title)")
     .accessibilityLabel("Ações de \(title)")
   }
 
@@ -468,18 +469,40 @@ struct EmailDragPreview: View {
       Text(title).lineLimit(1)
       if count > 1 {
         Text("\(count)")
-          .font(.system(size: 12).monospacedDigit())
+          .font(.geist(12).monospacedDigit())
           .foregroundStyle(.white)
           .padding(.horizontal, 8)
           .padding(.vertical, 1)
           .background(theme.brand, in: .capsule)
       }
     }
-    .font(.system(size: 13, weight: .medium))
+    .font(.geist(13, weight: .medium))
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
     .frame(maxWidth: 320)
     .background(theme.surface2, in: .rect(cornerRadius: 10))
     .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(theme.brandEdge) }
+  }
+}
+
+/// The conversation row on the shared `ListRow` (EM-7): zebra, brand tint on hover
+/// and open, plus the two states only the e-mail list has, a marked row
+/// (`bg-brand-tint/70`) and the keyboard cursor ring (`ring-1 ring-inset
+/// ring-brand-edge`, `EmailPanel.tsx:1320-1326`).
+private struct EmailRowShell: ViewModifier {
+  @Environment(\.theme) private var theme
+  let index: Int
+  let isOpen: Bool
+  let isSelected: Bool
+  let isCursor: Bool
+
+  func body(content: Content) -> some View {
+    ListRow(index: index, isActive: isOpen) { content }
+      // Behind the row's own fill, so hover still lights a marked row.
+      .background(isSelected && !isOpen ? theme.brandTint.opacity(0.7) : .clear)
+      .overlay {
+        // Where the keyboard is, so the arrows do not walk blind.
+        Rectangle().strokeBorder(theme.brandEdge).opacity(isCursor ? 1 : 0).allowsHitTesting(false)
+      }
   }
 }

@@ -32,6 +32,11 @@ public struct EmailScreen: View {
       EmailListPane(store: store)
         .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
     }
+    // The web's full-screen e-mail is one card holding both panes
+    // (`EmailPanel.tsx:1715-1736`); here that card is a glass panel.
+    .clipShape(.rect(cornerRadius: Radius.medium))
+    .glassSurface(.panel)
+    .padding(16)
     .task(id: store.mailboxes.map(\.id)) { await store.loadMailboxes() }
     .task { await store.loadNoteFolders() }
     // A clicked notification: shown now, or once the inbox arrives.
@@ -95,18 +100,11 @@ struct EmailListPane: View {
           }
         }
       }
-      Picker("ordenar e-mails", selection: $store.filters.sort) {
-        ForEach(EmailSort.allCases) { Text($0.label).tag($0) }
-      }
-      .labelsHidden()
-      .fixedSize()
-      .accessibilityLabel("ordenar e-mails")
-      Picker("agrupar e-mails", selection: $store.filters.groupBy) {
-        ForEach(EmailGroupBy.allCases) { Text($0.optionLabel).tag($0) }
-      }
-      .labelsHidden()
-      .fixedSize()
-      .accessibilityLabel("agrupar e-mails")
+      PillSelect(
+        label: "ordenar e-mails", selection: $store.filters.sort, options: EmailSort.allCases, title: \.label)
+      PillSelect(
+        label: "agrupar e-mails", selection: $store.filters.groupBy, options: EmailGroupBy.allCases,
+        title: \.optionLabel)
     }
   }
 
@@ -116,26 +114,20 @@ struct EmailListPane: View {
       FlowLayout(spacing: 8) {
         ForEach(active) { filter in
           HStack(spacing: 4) {
-            Text(filter.label).font(.system(size: 12))
-            Button {
+            Text(filter.label).typeRole(.caption)
+            IconButton("remover filtro \(filter.label)", systemImage: "xmark", size: .extraSmall) {
               store.clearFilter(filter.kind)
-            } label: {
-              Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(theme.inkDim)
-            .accessibilityLabel("remover filtro \(filter.label)")
           }
           .padding(.leading, 8)
-          .padding(.trailing, 6)
-          .padding(.vertical, 2)
+          .padding(.trailing, 2)
+          .padding(.vertical, 1)
           .background(theme.neutralTint, in: .capsule)
           .overlay { Capsule().strokeBorder(theme.lineStrong) }
         }
         if active.count > 1 {
           Button("Limpar tudo", systemImage: "xmark") { store.clearAllFilters() }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
+            .pillButtonStyle(.ghost, size: .small)
         }
       }
     }
@@ -206,7 +198,7 @@ struct EmailBatchBar: View {
     if count > 0 {
       HStack(spacing: 8) {
         Text("\(count) \(count == 1 ? "conversa" : "conversas")")
-          .font(.system(size: 14).monospacedDigit())
+          .font(.geist(14).monospacedDigit())
           .foregroundStyle(theme.inkDim)
         // The only hint that E and M exist.
         HStack(spacing: 4) {
@@ -215,37 +207,35 @@ struct EmailBatchBar: View {
           ShortcutKey("M")
           Text("mover")
         }
-        .font(.system(size: 12))
+        .typeRole(.caption)
         .foregroundStyle(theme.inkDim)
-        Button("Marcar lido", systemImage: "envelope.open") { Task { await store.runBatch(.read) } }
-          .labelStyle(.iconOnly)
-          .help("Marcar lido")
-        Button("Marcar não lido", systemImage: "envelope.badge") { Task { await store.runBatch(.unread) } }
-          .labelStyle(.iconOnly)
-          .help("Marcar não lido")
+        IconButton("Marcar lido", systemImage: "envelope.open", variant: .outline) {
+          Task { await store.runBatch(.read) }
+        }
+        IconButton("Marcar não lido", systemImage: "envelope.badge", variant: .outline) {
+          Task { await store.runBatch(.unread) }
+        }
         let folders = store.moveFolders
         if !folders.isEmpty {
-          Picker(
-            "pasta de destino",
-            selection: Binding(get: { store.effectiveTargetFolder }, set: { store.targetFolder = $0 })
-          ) {
-            ForEach(folders, id: \.self) { Text($0).tag($0) }
-          }
-          .labelsHidden()
-          .fixedSize()
-          .accessibilityLabel("pasta de destino")
-          Button("Mover", systemImage: "folder") {
+          PillSelect(
+            label: "pasta de destino",
+            selection: Binding(get: { store.effectiveTargetFolder }, set: { store.targetFolder = $0 }),
+            options: folders, title: { $0 })
+          IconButton("Mover", systemImage: "folder", variant: .outline) {
             Task { await store.runBatch(.move, folder: store.effectiveTargetFolder) }
           }
-          .labelStyle(.iconOnly)
-          .help("Mover")
         }
-        Button("Excluir", systemImage: "trash", role: .destructive) { store.requestDeleteSelected() }
-          .labelStyle(.iconOnly)
-          .help("Excluir")
+        // The web's `IconAction variant="destructive"` has no glyph-only twin in
+        // DailyDesign yet; the outline circle with the danger glyph stands in.
+        Button(role: .destructive) {
+          store.requestDeleteSelected()
+        } label: {
+          Image(systemName: "trash").foregroundStyle(theme.danger)
+        }
+        .iconButtonStyle(variant: .outline)
+        .help("Excluir")
+        .accessibilityLabel("Excluir")
       }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
     }
   }
 }
@@ -259,15 +249,11 @@ struct EmailMoveSheet: View {
     let count = store.selectedTargets.count
     VStack(alignment: .leading, spacing: 16) {
       Text(count == 1 ? "Mover este e-mail para:" : "Mover estes \(count) e-mails para:")
-        .font(.headline)
-      Picker(
-        "pasta de destino do atalho M",
-        selection: Binding(get: { store.effectiveTargetFolder }, set: { store.targetFolder = $0 })
-      ) {
-        ForEach(store.moveFolders, id: \.self) { Text($0).tag($0) }
-      }
-      .labelsHidden()
-      .accessibilityLabel("pasta de destino do atalho M")
+        .typeRole(.subhead)
+      PillSelect(
+        label: "pasta de destino do atalho M",
+        selection: Binding(get: { store.effectiveTargetFolder }, set: { store.targetFolder = $0 }),
+        options: store.moveFolders, title: { $0 })
       HStack {
         Spacer()
         Button {
@@ -278,6 +264,7 @@ struct EmailMoveSheet: View {
             ShortcutKey("Esc")
           }
         }
+        .pillButtonStyle(.outline)
         .keyboardShortcut(.cancelAction)
         Button {
           Task { await store.confirmMoveSelected() }
@@ -287,6 +274,7 @@ struct EmailMoveSheet: View {
             ShortcutKey("Enter")
           }
         }
+        .pillButtonStyle(.primary)
         .keyboardShortcut(.defaultAction)
       }
     }

@@ -14,11 +14,38 @@ public struct DesignGallery: View {
   }
 
   public var body: some View {
-    GalleryContent()
-      .background { BackdropView(backdrop) }
-      .environment(\.theme, Theme.resolve(scheme: scheme, backdrop: backdrop, density: density))
-      .environment(\.colorScheme, scheme)
+    let theme = Theme.resolve(scheme: scheme, backdrop: backdrop, density: density)
+    VStack(spacing: 0) {
+      SegmentedPills("Galeria", items: GalleryPage.items, selection: $page)
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      switch page {
+      case .components: GalleryContent()
+      case .controls: ControlsGallery(scheme: scheme, backdrop: backdrop, density: density)
+      case .glass: GlassGallery(scheme: scheme, backdrop: backdrop)
+      case .fonts: FontsGallery()
+      }
+    }
+    .background { BackdropView(backdrop) }
+    .environment(\.theme, theme)
+    .environment(\.colorScheme, scheme)
   }
+
+  @State private var page = GalleryPage.components
+}
+
+/// The pages of the gallery: the first components, then the spec 013 controls, glass
+/// surfaces and type faces, each with its own sample page.
+private enum GalleryPage: Hashable, CaseIterable {
+  case components, controls, glass, fonts
+
+  static let items: [SegmentedPills<GalleryPage>.Item] = [
+    .init(id: .components, label: "Componentes"),
+    .init(id: .controls, label: "Controles"),
+    .init(id: .glass, label: "Vidro"),
+    .init(id: .fonts, label: "Fontes"),
+  ]
 }
 
 private struct GalleryContent: View {
@@ -39,7 +66,7 @@ private struct GalleryContent: View {
         swatches
         card {
           SectionHeader("Agenda", count: "12") {
-            Button("Atualizar") {}.buttonStyle(.bordered)
+            Button("Atualizar") {}.pillButtonStyle(.outline, size: .small)
           }
           FilterBar("Período da agenda") {
             ForEach([1, 7, 14, 30], id: \.self) { days in
@@ -75,10 +102,11 @@ private struct GalleryContent: View {
               onConfirm: {}
             )
           }
+          .pillButtonStyle(.destructive, size: .small)
         }
         card {
           EmptyState("Nenhuma tarefa", description: "Crie a primeira para começar.", systemImage: "checklist") {
-            Button("Nova tarefa") {}.buttonStyle(.borderedProminent).tint(theme.brand)
+            Button("Nova tarefa") {}.pillButtonStyle(.primary)
           }
           ErrorState("Falha ao carregar", description: "O servidor não respondeu.", retry: {})
           LoadingState()
@@ -117,7 +145,7 @@ private struct GalleryContent: View {
       FlowLayout(spacing: 6) {
         ForEach(colors, id: \.0) { name, color in
           Text(name)
-            .font(.system(size: 11))
+            .font(.geist(size: 11))
             .foregroundStyle(theme.inkMid)
             .frame(width: 72, height: 40, alignment: .bottomLeading)
             .padding(4)
@@ -129,7 +157,7 @@ private struct GalleryContent: View {
         ForEach(PostitPaper.allCases, id: \.self) { paper in
           if let color = theme.postit[paper.rawValue] {
             Text(paper.rawValue)
-              .font(.system(size: 12, weight: .medium))
+              .font(.geist(size: TextSize.extraSmall, weight: .medium))
               .foregroundStyle(theme.postitInk)
               .frame(width: 72, height: 56)
               .background(color, in: .rect(cornerRadius: 2))

@@ -91,6 +91,22 @@ import Testing
     #expect(tree[0].roots[0].issue.summary == "meu")
   }
 
+  @Test func visibleRowsWalkOpenBranchesDepthFirst() {
+    let epic = makeIssue("B-1", kind: "Epic", level: 1)
+    let story = makeIssue("B-11", parent: "B-1")
+    let task = makeIssue("B-111", parent: "B-11")
+    let sibling = makeIssue("B-12", parent: "B-1")
+    let roots = JiraTree.build([epic, story, task, sibling])[0].roots
+
+    let all = JiraTree.visibleRows(roots) { _ in true }
+    #expect(all.map(\.id) == ["B-1", "B-11", "B-111", "B-12"])
+    #expect(all.map(\.depth) == [0, 1, 2, 1])
+
+    let closedStory = JiraTree.visibleRows(roots) { $0.issue.key != "B-11" }
+    #expect(closedStory.map(\.id) == ["B-1", "B-11", "B-12"])
+    #expect(JiraTree.visibleRows(roots) { _ in false }.map(\.id) == ["B-1"])
+  }
+
   @Test func groupsBySituationInWorkOrder() {
     let groups = JiraTree.byStatusCategory([
       makeIssue("A-1", category: .done), makeIssue("A-2", category: .new), makeIssue("A-3"),

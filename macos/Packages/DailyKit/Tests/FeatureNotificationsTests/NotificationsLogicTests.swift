@@ -22,6 +22,13 @@ func notice(_ id: String, _ source: NotificationSource, read: Bool = false, url:
     #expect(NotificationsLogic.label(NotificationSource(rawValue: "calendar")) == "CALENDAR")
   }
 
+  @Test func popoverIsWebSizedAndCapsAtSeventyPercentOfTheScreen() {
+    #expect(NotificationsLogic.popoverWidth == 460)
+    #expect(NotificationsLogic.popoverMaxHeight(screenHeight: 1000) == 700)
+    #expect(NotificationsLogic.popoverMaxHeight(screenHeight: 875) == 612)
+    #expect(NotificationsLogic.popoverMaxHeight(screenHeight: nil) == nil)
+  }
+
   @Test func countsUnread() {
     #expect(NotificationsLogic.unread(items).count == 3)
     #expect(NotificationsLogic.bellLabel(unread: 3) == "notificações (3 não lidas)")

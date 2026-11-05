@@ -6,6 +6,9 @@ import SwiftUI
 /// it; selecting a folder or a view makes it the scope. Double click or Return
 /// renames; the "…" button, the context menu and the keys of `NoteTreeShortcut`
 /// hold the rest; rows drag onto folders.
+///
+/// The rows draw the web's active row rather than a `List` selection (NT-8), so the
+/// tree walks its own arrows: ↑/↓ move the cursor, which selects as a list would.
 struct NoteTreeView: View {
   @Bindable var store: NotesStore
   let onDeleteNote: (Note) -> Void
@@ -16,38 +19,89 @@ struct NoteTreeView: View {
   @State private var hovered: String?
   /// The row whose action list the keyboard opened (⌃Return).
   @State private var actionListKey: String?
+  @FocusState private var focused: Bool
   @Environment(\.theme) private var theme
 
   var body: some View {
-    List(selection: $selection) {
-      ForEach(store.rows) { row in
-        rowView(row)
-          .tag(row.id)
-          .selectionDisabled(isEmptyRow(row))
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 2) {
+          ForEach(store.rows) { row in
+            rowView(row)
+              .modifier(chrome(for: row))
+              .id(row.id)
+              // The rename field keeps its own clicks: selecting would take its focus.
+              .modifier(
+                RowSelection(
+                  isSelectable: !isEmptyRow(row) && !isRenaming(row),
+                  onClick: {
+                    selection = row.id
+                    focused = true
+                  },
+                  onDoubleClick: { startRenaming(row.id) })
+              )
+              .contextMenu {
+                if !items(for: row.id).isEmpty { contextMenu(for: row.id) }
+              }
+          }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+      }
+      .focusable()
+      .focused($focused)
+      .focusEffectDisabled()
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("pastas e notas")
+      .onChange(of: selection) { _, key in
+        guard let key else { return }
+        proxy.scrollTo(key)
+        select(key)
+      }
+      .onChange(of: store.activeID, initial: true) { _, id in
+        // A note opened elsewhere (created, or the first after a delete) becomes the selection.
+        guard let id, selection != NoteTreeRow.noteKey(id) else { return }
+        selection = NoteTreeRow.noteKey(id)
+      }
+      .onKeyPress(.leftArrow) { setExpanded(false) }
+      .onKeyPress(.rightArrow) { setExpanded(true) }
+      .onKeyPress(keys: [.return, .delete, .deleteForward, .upArrow, .downArrow, "n", "N"]) { press in
+        if let shortcut = NoteTreeShortcut.command(character: press.key.character, modifiers: press.modifiers) {
+          return handle(shortcut)
+        }
+        return moveCursor(press)
       }
     }
-    .listStyle(.sidebar)
-    .accessibilityLabel("pastas e notas")
-    .contextMenu(forSelectionType: String.self) { keys in
-      if let key = keys.first, keys.count == 1 { contextMenu(for: key) }
-    } primaryAction: { keys in
-      guard let key = keys.first, keys.count == 1 else { return }
-      startRenaming(key)
+  }
+
+  /// Plain ↑/↓ walk the rows that can be chosen, skipping "pasta vazia".
+  private func moveCursor(_ press: KeyPress) -> KeyPress.Result {
+    guard store.renaming == nil, press.key == .upArrow || press.key == .downArrow,
+      press.modifiers.isDisjoint(with: [.command, .option, .control, .shift])
+    else { return .ignored }
+    let ids = store.rows.filter { !isEmptyRow($0) }.map(\.id)
+    guard let next = ListCursor.step(from: selection, in: ids, by: press.key == .downArrow ? 1 : -1) else {
+      return .ignored
     }
-    .onChange(of: selection) { _, key in
-      guard let key else { return }
-      select(key)
+    selection = next
+    return .handled
+  }
+
+  /// What the row looks like: the open note is the active row (`NoteTree.tsx:143-149`),
+  /// the current folder or view is `bg-brand-tint text-brand` (:210), and the
+  /// keyboard cursor keeps a ring while the tree has focus.
+  private func chrome(for row: NoteTreeRow) -> NoteTreeRowChrome {
+    let look: NoteTreeRowChrome.Look
+    switch row {
+    case .all: look = .scope(current: store.scope == .all)
+    case .none: look = .scope(current: store.scope == .none)
+    case .folder(let folder, _, _, _):
+      look = store.renaming == folder.id ? .plain : .scope(current: store.scope == .folder(folder.id))
+    case .note(let note, _):
+      look = store.renaming == note.id ? .plain : .note(active: note.id == store.activeID)
+    case .empty: look = .plain
     }
-    .onChange(of: store.activeID, initial: true) { _, id in
-      // A note opened elsewhere (created, or the first after a delete) becomes the selection.
-      guard let id, selection != NoteTreeRow.noteKey(id) else { return }
-      selection = NoteTreeRow.noteKey(id)
-    }
-    .onKeyPress(.leftArrow) { setExpanded(false) }
-    .onKeyPress(.rightArrow) { setExpanded(true) }
-    .onKeyPress(keys: [.return, .delete, .deleteForward, .upArrow, .downArrow, "n", "N"]) { press in
-      handle(NoteTreeShortcut.command(character: press.key.character, modifiers: press.modifiers))
-    }
+    return NoteTreeRowChrome(look: look, isCursor: focused && selection == row.id)
   }
 
   // MARK: - Rows
@@ -100,8 +154,6 @@ struct NoteTreeView: View {
           icon("doc.text")
           Text(displayTitle(note))
             .lineLimit(1)
-            .foregroundStyle(note.id == store.activeID ? theme.ink : theme.inkMid)
-            .fontWeight(note.id == store.activeID ? .medium : .regular)
           Spacer(minLength: 0)
           actionsButton(key: row.id, label: NoteTreeActions.label(for: note))
         }
@@ -142,10 +194,10 @@ struct NoteTreeView: View {
       ForEach(items(for: key)) { item in menuButton(item, label: item.label, key: key) }
     } label: {
       Image(systemName: "ellipsis")
-        .foregroundStyle(theme.inkDim)
     }
-    .menuStyle(.borderlessButton)
+    .menuStyle(.button)
     .menuIndicator(.hidden)
+    .iconButtonStyle(size: .extraSmall, isActive: actionListKey == key)
     .fixedSize()
     .opacity(hovered == key || selection == key || actionListKey == key ? 1 : 0)
     .help(label)
@@ -176,7 +228,7 @@ struct NoteTreeView: View {
         store.toggle(key)
       } label: {
         Image(systemName: expanded ? "chevron.down" : "chevron.right")
-          .font(.system(size: 10, weight: .semibold))
+          .font(.system(size: 10, weight: .semibold))  // SF Symbol sizing
           .foregroundStyle(theme.inkDim)
           .frame(width: 16, height: 16)
           .contentShape(.rect)
@@ -196,14 +248,15 @@ struct NoteTreeView: View {
   private func title(_ text: String, current: Bool) -> some View {
     Text(text)
       .lineLimit(1)
-      .fontWeight(current ? .semibold : .regular)
+      .font(.geist(14, weight: current ? .medium : .regular))
       .foregroundStyle(current ? theme.brand : theme.inkMid)
       .accessibilityAddTraits(current ? .isSelected : [])
   }
 
   private func countLabel(_ count: Int) -> some View {
     Text("\(count)")
-      .font(.system(size: 12).monospacedDigit())
+      .typeRole(.caption)
+      .monospacedDigit()
       .foregroundStyle(theme.inkDim)
   }
 
@@ -216,6 +269,14 @@ struct NoteTreeView: View {
   private func indent(_ depth: Int) -> CGFloat { CGFloat(depth) * 12 }
 
   private func displayTitle(_ note: Note) -> String { note.title.isEmpty ? "sem título" : note.title }
+
+  private func isRenaming(_ row: NoteTreeRow) -> Bool {
+    switch row {
+    case .folder(let folder, _, _, _): store.renaming == folder.id
+    case .note(let note, _): store.renaming == note.id
+    case .all, .none, .empty: false
+    }
+  }
 
   private func isEmptyRow(_ row: NoteTreeRow) -> Bool {
     if case .empty = row { true } else { false }
@@ -454,30 +515,113 @@ struct NoteTreeActionList: View {
   @Environment(\.theme) private var theme
 
   var body: some View {
-    List(selection: $selection) {
-      ForEach(items) { item in
-        Text(item.label)
-          .foregroundStyle(item.isEnabled ? (item.isDestructive ? theme.danger : theme.ink) : theme.inkDim)
-          .tag(item.action)
-          .selectionDisabled(!item.isEnabled)
+    ScrollView {
+      VStack(alignment: .leading, spacing: 2) {
+        ForEach(items) { item in
+          Text(item.label)
+            .font(.geist(14))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .activeRow(selection == item.action)
+            // After `activeRow`, so a destructive or disabled item keeps its colour.
+            .foregroundStyle(item.isEnabled ? (item.isDestructive ? theme.danger : theme.ink) : theme.inkDim)
+            .contentShape(.rect)
+            .onTapGesture {
+              guard item.isEnabled else { return }
+              perform(item.action)
+            }
+            .accessibilityAddTraits(.isButton)
+        }
       }
+      .padding(6)
     }
-    .listStyle(.plain)
-    .accessibilityLabel(label)
+    .focusable()
     .focused($focused)
+    .focusEffectDisabled()
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(label)
     .frame(width: 280, height: min(CGFloat(items.count) * 26 + 12, 360))
     .onAppear {
       selection = items.first(where: \.isEnabled)?.action
       focused = true
+    }
+    .onKeyPress(keys: [.upArrow, .downArrow]) { press in
+      let enabled = items.filter(\.isEnabled).map(\.action)
+      selection = ListCursor.step(from: selection, in: enabled, by: press.key == .downArrow ? 1 : -1)
+      return .handled
     }
     .onKeyPress(.return) {
       guard let selection else { return .ignored }
       perform(selection)
       return .handled
     }
-    .contextMenu(forSelectionType: NoteTreeAction.self) { _ in
-    } primaryAction: { actions in
-      if let action = actions.first { perform(action) }
+  }
+}
+
+/// The look of a tree row; see `NoteTreeView.chrome(for:)`.
+private struct NoteTreeRowChrome: ViewModifier {
+  enum Look {
+    case plain
+    case note(active: Bool)
+    case scope(current: Bool)
+  }
+
+  let look: Look
+  let isCursor: Bool
+  @Environment(\.theme) private var theme
+  @State private var hovering = false
+
+  func body(content: Content) -> some View {
+    styled(
+      content
+        .font(.geist(14))
+        // `ROW` (`NoteTree.tsx:66-67`): `py-1.5 pr-1`, the indent starting at 0.5rem.
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    )
+    .clipShape(.rect(cornerRadius: 6))
+    .overlay {
+      RoundedRectangle(cornerRadius: 6)
+        .strokeBorder(theme.brandEdge)
+        .opacity(isCursor ? 1 : 0)
+        .allowsHitTesting(false)
+    }
+  }
+
+  @ViewBuilder private func styled(_ row: some View) -> some View {
+    switch look {
+    case .plain:
+      row
+    case .note(let active):
+      row.activeRow(active)
+    case .scope(let current):
+      // `hover:bg-glass-line` when not current; `--glass-line` stands in as line-soft.
+      row
+        .background(current ? theme.brandTint : (hovering ? ActiveRowStyle.hoverFill(theme: theme) : .clear))
+        .onHover { hovering = $0 }
+    }
+  }
+}
+
+/// Click selects, double click renames, as the `List` primary action did. The double
+/// click runs beside the single one so the first click selects without a delay.
+private struct RowSelection: ViewModifier {
+  let isSelectable: Bool
+  let onClick: () -> Void
+  let onDoubleClick: () -> Void
+
+  func body(content: Content) -> some View {
+    if isSelectable {
+      content
+        .contentShape(.rect)
+        .onTapGesture(perform: onClick)
+        .simultaneousGesture(TapGesture(count: 2).onEnded(onDoubleClick))
+        .accessibilityAction(.default, onClick)
+    } else {
+      content
     }
   }
 }

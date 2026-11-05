@@ -47,7 +47,12 @@ struct NoteEditor: NSViewRepresentable {
     textView.isAutomaticDashSubstitutionEnabled = false
     textView.isAutomaticTextReplacementEnabled = false
     textView.isAutomaticLinkDetectionEnabled = false
-    textView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    // `font-mono leading-relaxed` (`NotesPanel.tsx:673`, NT-26): Geist Mono at the
+    // textarea's `text-sm`, lines at 1.625.
+    let font = NoteEditor.font
+    textView.font = font
+    textView.defaultParagraphStyle = NoteEditor.paragraphStyle(for: font)
+    textView.typingAttributes[.paragraphStyle] = textView.defaultParagraphStyle
     textView.textContainerInset = NSSize(width: 6, height: 8)
     textView.isVerticallyResizable = true
     textView.isHorizontallyResizable = false
@@ -74,6 +79,9 @@ struct NoteEditor: NSViewRepresentable {
     let switched = coordinator.noteID != noteID
     if switched || textView.string != text {
       textView.string = text
+      if let storage = textView.textStorage, let style = textView.defaultParagraphStyle {
+        storage.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: storage.length))
+      }
       textView.setSelectedRange(NSRange(location: 0, length: 0))
     }
     if switched {
@@ -82,6 +90,21 @@ struct NoteEditor: NSViewRepresentable {
       textView.undoManager?.removeAllActions(withTarget: textView)
       if let storage = textView.textStorage { textView.undoManager?.removeAllActions(withTarget: storage) }
     }
+  }
+
+  /// The textarea's `text-sm`.
+  static let fontSize: CGFloat = 14
+  /// `leading-relaxed`.
+  static let lineHeight: CGFloat = 1.625
+
+  static var font: NSFont { DailyFonts.ctFont(.mono, size: fontSize, weight: .regular) as NSFont }
+
+  /// Spacing after each line that brings the font's own line up to `leading-relaxed`.
+  static func paragraphStyle(for font: NSFont) -> NSParagraphStyle {
+    let natural = NSLayoutManager().defaultLineHeight(for: font)
+    let style = NSMutableParagraphStyle()
+    style.lineSpacing = max(0, font.pointSize * lineHeight - natural)
+    return style
   }
 
   final class Coordinator: NSObject, NSTextViewDelegate {

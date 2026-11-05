@@ -77,14 +77,14 @@ public struct FocusBlockForm: View {
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
         Text(title)
-          .font(.system(size: 14))
+          .font(.geist(size: TextSize.small))
           .foregroundStyle(theme.inkMid)
       }
 
       if calendars.isEmpty {
         VStack(alignment: .leading, spacing: 12) {
           Text("Para criar blocos de foco, reconecte sua conta do Google.")
-            .font(.system(size: 14))
+            .font(.geist(size: TextSize.small))
           reconnectButton
         }
       } else {
@@ -104,12 +104,13 @@ public struct FocusBlockForm: View {
       HStack {
         Spacer()
         Button("Cancelar", action: onCancel)
+          .pillButtonStyle(.outline)
           .keyboardShortcut(.cancelAction)
           .disabled(isSaving)
         if !calendars.isEmpty {
           Button(isSaving ? "Criando…" : "Criar bloco") { onSubmit(start, minutes, connectionId) }
+            .pillButtonStyle(.primary)
             .keyboardShortcut(.defaultAction)
-            .buttonStyle(.borderedProminent)
             .disabled(isSaving)
         }
       }
@@ -123,12 +124,17 @@ public struct FocusBlockForm: View {
     Form {
       DatePicker("Dia", selection: $start, displayedComponents: .date)
       DatePicker("Início", selection: $start, displayedComponents: .hourAndMinute)
-      Picker("Duração", selection: $minutes) {
-        ForEach(durations, id: \.self) { duration in
-          Text("\(duration) min").tag(duration)
+      // One small button per duration, the chosen one on the primary face
+      // (`FocusBlockProvider.tsx:135-149`).
+      LabeledContent("Duração") {
+        FlowLayout(spacing: 8) {
+          ForEach(durations, id: \.self) { duration in
+            Button("\(duration) min") { minutes = duration }
+              .pillButtonStyle(minutes == duration ? .primary : .outline, size: .small)
+              .accessibilityAddTraits(minutes == duration ? .isSelected : [])
+          }
         }
       }
-      .pickerStyle(.segmented)
       if calendars.count > 1 {
         Picker("Agenda", selection: $connectionId) {
           ForEach(calendars) { calendar in
@@ -143,7 +149,7 @@ public struct FocusBlockForm: View {
   /// `role="alert"` on the web.
   private func announced(_ message: String) -> some View {
     Text(message)
-      .font(.system(size: 14))
+      .font(.geist(size: TextSize.small))
       .foregroundStyle(theme.danger)
       .onAppear { AccessibilityNotification.Announcement(message).post() }
   }

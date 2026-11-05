@@ -36,7 +36,7 @@ public struct EmptyState<Action: View>: View {
           .accessibilityAddTraits(.isHeader)
         if let description {
           Text(description)
-            .font(.system(size: 14))
+            .font(.geist(size: TextSize.small))
             .foregroundStyle(theme.inkMid)
             .frame(maxWidth: 384)
         }
@@ -86,12 +86,12 @@ public struct ErrorState: View {
         .accessibilityHidden(true)
       VStack(spacing: 4) {
         Text(title)
-          .font(.system(size: 16, weight: .semibold))
+          .font(.geist(size: TypeRole.body.size, weight: .semibold))
           .foregroundStyle(theme.ink)
           .accessibilityAddTraits(.isHeader)
         if let description {
           Text(description)
-            .font(.system(size: 14))
+            .font(.geist(size: TextSize.small))
             .foregroundStyle(theme.inkMid)
             .frame(maxWidth: 384)
         }
@@ -99,8 +99,7 @@ public struct ErrorState: View {
       .multilineTextAlignment(.center)
       if let retry {
         Button("Tentar de novo", action: retry)
-          .buttonStyle(.bordered)
-          .controlSize(.small)
+          .pillButtonStyle(.outline, size: .small)
       }
     }
     .frame(maxWidth: .infinity)
@@ -127,9 +126,10 @@ public struct PanelError: View {
   }
 
   public var body: some View {
+    // `leading-relaxed` (1.625) instead of the data role's own leading.
     Text(message)
-      .font(.system(size: 14))
-      .lineSpacing(14 * (1.625 - 1.2))
+      .font(.geist(size: TextSize.small))
+      .lineSpacing(TextSize.small * (1.625 - TypeRole.naturalLineHeight))
       .foregroundStyle(theme.inkMid)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 16)
@@ -166,5 +166,21 @@ public struct LoadingState: View {
     .frame(maxWidth: .infinity)
     .padding(.vertical, 32)
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// Tailwind's text sizes that sit outside the type roles (`text-sm`, `text-xs`).
+enum TextSize {
+  /// `text-sm`.
+  static let small: CGFloat = 14
+  /// `text-xs`.
+  static let extraSmall: CGFloat = 12
+}
+
+extension Font {
+  /// Geist at a Tailwind size, for the web's `text-sm` / `text-xs` copy that carries
+  /// no type role (and so no tabular digits or tracking).
+  static func geist(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    Font(DailyFonts.ctFont(.sans, size: size, weight: weight))
   }
 }

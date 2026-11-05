@@ -81,9 +81,9 @@ private struct AgendaDayView: View {
         .accessibilityAddTraits(.isHeader)
       VStack(spacing: 0) {
         ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-          AgendaRow(item: item, showsAccountLabel: showsAccountLabels, striped: index % 2 == 1)
-          if index < items.count - 1 {
-            Divider().overlay(theme.lineSoft)
+          // `px-2 py-2` in both densities, with the shared zebra and hover (AG-5).
+          ListRow(index: index, isLast: index == items.count - 1, verticalPadding: 8) {
+            AgendaRow(item: item, showsAccountLabel: showsAccountLabels)
           }
         }
       }
@@ -95,17 +95,16 @@ private struct AgendaRow: View {
   @Environment(\.theme) private var theme
   let item: AgendaItem
   let showsAccountLabel: Bool
-  let striped: Bool
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       // An all-day event has no time (`AgendaPanel.tsx:161`).
       Text(item.time.isEmpty ? "dia" : item.time)
-        .font(.system(size: 14).monospacedDigit())
+        .font(.geist(14).monospacedDigit())
         .foregroundStyle(theme.ink)
         .frame(width: 44, alignment: .leading)
       Text(item.title.isEmpty ? "—" : item.title)
-        .font(.system(size: 14))
+        .font(.geist(14))
         .foregroundStyle(theme.inkMid)
         .lineLimit(1)
         .truncationMode(.tail)
@@ -120,9 +119,6 @@ private struct AgendaRow: View {
           .overlay { Capsule().strokeBorder(theme.lineStrong) }
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, theme.metrics.rowVerticalPadding)
-    .background(striped ? theme.lineSoft.opacity(0.25) : .clear)
     .accessibilityElement(children: .combine)
   }
 }
