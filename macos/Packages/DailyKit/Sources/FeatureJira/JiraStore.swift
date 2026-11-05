@@ -106,6 +106,10 @@ final class JiraStore {
   private(set) var personLoading = false
   private(set) var personError: String?
   @ObservationIgnored private var personRequest = 0
+  /// The person view on its way, by person and dashboard state. The screen and
+  /// the Início panel share this store and both ask for the same view; the
+  /// second waits for the first instead of asking again.
+  @ObservationIgnored private var personLoad: (key: String, task: Task<Void, Never>)?
 
   var peopleSearchOpen = false
   var peopleQuery = ""
@@ -374,6 +378,20 @@ final class JiraStore {
       personError = nil
       return
     }
+    let key = "\(accountId)|\(state?.updatedAt ?? "")"
+    if let running = personLoad, running.key == key {
+      await running.task.value
+      return
+    }
+    // Unstructured so that the view whose `.task` started it can go away
+    // (a panel moved, a window closed) without cancelling the other's answer.
+    let task = Task { await fetchPersonView(accountId) }
+    personLoad = (key, task)
+    await task.value
+    if personLoad?.key == key { personLoad = nil }
+  }
+
+  private func fetchPersonView(_ accountId: String) async {
     personRequest += 1
     let mine = personRequest
     personLoading = true

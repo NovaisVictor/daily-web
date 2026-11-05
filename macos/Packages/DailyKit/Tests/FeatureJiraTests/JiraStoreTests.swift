@@ -136,6 +136,39 @@ import Testing
     #expect(harness.store.all.map(\.key) == ["HE-1"])
   }
 
+  @Test func theScreenAndThePanelAskForAPersonViewOnce() async {
+    let harness = Harness(makeState(jira: [makeIssue("ME-1")], people: [Self.person]))
+    let view = JiraPersonView(
+      jira: PanelResult(data: [makeIssue("HE-1")], error: nil), delivered: PanelResult(data: [], error: nil),
+      approved: PanelResult(data: [], error: nil), problems: PanelResult(data: [], error: nil), ancestors: [])
+    let viewData = FakeAPIClient.json(view)
+    let gate = Gate()
+    harness.serve(state: makeState(jira: [makeIssue("ME-1")], people: [Self.person])) { _ in
+      await gate.wait()
+      return viewData
+    }
+    harness.store.selectPerson("acc-1")
+    let screen = Task { await harness.store.loadPersonView() }
+    await settle()
+    let panel = Task { await harness.store.loadPersonView() }
+    await settle()
+    // The view that started the request goes away; the other still gets the answer.
+    screen.cancel()
+    gate.open()
+    await panel.value
+    #expect(harness.client.writes.map(\.description) == ["GET /api/jira/people/acc-1 -"])
+    #expect(harness.store.all.map(\.key) == ["HE-1"])
+    #expect(!harness.store.personLoading)
+  }
+
+  @Test func theScreenAndThePanelShareOneStore() {
+    let environment = AppEnvironment.preview(state: makeState())
+    let screenStore = JiraStore.shared(in: environment)
+    #expect(JiraStore.shared(in: environment) === screenStore)
+    environment.featureStores.removeAll()
+    #expect(JiraStore.shared(in: environment) !== screenStore)
+  }
+
   // MARK: Lists
 
   @Test func roleFilterLetsPendingApprovalsThrough() {
