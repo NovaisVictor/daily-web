@@ -125,7 +125,10 @@ public struct ConfirmDialogView: View {
     }
     .padding(24)
     .frame(width: 448)
-    .background(theme.surface3)
+    // DialogContent is `rounded-xl bg-popover shadow-e5 backdrop-blur-2xl`
+    // (components/ui/dialog.tsx:64): glass in the popover role, with the dialog's
+    // own radius and elevation.
+    .glassSurface(.popover, cornerRadius: Radius.extraLarge, elevation: .e5)
   }
 }
 
@@ -206,9 +209,9 @@ public struct ToastView: View {
     .padding(.horizontal, 14)
     .padding(.vertical, 12)
     .frame(width: 356)
-    .background(theme.surface3, in: .rect(cornerRadius: theme.radius))
-    .overlay { RoundedRectangle(cornerRadius: theme.radius).strokeBorder(theme.line) }
-    .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+    // sonner paints the toast with `--popover` and `--radius` (components/ui/sonner.tsx:28-31),
+    // the same surface as a menu, so it takes the popover glass and its `shadow-e4`.
+    .glassSurface(.popover, cornerRadius: theme.radius)
     .accessibilityElement(children: .contain)
     .onAppear { AccessibilityNotification.Announcement(message.text).post() }
   }
@@ -296,7 +299,8 @@ public struct FocusDropTarget<Payload: Transferable>: View {
 // MARK: - Backdrop
 
 /// The window background: the radial mesh of `bg-mesh` (globals.css:908) or a flat
-/// base, from `BackdropPalette`.
+/// base, from `BackdropPalette`. Prefer `View.windowBackdrop(_:)` at the window root,
+/// which puts it behind the whole window, sidebar included.
 public struct BackdropView: View {
   @Environment(\.colorScheme) private var colorScheme
   private let backdrop: Backdrop
@@ -321,6 +325,9 @@ public struct BackdropView: View {
         )
       }
     }
+    // `background-attachment: fixed` (globals.css:916): one gradient for the whole
+    // window, running under the toolbar and the sidebar instead of stopping at them.
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .ignoresSafeArea()
     .accessibilityHidden(true)
   }
@@ -329,5 +336,14 @@ public struct BackdropView: View {
     let dx = max(center.x, 1 - center.x)
     let dy = max(center.y, 1 - center.y)
     return 2.0.squareRoot() * (dx + dy) / 2
+  }
+}
+
+extension View {
+  /// Paints `backdrop` as the window's own background, so it shows through every
+  /// translucent layer above it: the Liquid Glass sidebar and toolbar of macOS 26
+  /// and the glass surfaces (FR-013-03). Apply it to the scene's root view.
+  public func windowBackdrop(_ backdrop: Backdrop) -> some View {
+    containerBackground(for: .window) { BackdropView(backdrop) }
   }
 }

@@ -28,7 +28,7 @@ struct ThemedRoot<Content: View>: View {
         // Selection and prominent controls follow the brand, as on the web,
         // instead of the system accent color.
         .tint(theme.brand)
-        .background(BackdropView(backdrop))
+        .windowBackdrop(backdrop)
     }
   }
 }
