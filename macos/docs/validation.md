@@ -267,3 +267,26 @@ menos de 25 MB de `.app`.
   - `release.sh` sem como retomar quando o tap falha.
 - `make clean && make check` final: **837 testes em 89 suítes**.
 - PR: https://github.com/joaosouzacoder/daily-web/pull/102
+
+## Paridade com o web: specs 010 a 015 (2026-11-05)
+
+As quatro ondas foram implementadas, revisadas e corrigidas:
+
+| Onda | Specs | O que entrou |
+|---|---|---|
+| A | 013, 012 | Geist e Patrick Hand; Liquid Glass; controles em pílula; linhas zebradas; barra lateral no modelo do web; páginas Kanban, Ferramentas, Configuração e Perfil |
+| B | 011, 014 | painéis completos dos 7 módulos com store compartilhado; e-mail compacto e em tela cheia; notas com maximizar; quadro de post-its |
+| C | 010 | grade livre de 12 colunas compartilhada com o web; modo Abas; Organizar painéis |
+| D | 015 | estado lembrado por conta; ajustes de e-mail; notas recarregam quando uma nota nasce de um e-mail |
+
+**Gate final** (`make check`, um build só com `Scripts/guarded.sh`):
+
+- **1182 testes em 128 suítes**, lint limpo e o app compilando;
+- pico de memória dos compiladores: 1,5 GB somados.
+
+Em 2026-11-05, builds paralelos travaram o Mac duas vezes, com cerca de
+150 GB de memória nos compiladores. Desde então, os agentes só editam código e
+a validação é feita em lote, por um build só, com o vigia de memória.
+
+**Ainda falta:** a conferência visual no app, que não foi feita em nenhuma
+das quatro ondas.
