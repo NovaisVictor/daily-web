@@ -251,3 +251,19 @@ menos de 25 MB de `.app`.
   - `spctl --assess` resulta em `rejected`, o esperado sem Developer ID.
   - **Não verificado:** a liberação por "Abrir mesmo assim" e o primeiro login
     no app instalado pelo brew, que dependem de uma ação manual nos Ajustes.
+
+## Revisão final (T606) e PR
+
+- A revisão independente das Ondas 5 e 6 apontou 10 achados, todos corrigidos:
+  - alerta de agentes parado com o app oculto;
+  - "Marcar como lida" antes de a sessão ser restaurada;
+  - ⌘N duplicado ("Nova tarefa" passou para ⌘T);
+  - pedidos do navegador consumidos pela janela errada;
+  - calendário gregoriano no formulário de tarefa;
+  - lógica de dia triplicada, agora em `DailyCore/Features/TaskDay.swift`;
+  - `ThemedRoot` duplo no painel da barra de menus;
+  - "marcar todas" duplicado;
+  - `release.sh` sem checar arquivos não rastreados;
+  - `release.sh` sem como retomar quando o tap falha.
+- `make clean && make check` final: **837 testes em 89 suítes**.
+- PR: https://github.com/joaosouzacoder/daily-web/pull/102

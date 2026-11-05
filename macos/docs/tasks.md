@@ -161,7 +161,7 @@ O dono é sempre `Pkg/Sources/<Target>` + `Pkg/Tests/<Target>Tests`.
   "Abrir mesmo assim", primeiro login, build local.
 - [ ] **T605** Instalação limpa numa conta de usuário nova do macOS (SC-004),
   registrada em `validation.md`.
-- [ ] **T606** Revisão final do diff completo + PR do fork para `joaosouzacoder/daily-web:main`
+- [x] **T606** Revisão final do diff completo + PR do fork para `joaosouzacoder/daily-web:main`
   (título e descrição em inglês, sem labels nem assignee, conforme o fluxo do fork).
 
 ## Verificação SC-003
