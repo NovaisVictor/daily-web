@@ -13,6 +13,9 @@ struct FocusDraft: Identifiable, Equatable {
   var start: Date
   var minutes: Int
   var connectionId: String
+  /// The view that took the drop. The screen and the Início panel share one
+  /// store, so only that view presents the sheet; nil lets any of them.
+  var presenter: UUID?
 }
 
 /// The agenda screen: period, events and the focus-block drop
@@ -20,6 +23,8 @@ struct FocusDraft: Identifiable, Equatable {
 @Observable
 final class AgendaStore {
   var draft: FocusDraft?
+  /// Why the last period change failed, shown inside the panel (`AgendaPanel.tsx:105`).
+  private(set) var rangeError: String?
   /// The last refusal or failure of the sheet, shown under its fields.
   private(set) var draftError: String?
   /// A 409 from the server: the calendar lacks write permission.
@@ -47,6 +52,8 @@ final class AgendaStore {
   }
 
   var state: DashboardState? { dashboard.state }
+  /// No state yet: the web's `loading={booting}` (`useDashboardPanels.tsx:96`).
+  var isLoading: Bool { state == nil }
   var agenda: PanelResult<[AgendaItem]>? { state?.agenda }
   var items: [AgendaItem] { agenda?.data ?? [] }
   var groups: [AgendaDayGroup] { AgendaLogic.group(items) }
@@ -66,16 +73,19 @@ final class AgendaStore {
   }
 
   /// Changing the period changes what the server fetches, so it is saved, not
-  /// filtered locally. The same period again does nothing.
+  /// filtered locally. The same period again does nothing. On failure the
+  /// state keeps the old period, so the chips fall back to it on their own.
   func chooseRange(_ next: Int) async {
     guard next != days else { return }
-    // `PreferencesStore` shows its own error toast and keeps the old period.
-    await preferences.setAgendaDays(next)
+    rangeError = nil
+    if let error = await preferences.setAgendaDays(next) {
+      rangeError = error.userMessage
+    }
   }
 
   /// Opens the sheet for the first valid dropped item. Returns whether one was accepted.
   @discardableResult
-  func receiveDrop(_ items: [FocusSource]) -> Bool {
+  func receiveDrop(_ items: [FocusSource], presenter: UUID? = nil) -> Bool {
     guard acceptsDrops, let source = AgendaLogic.acceptedSource(items) else {
       Logger.agenda.notice("Ignored a focus drop with no valid item")
       return false
@@ -84,11 +94,18 @@ final class AgendaStore {
       source: source,
       start: FocusBlockForm.defaultStart(now: now(), calendar: calendar),
       minutes: FocusBlockForm.defaultMinutes,
-      connectionId: (writableCalendars.first ?? calendars.first)?.id ?? ""
+      connectionId: (writableCalendars.first ?? calendars.first)?.id ?? "",
+      presenter: presenter
     )
     draftError = nil
     reconnectMessage = nil
     return true
+  }
+
+  /// The draft `presenter` should show, if any.
+  func draft(for presenter: UUID) -> FocusDraft? {
+    guard let draft, draft.presenter == nil || draft.presenter == presenter else { return nil }
+    return draft
   }
 
   func cancelDraft() {

@@ -61,6 +61,29 @@ import Testing
     }
     await store.chooseRange(7)
     #expect(store.days == 2)
+    // Shown inside the panel (AG-2), not only as a toast.
+    #expect(store.rangeError == "período inválido")
+  }
+
+  @Test func aNewPeriodChangeClearsTheLastError() async {
+    dashboard.apply(state(days: 2))
+    client.respond { _ throws(APIError) in
+      throw .server(status: 502, message: "falhou", code: nil, retry: nil)
+    }
+    await store.chooseRange(7)
+    #expect(store.rangeError == "falhou")
+
+    let answer = state(days: 3)
+    client.respond { _ in RecordingAPIClient.json(answer) }
+    await store.chooseRange(3)
+    #expect(store.rangeError == nil)
+    #expect(store.days == 3)
+  }
+
+  @Test func loadsUntilTheFirstState() {
+    #expect(store.isLoading)
+    dashboard.apply(state())
+    #expect(!store.isLoading)
   }
 
   // MARK: - Drop
@@ -81,6 +104,20 @@ import Testing
     #expect(draft?.start == localDate(2026, 9, 21, 10, 30))
     // The first writable calendar, not the first one listed.
     #expect(draft?.connectionId == "conn-google")
+  }
+
+  @Test func onlyTheViewThatTookTheDropPresentsTheSheet() {
+    dashboard.apply(state(calendars: [writable]))
+    let panel = UUID()
+    let screen = UUID()
+    #expect(store.receiveDrop([source], presenter: panel))
+    #expect(store.draft(for: panel) != nil)
+    #expect(store.draft(for: screen) == nil)
+  }
+
+  @Test func theSharedStoreIsTheSameForScreenAndPanel() {
+    let environment = AppEnvironment.preview()
+    #expect(AgendaStore.shared(in: environment) === AgendaStore.shared(in: environment))
   }
 
   @Test func anInvalidDropIsIgnored() {

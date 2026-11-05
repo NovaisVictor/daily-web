@@ -121,4 +121,8 @@ nonisolated func event(_ date: String, _ time: String, _ title: String, account:
     let good = FocusSource(kind: .task, ref: "2", title: "Escrever relatório")
     #expect(AgendaLogic.acceptedSource([bad, good]) == good)
   }
+
+  @Test func skeletonWidthsFollowTheWeb() {
+    #expect((0..<3).map(AgendaSkeletonRows.widthFraction) == [0.55, 0.68, 0.81])
+  }
 }
