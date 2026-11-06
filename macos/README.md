@@ -23,16 +23,14 @@ brew install --cask daily-web
 O Homebrew 6 ou superior pede para confiar no tap na primeira vez. Siga a
 instrução que ele mostrar ([Tap Trust](https://docs.brew.sh/Tap-Trust)).
 
-### Primeira abertura de cada versão
+### Primeira abertura
 
-O app é assinado com um certificado próprio do projeto. Ele não tem o Apple
-Developer ID pago, então o macOS bloqueia a primeira abertura de cada versão nova:
+O app é assinado com um certificado próprio do projeto, sem o Apple Developer ID
+pago e sem notarização. Para o macOS não bloquear a primeira abertura de cada
+versão, o cask remove o atributo de quarentena na instalação, como faz o cask do
+HyprMac no mesmo tap.
 
-1. Abra o Daily Web. O macOS avisa que não pode verificar o desenvolvedor.
-2. Vá em **Ajustes do Sistema → Privacidade e Segurança**.
-3. Clique em **Abrir mesmo assim** e confirme.
-
-Pelo terminal o efeito é o mesmo, também uma vez por versão:
+Se mesmo assim o macOS recusar abrir, rode:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/DailyWeb.app
@@ -94,22 +92,42 @@ As regras para quem altera o código, incluindo agentes, estão em [AGENTS.md](A
 
 ## Publicar uma versão
 
-O commit precisa estar enviado ao fork, e o `gh` precisa estar logado com acesso
-a `NovaisVictor/daily-web` e `NovaisVictor/homebrew-tap`.
+A versão é compilada e publicada a partir deste Mac. Não há build no GitHub
+Actions, porque a identidade de assinatura fica no Keychain de login de quem
+publica.
+
+Antes de rodar:
+
+- o commit precisa estar enviado ao fork, sem mudanças locais;
+- o `gh` precisa estar logado com permissão de escrita em `NovaisVictor/daily-web`
+  e `NovaisVictor/homebrew-tap`.
 
 ```sh
 cd macos
-Scripts/release.sh 0.1.0
+make release VERSION=0.2.0
 ```
 
-O script faz, em ordem:
+O `make release` roda o `make check` e depois o `Scripts/release.sh`, que faz em
+ordem:
 
-1. Compila em Release.
-2. Assina com `Scripts/sign.sh`. Na primeira vez, ele cria a identidade
+1. Confere a versão, o estado do git e as permissões do `gh`.
+2. Compila em Release, só arm64, protegido pelo `Scripts/guarded.sh`.
+3. Assina com `Scripts/sign.sh`. Na primeira vez, cria a identidade
    "Daily Web Self-Signed" no Keychain de login.
-3. Gera o zip.
-4. Publica a release `macos-v0.1.0` no fork.
-5. Atualiza o `Casks/daily-web.rb` no tap.
+4. Valida a assinatura, a arquitetura, a versão e o bundle id do app.
+5. Gera o zip e publica a release `macos-v0.2.0` no fork, com as notas geradas
+   pelo GitHub.
+6. Gera o `Casks/daily-web.rb` a partir de `Scripts/daily-web.rb.tmpl` e envia ao
+   tap.
+
+Se a release já existir no fork (uma execução anterior parou antes do tap), o
+script reaproveita o zip publicado e só atualiza o cask.
+
+Para quem já tem o app instalado:
+
+```sh
+brew update && brew upgrade --cask daily-web
+```
 
 ## Estrutura
 
