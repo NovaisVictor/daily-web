@@ -39,6 +39,11 @@ xattr -dr com.apple.quarantine /Applications/DailyWeb.app
 Como a assinatura do projeto se mantém entre versões, o macOS não pede de novo o
 acesso à sessão guardada no Keychain a cada atualização.
 
+O macOS só entrega a sessão do Keychain sem pedir senha ao app com a mesma
+assinatura de quem a gravou. Por isso o `make app` reassina o build Debug com a
+identidade "Daily Web Self-Signed" quando ela existe neste Mac: o build local e a
+versão do brew passam a ser o mesmo app para o Keychain.
+
 ### Atualizar e remover
 
 ```sh

@@ -20,8 +20,17 @@ lint:
 format:
 	swift format format --in-place --recursive --parallel App $(PKG)/Package.swift $(PKG)/Sources $(PKG)/Tests
 
+# The Keychain hands the session token only to the signing identity that saved
+# it, so an ad hoc Debug build and the brew release would each ask for the login
+# password. When this Mac has the release identity, the Debug app is re-signed
+# with it (xcodebuild overrides would also hit the package resource bundles,
+# which then demand a development team).
+SIGN_IDENTITY ?= Daily Web Self-Signed
+HAS_IDENTITY := $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(SIGN_IDENTITY)"' && echo yes)
+
 app:
 	Scripts/guarded.sh $(XCODE) -configuration Debug build
+	@if test "$(HAS_IDENTITY)" = yes; then DAILY_WEB_SIGN_IDENTITY="$(SIGN_IDENTITY)" Scripts/sign.sh .build/xcode/Build/Products/Debug/DailyWeb.app; fi
 
 check: lint test app
 
