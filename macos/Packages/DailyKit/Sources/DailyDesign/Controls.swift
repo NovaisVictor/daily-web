@@ -176,6 +176,7 @@ public struct SearchField: View {
         .font(.daily(size: 14))
         .foregroundStyle(theme.ink)
         .focused($focused)
+        .singleLine($text)
         .accessibilityLabel(label)
         .onKeyPress(.escape) {
           guard !text.isEmpty else { return .ignored }
@@ -267,9 +268,13 @@ public struct SectionHeader<Actions: View>: View {
   public var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 16) {
       HStack(alignment: .firstTextBaseline, spacing: 10) {
+        // One line that yields last: the count and the actions keep their room and
+        // a long title truncates instead of wrapping the header.
         Text(title)
           .typeRole(compact ? .caption : .subhead)
           .foregroundStyle(compact ? theme.inkDim : theme.ink)
+          .lineLimit(1)
+          .layoutPriority(1)
           .accessibilityAddTraits(.isHeader)
         if let count {
           Text(count)
@@ -332,6 +337,7 @@ public struct SegmentedPills<ID: Hashable>: View {
   }
 
   @FocusState private var focused: ID?
+  @Namespace private var indicator
   @Binding private var selection: ID
   private let label: String
   private let items: [Item]
@@ -353,7 +359,8 @@ public struct SegmentedPills<ID: Hashable>: View {
           count: item.count,
           isSelected: item.id == selection,
           isFocused: focused == item.id,
-          style: style
+          style: style,
+          indicator: indicator
         ) {
           selection = item.id
         }
@@ -363,6 +370,8 @@ public struct SegmentedPills<ID: Hashable>: View {
         .onKeyPress(.leftArrow) { move(from: offset, step: -1) }
       }
     }
+    // One selection indicator slides between the pills (matched geometry below).
+    .dailyAnimation(Motion.standard, value: selection)
     .accessibilityElement(children: .contain)
     .accessibilityLabel(label)
     .accessibilityAddTraits(.isTabBar)
@@ -411,6 +420,9 @@ public enum SegmentedPillsStyle: String, Sendable, CaseIterable {
     return PillPalette(fill: fill, foreground: theme.ink, shadow: .control)
   }
 
+  /// The matched-geometry id of the sliding selection indicator.
+  static let indicatorID = "segmented-indicator"
+
   /// The arrow-key target, wrapping at both ends (`legacy-tabs.tsx` `mover`).
   public static func index(from index: Int, step: Int, count: Int) -> Int {
     ((index + step) % count + count) % count
@@ -437,40 +449,104 @@ private struct SegmentedGroup<Content: View>: View {
 }
 
 private struct SegmentedPill: View {
-  @Environment(\.theme) private var theme
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var hovering = false
   let label: String
   let count: Int?
   let isSelected: Bool
   let isFocused: Bool
   let style: SegmentedPillsStyle
+  let indicator: Namespace.ID
   let select: () -> Void
 
   var body: some View {
-    let palette = style.pillPalette(isSelected: isSelected, hovering: hovering, theme: theme)
-    HStack(spacing: 6) {
-      Text(label)
-      if let count, count > 0 {
-        Text("\(count)").monospacedDigit().foregroundStyle(theme.inkDim)
+    Button(action: select) {
+      HStack(spacing: 6) {
+        Text(label)
+        if let count, count > 0 {
+          SegmentedPillCount(count: count)
+        }
       }
     }
-    .font(.daily(size: 14, weight: style.weight))
-    .lineLimit(1)
-    .foregroundStyle(palette.foreground)
-    .padding(.horizontal, style.pillPadding)
-    .frame(height: style.pillHeight)
-    .pillSurface(palette, in: Capsule())
-    .dailyFocusRing(isFocused, in: Capsule())
-    .contentShape(.capsule)
+    .buttonStyle(
+      SegmentedPillButtonStyle(style: style, isSelected: isSelected, isFocused: isFocused, indicator: indicator)
+    )
+    // `SegmentedPills` owns the focus (only the active pill is a Tab stop); the
+    // button must not add a stop of its own under Full Keyboard Access.
+    .focusable(false)
     .focusEffectDisabled()
-    .onHover { hovering = $0 }
-    .onTapGesture(perform: select)
-    .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: isSelected)
     .accessibilityElement()
     .accessibilityLabel(SegmentedPillsStyle.accessibilityLabel(label, count: count))
     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     .accessibilityAction(.default, select)
+  }
+}
+
+private struct SegmentedPillCount: View {
+  @Environment(\.theme) private var theme
+  let count: Int
+
+  var body: some View {
+    Text("\(count)")
+      .monospacedDigit()
+      .foregroundStyle(theme.inkDim)
+      .contentTransition(.numericText(value: Double(count)))
+      .dailyAnimation(value: count)
+  }
+}
+
+private struct SegmentedPillButtonStyle: ButtonStyle {
+  let style: SegmentedPillsStyle
+  let isSelected: Bool
+  let isFocused: Bool
+  let indicator: Namespace.ID
+
+  func makeBody(configuration: Configuration) -> some View {
+    SegmentedPillBody(
+      configuration: configuration,
+      style: style,
+      isSelected: isSelected,
+      isFocused: isFocused,
+      indicator: indicator
+    )
+  }
+}
+
+private struct SegmentedPillBody: View {
+  @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var hovering = false
+  let configuration: ButtonStyleConfiguration
+  let style: SegmentedPillsStyle
+  let isSelected: Bool
+  let isFocused: Bool
+  let indicator: Namespace.ID
+
+  var body: some View {
+    let palette = style.pillPalette(isSelected: isSelected, hovering: hovering, theme: theme)
+    let pressed = configuration.isPressed
+    configuration.label
+      .font(.daily(size: 14, weight: style.weight))
+      .lineLimit(1)
+      .foregroundStyle(palette.foreground)
+      .padding(.horizontal, style.pillPadding)
+      .frame(height: style.pillHeight)
+      .background {
+        // Only the selected pill hosts the indicator; matched geometry carries it
+        // from the old pill to the new one inside the group's animation.
+        if isSelected {
+          Color.clear
+            .pillSurface(palette, in: Capsule())
+            .matchedGeometryEffect(id: SegmentedPillsStyle.indicatorID, in: indicator)
+        }
+      }
+      .dailyFocusRing(isFocused, in: Capsule())
+      .contentShape(.capsule)
+      // The web pill has no pressed state; a slight sink is the native press
+      // feedback a Button gives, kept still under Reduce Motion.
+      .scaleEffect(pressed && !reduceMotion ? 0.96 : 1)
+      .onHover { hovering = $0 }
+      // `transition-colors duration-100`.
+      .animation(Motion.ease(Motion.hover, reduceMotion: reduceMotion), value: hovering)
+      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: pressed)
   }
 }
 
@@ -537,6 +613,8 @@ private struct RemoveGlyph: View {
       .dailyFocusRing(isFocused, in: Circle())
       .contentShape(.circle)
       .onHover { hovering = $0 }
+      // `transition-colors duration-100`.
+      .dailyAnimation(Motion.hover, value: hovering)
   }
 }
 
@@ -561,6 +639,8 @@ public struct CountSlot: View {
       .typeRole(.caption)
       .monospacedDigit()
       .foregroundStyle(lit ? theme.brand : .clear)
+      .contentTransition(.numericText(value: Double(count)))
+      .dailyAnimation(value: count)
       .padding(.horizontal, 6)
       .background(lit ? theme.brandTint : .clear, in: .capsule)
       .overlay {

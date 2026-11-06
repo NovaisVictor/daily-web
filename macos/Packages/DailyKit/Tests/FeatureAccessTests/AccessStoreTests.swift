@@ -111,6 +111,9 @@ nonisolated func answer(_ call: FakeAPIClient.Call) throws(APIError) -> Data {
   @Test func labelIsCappedAndRequired() {
     store.setLabel(String(repeating: "a", count: 90))
     #expect(store.label.count == 80)
+    #expect(store.labelCut)
+    store.setLabel(String(repeating: "a", count: 79))
+    #expect(!store.labelCut)
     store.setLabel("   ")
     #expect(!store.canCreate)
   }

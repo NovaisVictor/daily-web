@@ -334,6 +334,7 @@ struct HoldReasonSheet: View {
   let status: AgentTaskStatus
   @State private var reason: AgentHoldReason?
   @State private var note = ""
+  @State private var noteCut = false
 
   private var hold: AgentTaskHold? { AgentsLogic.hold(status: status, reason: reason, note: note) }
 
@@ -345,10 +346,19 @@ struct HoldReasonSheet: View {
           Text(AgentsLogic.holdLabel(value, status: status)).tag(AgentHoldReason?.some(value))
         }
       }
+      let noteText = Binding(
+        get: { note },
+        set: {
+          let capped = AgentsLogic.capped($0, limit: AgentsLogic.holdNoteMax, wasCut: noteCut)
+          note = capped.text
+          noteCut = capped.cut
+        })
       TextField(
-        reason == .other ? "Detalhe" : "Detalhe (opcional)",
-        text: Binding(get: { note }, set: { note = String($0.prefix(AgentsLogic.holdNoteMax)) }),
-        prompt: Text(status == .waiting ? "Ex.: PR #81" : "Ex.: escolher entre A e B"))
+        reason == .other ? "Detalhe" : "Detalhe (opcional)", text: noteText,
+        prompt: Text(status == .waiting ? "Ex.: PR #81" : "Ex.: escolher entre A e B")
+      )
+      .singleLine(noteText)
+      if noteCut { AgentsCutHint(limit: AgentsLogic.holdNoteMax) }
       if let error = store.actionError {
         Text(error).foregroundStyle(theme.danger)
       }
@@ -391,22 +401,36 @@ struct EditTaskSheet: View {
   @Environment(\.theme) private var theme
   let store: AgentTaskDetailStore
   @State var draft: AgentTaskActions.EditDraft
+  @State private var titleCut = false
+  @State private var descriptionCut = false
 
   var body: some View {
     Form {
-      TextField(
-        "Título",
-        text: Binding(get: { draft.title }, set: { draft.title = String($0.prefix(AgentsLogic.titleMax)) }))
+      let title = Binding(
+        get: { draft.title },
+        set: {
+          let capped = AgentsLogic.capped($0, limit: AgentsLogic.titleMax, wasCut: titleCut)
+          draft.title = capped.text
+          titleCut = capped.cut
+        })
+      TextField("Título", text: title)
+        .singleLine(title)
+      if titleCut { AgentsCutHint(limit: AgentsLogic.titleMax) }
       VStack(alignment: .leading, spacing: 4) {
         Text("Descrição")
         TextEditor(
           text: Binding(
             get: { draft.description },
-            set: { draft.description = String($0.prefix(AgentsLogic.descriptionMax)) })
+            set: {
+              let capped = AgentsLogic.capped($0, limit: AgentsLogic.descriptionMax, wasCut: descriptionCut)
+              draft.description = capped.text
+              descriptionCut = capped.cut
+            })
         )
         .font(.daily(size: 13))
         .frame(minHeight: 120)
         .accessibilityLabel("Descrição")
+        if descriptionCut { AgentsCutHint(limit: AgentsLogic.descriptionMax) }
       }
       if let error = store.actionError {
         Text(error).foregroundStyle(theme.danger)

@@ -12,10 +12,17 @@ struct RootView: View {
   /// screens move; a window opened with ⌘N keeps a sidebar selection of its own.
   let followsNavigator: Bool
   @State private var ownSelection: AppRoute? = .today
+  @State private var isLeavingServer = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private var screen: SessionScreen {
+    SessionScreen(phase: environment.session.phase, hasRestoreError: environment.session.restoreError != nil)
+  }
 
   var body: some View {
     ThemedRoot(preferences: environment.preferences) {
-      content
+      ZStack { content }
+        .animation(reduceMotion ? nil : Motion.easeInOut(Motion.slow), value: screen)
         .frame(minWidth: 900, minHeight: 560)
         .overlay(alignment: .bottomTrailing) { toasts }
     }
@@ -35,28 +42,53 @@ struct RootView: View {
   }
 
   @ViewBuilder private var content: some View {
-    switch environment.session.phase {
-    case .restoring:
-      if let error = environment.session.restoreError {
-        ErrorState("Não foi possível conectar ao servidor", description: error.userMessage) {
-          Task { await environment.launch() }
+    Group {
+      switch environment.session.phase {
+      case .restoring:
+        if let error = environment.session.restoreError {
+          restoreFailed(error.userMessage)
+        } else {
+          LoadingState()
         }
-      } else {
-        LoadingState()
+      case .signedOut(let message):
+        VStack(spacing: 12) {
+          if let message {
+            PanelError(message)
+              .frame(maxWidth: 360)
+              .transition(.opacity)
+          }
+          LoginView(initialServer: environment.session.serverURL) { server, username, password in
+            await environment.session.signIn(server: server, username: username, password: password)
+          }
+        }
+      case .signedIn(let user):
+        MainWindow(environment: environment, selection: selection, user: user, opener: opener)
       }
-    case .signedOut(let message):
-      VStack(spacing: 12) {
-        if let message {
-          PanelError(message)
-            .frame(maxWidth: 360)
-        }
-        LoginView(initialServer: environment.session.serverURL) { server, username, password in
-          await environment.session.signIn(server: server, username: username, password: password)
-        }
-      }
-    case .signedIn(let user):
-      MainWindow(environment: environment, selection: selection, user: user, opener: opener)
     }
+    .transition(.opacity.combined(with: .scale(0.98)))
+  }
+
+  /// A stored server that no longer answers (a stopped localhost, a moved host)
+  /// would otherwise leave the app retrying forever: signing out forgets its
+  /// token and opens the login screen with the server field to change.
+  private func restoreFailed(_ message: String) -> some View {
+    VStack(spacing: 12) {
+      ErrorState("Não foi possível conectar ao servidor", description: message) {
+        Task { await environment.launch() }
+      }
+      Button(isLeavingServer ? "Saindo…" : "Entrar em outro servidor") {
+        isLeavingServer = true
+        Task {
+          await environment.session.signOut()
+          isLeavingServer = false
+        }
+      }
+      .pillButtonStyle(.ghost, size: .small)
+    }
+    // Retrying while the sign-out runs would race it back into `.restoring`.
+    .disabled(isLeavingServer)
+    .frame(maxWidth: 480)
+    .padding(24)
   }
 
   private var toasts: some View {

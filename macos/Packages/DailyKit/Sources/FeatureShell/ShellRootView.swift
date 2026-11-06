@@ -20,6 +20,7 @@ public struct ShellRootView<Accessory: View>: View {
 
   @State private var isPalettePresented = false
   @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// - Parameters:
   ///   - onOpenInNewWindow: opens one entry in a window of its own; nil hides the option.
@@ -76,22 +77,21 @@ public struct ShellRootView<Accessory: View>: View {
       .scrollContentBackground(.hidden)
       .navigationSplitViewColumnWidth(min: 180, ideal: 220)
     } detail: {
-      detail
+      ZStack { detail }
+        .animation(Motion.ease(Motion.standard, reduceMotion: reduceMotion), value: selection)
     }
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         // One glass bar of our own, like the web header (spec 013 FR-013-02), instead of
         // the system's shared toolbar background behind each item.
-        GlassGroup {
-          HStack(spacing: 2) {
-            IconButton("Buscar", systemImage: "magnifyingglass") { isPalettePresented = true }
-            RefreshButton(isRefreshing: isRefreshing, action: onRefresh)
-            accessory
-            AccountMenu(account: account, appearance: appearance, actions: accountActions)
-          }
-          .padding(4)
-          .glassSurface(.bar)
+        HStack(spacing: 4) {
+          IconButton("Buscar", systemImage: "magnifyingglass") { isPalettePresented = true }
+          RefreshButton(isRefreshing: isRefreshing, action: onRefresh)
+          accessory
+          AccountMenu(account: account, appearance: appearance, actions: accountActions)
         }
+        .padding(4)
+        .glassSurface(.bar)
       }
       .sharedBackgroundVisibility(.hidden)
     }
@@ -125,6 +125,7 @@ public struct ShellRootView<Accessory: View>: View {
       // first route's @State store when the selection changes.
       entry.makeView()
         .id(selection)
+        .transition(.opacity)
     } else {
       ContentUnavailableView("Escolha uma tela na barra lateral", systemImage: "sidebar.left")
         .foregroundStyle(theme.inkMid)
@@ -136,16 +137,24 @@ public struct ShellRootView<Accessory: View>: View {
 struct RefreshButton: View {
   let isRefreshing: Bool
   let action: () -> Void
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var label: String { isRefreshing ? "Atualizando…" : "Atualizar agora" }
 
   var body: some View {
     Button(action: action) {
-      if isRefreshing {
-        ProgressView().controlSize(.small)
-      } else {
-        Image(systemName: "arrow.clockwise").accessibilityHidden(true)
+      // The spinner is a control, not a symbol, so the swap is a crossfade rather
+      // than a symbol replace transition.
+      ZStack {
+        if isRefreshing {
+          ProgressView().controlSize(.small)
+            .transition(.opacity)
+        } else {
+          Image(systemName: "arrow.clockwise").accessibilityHidden(true)
+            .transition(.opacity)
+        }
       }
+      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: isRefreshing)
     }
     .iconButtonStyle()
     .disabled(isRefreshing)

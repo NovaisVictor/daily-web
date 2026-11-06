@@ -160,7 +160,7 @@ private struct GalleryContent: View {
               .font(.daily(size: 12, weight: .medium))
               .foregroundStyle(theme.postitInk)
               .frame(width: 72, height: 56)
-              .background(color, in: .rect(cornerRadius: 2))
+              .background(color, in: .rect(cornerRadius: Radius.hairline))
           }
         }
       }

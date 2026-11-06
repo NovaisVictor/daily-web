@@ -21,6 +21,7 @@ struct TrackedReposView: View {
         }
         HStack(spacing: 8) {
           TextField("owner/repo", text: $store.newRepo)
+            .singleLine($store.newRepo)
             .textFieldStyle(.roundedBorder)
             .accessibilityLabel("novo repositório")
             .onSubmit { Task { await store.addRepo() } }
@@ -71,6 +72,7 @@ private struct RepoAuthorsView: View {
       }
       HStack(spacing: 6) {
         TextField("acompanhar só este autor", text: draft)
+          .singleLine(draft)
           .textFieldStyle(.roundedBorder)
           .controlSize(.small)
           .accessibilityLabel("novo autor em \(repo)")

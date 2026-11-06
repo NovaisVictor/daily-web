@@ -50,6 +50,18 @@ struct PriorityPill: View {
   }
 }
 
+/// Said under a task title the limit cut, so the lost end is not a silent surprise.
+/// The web's `maxLength` only stops typing; a paste here is cut instead.
+struct TitleLimitHint: View {
+  @Environment(\.theme) private var theme
+
+  var body: some View {
+    Text("Limite de \(TaskDraft.titleLimit) caracteres")
+      .typeRole(.caption)
+      .foregroundStyle(theme.inkDim)
+  }
+}
+
 /// The due date of a row. Late is said with a glyph and a word as well as the
 /// warning hue, so it does not depend on telling colours apart.
 struct DueLabel: View {

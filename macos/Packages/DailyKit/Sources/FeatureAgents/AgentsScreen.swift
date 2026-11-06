@@ -13,6 +13,7 @@ public struct AgentsScreen: View {
   @FocusState private var focusedCard: String?
   @Environment(\.theme) private var theme
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
@@ -124,11 +125,12 @@ public struct AgentsScreen: View {
     if !waiting.isEmpty, store.query.tab == .tasks {
       Button {
         guard let first = waiting.first else { return }
-        withAnimation { proxy.scrollTo(first.id, anchor: .center) }
+        Motion.animate(reduceMotion: reduceMotion, Motion.slow) { proxy.scrollTo(first.id, anchor: .center) }
         focusedCard = first.id
       } label: {
         HStack(spacing: 6) {
-          Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
+          // `motion-safe:animate-ping` (`AgentBoard.tsx:60`).
+          PingDot(color: theme.danger)
           Text("\(waiting.count) aguardando você").font(.daily(size: 12, weight: .semibold))
         }
         .foregroundStyle(theme.danger)
@@ -161,11 +163,12 @@ public struct AgentsScreen: View {
       }
     }
     .popover(isPresented: $searchPresented, arrowEdge: .bottom) {
-      SearchField(
-        text: Binding(get: { store.searchText }, set: { store.setSearchText($0) }),
-        label: "Buscar tarefas",
-        placeholder: "Buscar tarefa…"
-      )
+      let text = Binding(get: { store.searchText }, set: { store.setSearchText($0) })
+      VStack(alignment: .leading, spacing: 6) {
+        SearchField(text: text, label: "Buscar tarefas", placeholder: "Buscar tarefa…")
+          .singleLine(text)
+        if store.searchTextCut { AgentsCutHint(limit: AgentsLogic.searchMax) }
+      }
       .frame(width: 300)
       .padding(8)
     }

@@ -4,9 +4,11 @@ import DailyModels
 import SwiftUI
 
 /// Theme, density, backdrop and content width (`components/AppearancePanel.tsx`).
-/// Each pick applies at once and is saved with `PATCH /api/preferences`.
+/// Each pick applies at once and is saved with `PATCH /api/preferences`; the panel
+/// material is the exception, kept on this Mac only.
 struct AppearanceSettingsView: View {
   @Environment(\.theme) private var theme
+  @AppStorage(PanelMaterial.storageKey) private var panelMaterial: PanelMaterial = .defaultValue
   let preferences: PreferencesStore
 
   /// `THEME_OPTIONS`, `DENSITY_OPTIONS` and `BACKDROP_OPTIONS` of the web.
@@ -19,6 +21,21 @@ struct AppearanceSettingsView: View {
     // Only the dark theme is remapped, so the hint keeps a light-theme pick from looking broken.
     (.dracula, "Dracula (só no tema escuro)"), (.wezterm, "WezTerm (só no tema escuro)"),
   ]
+  /// Named after Apple's Liquid Glass variants; the web has no equivalent option.
+  static let materials: [(PanelMaterial, String, String)] = [
+    (.liquidGlass, "Liquid Glass", "Vidro regular: desfoca o fundo para manter a leitura"),
+    (
+      .clearGlass, "Liquid Glass transparente",
+      "Variante clear: mais translúcida, com escurecimento sobre fundos claros"
+    ),
+    (
+      .standard, "Material padrão",
+      "Recomendação da Apple: vidro só nos controles e na navegação; painéis com material padrão"
+    ),
+  ]
+  static let materialFootnote =
+    "O app respeita a preferência de Liquid Glass do sistema e as opções de acessibilidade "
+    + "Reduzir transparência e Aumentar contraste."
   /// `LIMITED_CONTENT_WIDTH`, `lib/theme.ts:14`.
   static let limitedWidth = 1216
 
@@ -42,6 +59,9 @@ struct AppearanceSettingsView: View {
       SettingsSection("Largura do conteúdo") {
         widthCard
       }
+      SettingsSection("Material dos painéis") {
+        materialPicker
+      }
     }
   }
 
@@ -52,11 +72,22 @@ struct AppearanceSettingsView: View {
     selected: Value,
     patch: @escaping (Value) -> Appearance
   ) -> some View {
+    optionButtons(items, selected: selected) { value in
+      Task { await preferences.updateAppearance(patch(value)) }
+    }
+  }
+
+  /// The same row for a choice that is not a server preference.
+  private func optionButtons<Value: Hashable>(
+    _ items: [(Value, String, String?)],
+    selected: Value,
+    select: @escaping (Value) -> Void
+  ) -> some View {
     FlowLayout(spacing: 8) {
       ForEach(items, id: \.0) { value, label, symbol in
         let isOn = value == selected
         Button {
-          Task { await preferences.updateAppearance(patch(value)) }
+          select(value)
         } label: {
           if let symbol {
             Label(label, systemImage: symbol)
@@ -67,6 +98,22 @@ struct AppearanceSettingsView: View {
         .pillButtonStyle(isOn ? .primary : .outline, size: .small)
         .accessibilityAddTraits(isOn ? [.isSelected] : [])
       }
+    }
+  }
+
+  private var materialPicker: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      optionButtons(Self.materials.map { ($0.0, $0.1, nil) }, selected: panelMaterial) { panelMaterial = $0 }
+      if let description = Self.materials.first(where: { $0.0 == panelMaterial })?.2 {
+        Text(description)
+          .typeRole(.data)
+          .foregroundStyle(theme.inkMid)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Text(Self.materialFootnote)
+        .typeRole(.caption)
+        .foregroundStyle(theme.inkDim)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -114,4 +161,11 @@ struct AppearanceSettingsView: View {
       }
     )
   }
+}
+
+extension PanelMaterial {
+  /// Read by the settings picker and by the app root that injects the material,
+  /// so both always agree on where the choice lives.
+  public static let storageKey = "io.github.novaisvictor.dailyweb.panelMaterial"
+  public static let defaultValue: PanelMaterial = .liquidGlass
 }

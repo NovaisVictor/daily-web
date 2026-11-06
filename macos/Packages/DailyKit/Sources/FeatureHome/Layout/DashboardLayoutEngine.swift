@@ -34,6 +34,28 @@ public nonisolated struct PanelPlacement: Sendable, Equatable, Hashable, Codable
   }
 }
 
+/// A grid cell: where a panel's top-left corner sits, in grid units.
+public nonisolated struct GridCell: Sendable, Equatable, Hashable {
+  public var x: Int
+  public var y: Int
+
+  public init(x: Int, y: Int) {
+    self.x = x
+    self.y = y
+  }
+}
+
+/// A panel's size in grid units.
+public nonisolated struct GridSpan: Sendable, Equatable, Hashable {
+  public var w: Int
+  public var h: Int
+
+  public init(w: Int, h: Int) {
+    self.w = w
+    self.h = h
+  }
+}
+
 /// A grid layout saved for one window size (`SizedLayout`, `lib/dashboardLayout.ts:107-111`).
 public nonisolated struct SizedLayout: Sendable, Equatable, Hashable {
   public var width: Int
@@ -249,23 +271,71 @@ public nonisolated enum DashboardLayoutEngine {
     return CGRect(x: left, y: top, width: right - left, height: bottom - top)
   }
 
-  /// The grid cell a panel of width `w` and height `h` dragged to `origin`
-  /// lands on (`calcXY`).
-  public static func gridPosition(
-    origin: CGPoint, w: Int, h: Int, containerWidth: CGFloat
-  ) -> (x: Int, y: Int) {
+  // MARK: - Following the pointer
+
+  /// How far, in cells, a panel has to be carried from the cell it is on
+  /// before it switches cells. `calcXY` rounds, which switches at half a cell:
+  /// a pointer resting near that edge flipped the cell, and every panel with
+  /// it, back and forth. Past 0.6, a band of 0.2 cell holds the current one.
+  public static let cellSwitchDistance = 0.6
+
+  /// The grid cell a panel `w` columns wide dragged to `origin` lands on
+  /// (`calcXY`), staying on `previous` until it is carried far enough away.
+  public static func cell(for origin: CGPoint, w: Int, containerWidth: CGFloat, previous: GridCell?) -> GridCell {
     let column = columnWidth(containerWidth: containerWidth)
-    let x = Int(jsRound(Double(origin.x / (column + margin))))
-    let y = Int(jsRound(Double(origin.y / (rowHeight + margin))))
-    return (min(max(x, 0), max(0, columns - w)), max(y, 0))
+    let x = snap(Double(origin.x / (column + margin)), previous: previous?.x)
+    let y = snap(Double(origin.y / (rowHeight + margin)), previous: previous?.y)
+    return GridCell(x: min(max(x, 0), max(0, columns - w)), y: min(max(y, 0), maximumY))
   }
 
-  /// The grid size a panel at column `x` takes when resized to `size` (`calcWH`).
-  public static func gridSize(size: CGSize, x: Int, containerWidth: CGFloat) -> (w: Int, h: Int) {
+  /// The grid size a panel at column `x` takes when resized to `size`
+  /// (`calcWH`), with the same hold as `cell(for:)` and the limits `resize`
+  /// applies, so the size reported is the size drawn.
+  public static func span(for size: CGSize, x: Int, containerWidth: CGFloat, previous: GridSpan?) -> GridSpan {
     let column = columnWidth(containerWidth: containerWidth)
-    let w = Int(jsRound(Double((size.width + margin) / (column + margin))))
-    let h = Int(jsRound(Double((size.height + margin) / (rowHeight + margin))))
-    return (min(max(w, 0), columns - x), max(h, 0))
+    let w = snap(Double((size.width + margin) / (column + margin)), previous: previous?.w)
+    let h = snap(Double((size.height + margin) / (rowHeight + margin)), previous: previous?.h)
+    return GridSpan(
+      w: max(min(w, columns - x), minimumWidth),
+      h: min(max(h, minimumHeight), maximumHeight))
+  }
+
+  /// The layout while panel `id` is dragged to `cell`, always from the layout
+  /// the drag started on: the same cell gives the same layout, and coming
+  /// back to the first cell gives the start back (`react-grid-layout` keeps
+  /// `oldLayout` for the same reason).
+  public static func dragPreview(startLayout: [PanelPlacement], id: ModuleID, cell: GridCell) -> [PanelPlacement] {
+    move(startLayout, id: id, x: cell.x, y: cell.y)
+  }
+
+  /// The layout while panel `id` is resized to `size`, from the layout the
+  /// resize started on.
+  public static func resizePreview(startLayout: [PanelPlacement], id: ModuleID, size: GridSpan) -> [PanelPlacement] {
+    resize(startLayout, id: id, w: size.w, h: size.h)
+  }
+
+  /// Moves panel `id` from the keyboard, `dx` columns or `dy` rows at a time.
+  /// A row down that the compaction pulls straight back is no move, so the
+  /// step grows until the panel lands somewhere else or runs out of grid.
+  public static func nudge(_ layout: [PanelPlacement], id: ModuleID, dx: Int, dy: Int) -> [PanelPlacement] {
+    guard dx != 0 || dy != 0, let placement = layout.first(where: { $0.i == id }) else { return layout }
+    let steps = max(columns, bottom(layout) + 1)
+    for step in 1...steps {
+      let x = placement.x + dx * step
+      let y = placement.y + dy * step
+      guard x >= 0, x + placement.w <= columns, y >= 0 else { break }
+      let moved = move(layout, id: id, x: x, y: y)
+      if moved.first(where: { $0.i == id }) != placement { return moved }
+    }
+    return layout
+  }
+
+  /// Rounds a position in cells, keeping `previous` while it is near.
+  static func snap(_ position: Double, previous: Int?) -> Int {
+    guard position.isFinite else { return previous ?? 0 }
+    if let previous, abs(position - Double(previous)) < cellSwitchDistance { return previous }
+    // Bounded like `pixels`, so a degenerate width cannot trap on the conversion.
+    return Int(min(max(jsRound(position), -1_000_000), 1_000_000))
   }
 
   /// The content height a layout needs (`containerHeight`).

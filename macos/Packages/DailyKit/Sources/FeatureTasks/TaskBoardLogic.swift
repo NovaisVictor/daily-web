@@ -194,12 +194,14 @@ nonisolated enum TaskBoard {
   }
 }
 
-/// The narrow board (`TaskBoard.tsx:393-421`): below `@[30rem]` one column
+/// The narrow board (`TaskBoard.tsx:393-421`): below `breakpoint` one column
 /// shows at a time, behind tabs, because stacked lanes put "Fazendo" and
 /// "Feito" far below the fold of a panel.
 nonisolated enum BoardTabs {
-  /// `30rem`.
-  static let breakpoint: CGFloat = 480
+  /// The web's `30rem` (480) plus room for the 16pt padding the dashboard tab
+  /// puts around the panel: at 480 the three lanes came out about 150pt wide,
+  /// too narrow for a note's title.
+  static let breakpoint: CGFloat = 560
 
   static func usesTabs(width: CGFloat) -> Bool {
     width < breakpoint

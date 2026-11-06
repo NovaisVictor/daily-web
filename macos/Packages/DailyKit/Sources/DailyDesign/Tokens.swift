@@ -84,7 +84,7 @@ extension View {
 
 /// The radius scale derived from `--radius` (globals.css:132 and :771-774).
 /// Buttons, chips and status pills do not use it: they are capsules.
-public enum Radius {
+nonisolated public enum Radius {
   /// `--radius-sm`, radius − 2px.
   public static let small: CGFloat = 10
   /// `--radius-md`, the base `--radius`.
@@ -93,33 +93,16 @@ public enum Radius {
   public static let large: CGFloat = 14
   /// `--radius-xl`, radius + 5px.
   public static let extraLarge: CGFloat = 17
-}
+  /// The web's 2-3px details: colour swatches, progress tracks, small marks.
+  public static let hairline: CGFloat = 2
+  /// The smallest radius a nested rounded shape keeps, so a deep inset never
+  /// reaches a square corner.
+  public static let tiny: CGFloat = 6
 
-// MARK: - Motion
-
-/// `--dur-fast`, `--dur`, `--dur-slow` and `--ease` (globals.css:124-128).
-public enum Motion {
-  /// 110ms.
-  public static let fast: TimeInterval = 0.110
-  /// 160ms.
-  public static let standard: TimeInterval = 0.160
-  /// 240ms.
-  public static let slow: TimeInterval = 0.240
-
-  /// `--ease: cubic-bezier(0.2, 0, 0, 1)`.
-  public static func ease(_ duration: TimeInterval = standard) -> Animation {
-    .timingCurve(0.2, 0, 0, 1, duration: duration)
-  }
-
-  /// `--ease-in-out: cubic-bezier(0.4, 0, 0.2, 1)`.
-  public static func easeInOut(_ duration: TimeInterval = standard) -> Animation {
-    .timingCurve(0.4, 0, 0.2, 1, duration: duration)
-  }
-
-  /// The brand ease, or no animation when Reduce Motion is on (the web's
-  /// `motion-reduce:transition-none`).
-  public static func ease(_ duration: TimeInterval = standard, reduceMotion: Bool) -> Animation? {
-    reduceMotion ? nil : ease(duration)
+  /// The concentric radius of a shape inset by `inset` inside one rounded by
+  /// `outer`: the corners then share one centre, as macOS 26 draws nested glass.
+  public static func nested(_ outer: CGFloat, inset: CGFloat) -> CGFloat {
+    max(outer - inset, tiny)
   }
 }
 

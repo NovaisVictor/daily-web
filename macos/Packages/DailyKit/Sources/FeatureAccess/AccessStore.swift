@@ -14,6 +14,8 @@ final class AccessStore {
   /// Load, create and revoke share one message, as on the web (`AccessPanel.tsx:31`).
   private(set) var error: String?
   var label = ""
+  /// Whether the last edit went past `labelMax` and was cut, so the field can say so.
+  private(set) var labelCut = false
   var permission: AccessPermission = .report
   private(set) var isSaving = false
   /// The new token's secret, until the user says it is saved. Never kept anywhere else.
@@ -43,7 +45,9 @@ final class AccessStore {
   }
 
   func setLabel(_ value: String) {
-    label = String(value.prefix(AccessLogic.labelMax))
+    let capped = AccessLogic.capped(value, limit: AccessLogic.labelMax, wasCut: labelCut)
+    label = capped.text
+    labelCut = capped.cut
   }
 
   /// Everything the screen reads, in parallel.
@@ -121,6 +125,7 @@ final class AccessStore {
       }
       secret = created.secret
       label = ""
+      labelCut = false
     } catch {
       Logger.access.error("Token creation failed: \(String(describing: error), privacy: .public)")
       self.error = AccessLogic.message(error)

@@ -67,12 +67,23 @@ struct NeedsYouLine: View {
 
   var body: some View {
     HStack(spacing: 6) {
-      Circle().fill(theme.danger).frame(width: 6, height: 6).accessibilityHidden(true)
+      // `motion-safe:animate-ping` (`TaskCard.tsx:14`).
+      PingDot(color: theme.danger)
       Text(needsYou.label).font(.daily(size: 11, weight: .semibold)).foregroundStyle(theme.danger)
       Text("· \(AgentsLogic.waitedFor(needsYou.since, now: now))").foregroundStyle(theme.inkDim)
     }
     .font(.daily(size: 11))
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// The note under a field whose paste went past its limit.
+struct AgentsCutHint: View {
+  @Environment(\.theme) private var theme
+  let limit: Int
+
+  var body: some View {
+    Text(AgentsLogic.cutHint(limit)).font(.daily(size: 12)).foregroundStyle(theme.warning)
   }
 }
 
@@ -129,8 +140,11 @@ struct AgentTaskCard: View {
         }
       }
       .overlay {
+        // `motion-safe:animate-[needs-you_2s_ease-in-out_infinite]` (`TaskCard.tsx:13`):
+        // only the ring breathes, so the card's text stays steady.
         RoundedRectangle(cornerRadius: Radius.small)
           .strokeBorder(waiting == nil ? theme.line : theme.danger.opacity(0.7), lineWidth: waiting == nil ? 1 : 2)
+          .ambientPulse(active: waiting != nil)
       }
       .contentShape(.rect)
     }
@@ -401,8 +415,9 @@ struct AgentSessionGrid: View {
     .glassSurface(.panel)
     .overlay {
       // `border-danger ring-2 ring-danger/40` on the session that needs the user.
-      if attention != nil {
-        RoundedRectangle(cornerRadius: Radius.medium).strokeBorder(theme.danger, lineWidth: 2)
+      // Read from the role so the ring follows the glass shape it outlines.
+      if attention != nil, let radius = GlassRole.panel.cornerRadius {
+        RoundedRectangle(cornerRadius: radius).strokeBorder(theme.danger, lineWidth: 2)
       }
     }
   }

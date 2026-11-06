@@ -142,6 +142,7 @@ struct EmailListPane: View {
   private var filterBar: some View {
     FilterBar("Filtrar e-mails") {
       SearchField(text: $store.filters.query, label: "buscar e-mails", placeholder: "assunto ou remetente")
+        .singleLine($store.filters.query)
       if !isNarrow {
         Chip("Não lidos", isOn: store.filters.onlyUnread) { store.filters.onlyUnread.toggle() }
         // One box needs no box filter.

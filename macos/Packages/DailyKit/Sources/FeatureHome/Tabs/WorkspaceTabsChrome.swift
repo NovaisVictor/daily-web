@@ -48,14 +48,32 @@ enum WorkspaceChrome {
   nonisolated static let coordinateSpace = "workspace-tabs"
   /// `--trellis-radius` as the home page sets it: `--radius + 5px`.
   static let groupRadius: CGFloat = Radius.extraLarge
-  /// `--trellis-tab-radius`.
-  static let tabRadius: CGFloat = 7
   /// `--trellis-tab-inset`.
   static let tabInset: CGFloat = 4
+  /// Concentric with the group the tabs sit `tabInset` inside of; Trellis'
+  /// fixed `--trellis-tab-radius` (7px) left a visibly flatter curve there.
+  static let tabRadius: CGFloat = Radius.nested(groupRadius, inset: tabInset)
+  /// The `HStack` spacing between tabs, which the in-strip sort packs with too.
+  static let tabSpacing: CGFloat = 2
   static let tabMinWidth: CGFloat = 72
   static let tabMaxWidth: CGFloat = 220
   /// `--trellis-font-size` on the home page: 0.8125rem.
   static let tabFontSize: CGFloat = 13
+
+  /// `[data-sorting]`: `transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)`, the
+  /// siblings sliding aside while a tab is reordered in its strip.
+  static func sortAnimation(reduceMotion: Bool) -> Animation? {
+    reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.18)
+  }
+}
+
+/// A tab's part in a drag: following the pointer inside its strip
+/// (`[data-dragging]`, on top and fully drawn), or left behind dimmed while a
+/// ghost carries it elsewhere.
+enum WorkspaceTabDragRole: Equatable {
+  case none
+  case following
+  case leftBehind
 }
 
 /// One tab (`[data-trellis-part="tab"]`): muted until hovered or selected; the
@@ -67,7 +85,7 @@ struct WorkspaceTabButton: View {
   let title: String
   let isSelected: Bool
   let isInFocusedGroup: Bool
-  let isDragged: Bool
+  let dragRole: WorkspaceTabDragRole
   let select: () -> Void
 
   var body: some View {
@@ -78,7 +96,7 @@ struct WorkspaceTabButton: View {
         .font(.daily(size: WorkspaceChrome.tabFontSize, weight: .medium))
         .lineLimit(1)
         .truncationMode(.tail)
-        .foregroundStyle(isSelected || hovering ? theme.ink : theme.inkMid)
+        .foregroundStyle(isSelected || hovering || dragRole == .following ? theme.ink : theme.inkMid)
         .padding(.horizontal, 10)
         .frame(minWidth: WorkspaceChrome.tabMinWidth, maxWidth: WorkspaceChrome.tabMaxWidth, maxHeight: .infinity)
         .background(fill)
@@ -91,20 +109,21 @@ struct WorkspaceTabButton: View {
         .contentShape(shape)
     }
     .buttonStyle(.plain)
-    .opacity(isDragged ? 0.45 : 1)
+    .opacity(dragRole == .leftBehind ? 0.45 : 1)
     .onHover { hovering = $0 }
     .accessibilityLabel("aba \(title)")
     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
   }
 
   private var fill: Color {
-    if isSelected { return theme.surface3 }
+    if isSelected || dragRole == .following { return theme.surface3 }
     return hovering ? theme.lineSoft : .clear
   }
 }
 
 /// A split's divider (`[data-trellis-part="divider"]`): invisible until hovered,
-/// then an accent bar; resize cursor along its axis.
+/// then an accent bar; resize cursor along its axis. `isActive` (resizing, or
+/// focused from the keyboard) shows the bar in full.
 struct WorkspaceDividerHandle: View {
   @Environment(\.theme) private var theme
   @State private var hovering = false

@@ -49,6 +49,8 @@ struct AppCommands: Commands {
   /// The key window's shell: a main window moves itself, a module window
   /// brings the main one forward.
   @FocusedValue(\.shellMenu) private var shell
+  /// The key window's Início while it is on screen: whether it is arranging.
+  @FocusedValue(\.homeArrangeMenu) private var arrangeMenu
 
   var body: some Commands {
     CommandGroup(replacing: .newItem) {
@@ -56,9 +58,10 @@ struct AppCommands: Commands {
         .keyboardShortcut("n", modifiers: .command)
     }
     CommandGroup(after: .toolbar) {
-      // Spec 010 FR-010-02: a keyboard path into arranging the Início grid.
-      Button("Organizar painéis", action: organizePanels)
-        .disabled(!canOrganizePanels)
+      // Spec 010 FR-010-02: a keyboard path into arranging the Início grid,
+      // and out of it again.
+      Button(arrangeCommand.title, action: performArrangeCommand)
+        .disabled(!canPerformArrangeCommand)
     }
     CommandGroup(replacing: .appSettings) {
       Button("Ajustes…") {
@@ -66,6 +69,22 @@ struct AppCommands: Commands {
         opener.showMain(.settings)
       }
       .keyboardShortcut(",", modifiers: .command)
+    }
+  }
+
+  private var arrangeCommand: ArrangeMenuCommand { ArrangeMenuCommand(arrangeMenu) }
+
+  private var canPerformArrangeCommand: Bool {
+    switch arrangeCommand {
+    case .organize: canOrganizePanels
+    case .finish: arrangeMenu?.isSaving == false
+    }
+  }
+
+  private func performArrangeCommand() {
+    switch arrangeCommand {
+    case .organize: organizePanels()
+    case .finish: arrangeMenu?.finish()
     }
   }
 

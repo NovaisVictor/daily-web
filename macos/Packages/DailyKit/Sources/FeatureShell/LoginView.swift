@@ -77,12 +77,14 @@ public struct LoginView: View {
         TextField("Servidor", text: $server, prompt: Text("https://daily.exemplo.com"))
           .focused($focus, equals: .server)
           .autocorrectionDisabled()
+          .singleLine($server)
       }
       labeled("Usuário") {
         TextField("Usuário", text: $username)
           .textContentType(.username)
           .focused($focus, equals: .username)
           .autocorrectionDisabled()
+          .singleLine($username)
       }
       labeled("Senha") {
         SecureField("Senha", text: $password)

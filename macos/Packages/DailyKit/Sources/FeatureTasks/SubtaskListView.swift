@@ -37,6 +37,7 @@ struct SubtaskListView: View {
             .modifier(SubtaskFieldStyle(ink: ink))
             .focused($focus, equals: .add)
             .accessibilityLabel("nova subtarefa de \(task.title)")
+            .singleLine($newTitle)
             .onSubmit(add)
             .onKeyPress(.escape) {
               finishAdding()
@@ -91,6 +92,7 @@ struct SubtaskListView: View {
           .modifier(SubtaskFieldStyle(ink: ink))
           .focused($focus, equals: .rename(subtask.id))
           .accessibilityLabel("renomear subtarefa \(subtask.title)")
+          .singleLine($renameText)
           .onSubmit { commitRename(subtask) }
           .onKeyPress(.escape) {
             renaming = nil
@@ -179,7 +181,7 @@ private struct SubtaskFieldStyle: ViewModifier {
         .foregroundStyle(ink)
         .padding(.horizontal, 6)
         .frame(height: 28)
-        .background(Color.white.opacity(0.2), in: .rect(cornerRadius: 2))
+        .background(Color.white.opacity(0.2), in: .rect(cornerRadius: Radius.hairline))
         .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.35)).frame(height: 1) }
     } else {
       content.textFieldStyle(.roundedBorder)

@@ -1,3 +1,4 @@
+import AppKit
 import DailyDesign
 import DailyModels
 import SwiftUI
@@ -6,7 +7,9 @@ import SwiftUI
 /// `Workspace`): the panels as tabs in groups, inside splits whose dividers
 /// resize them. A tab is selected by clicking it, cycled with ⌃Tab / ⌃⇧Tab in
 /// the focused group, and dragged onto another group's strip (move), the middle
-/// of a group (join it) or a group's edge (split it); Esc cancels the drag.
+/// of a group (join it) or a group's edge (split it); Esc, or the window no
+/// longer being active, cancels the drag (Trellis: Escape and `blur`). Inside
+/// its own strip the tab is reordered in place, its siblings sliding aside.
 /// Tabs do not close and each module appears once (`singleton`, `closable={false}`).
 ///
 /// The drag is an in-app gesture read in the canvas' coordinate space, not
@@ -24,6 +27,7 @@ struct WorkspaceTabsView: View {
 
   @Environment(\.theme) private var theme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.appearsActive) private var appearsActive
   @Binding private var layout: WorkspaceLayout
   private let modules: [ModuleID]
   private let title: (ModuleID) -> String
@@ -31,9 +35,17 @@ struct WorkspaceTabsView: View {
 
   @State private var tabFrames: [ModuleID: CGRect] = [:]
   @State private var drag: TabDrag?
-  /// Set by Esc until the pointer is released, so the rest of that gesture is ignored.
+  /// Set by a cancel until the pointer is released, so the rest of that gesture is ignored.
   @State private var dragCancelled = false
+  /// True while a tab's drag gesture is alive. Its start clears a stale
+  /// `dragCancelled`: a gesture cut short when the window lost key status may
+  /// never deliver the `onEnded` that would.
+  @GestureState private var tabGestureLive = false
   @State private var resize: DividerResize?
+  @FocusState private var focusedDivider: String?
+  /// The divider whose focus came from the keyboard, the only focus it shows:
+  /// a divider also takes focus when clicked or dragged.
+  @State private var keyboardDivider: String?
   /// The group ⌃Tab acts on and whose selected tab carries the accent.
   @State private var focusedGroupID: String?
 
@@ -54,8 +66,19 @@ struct WorkspaceTabsView: View {
       canvas(WorkspaceGeometry(root: layout.root, size: proxy.size), size: proxy.size)
     }
     .coordinateSpace(.named(WorkspaceChrome.coordinateSpace))
+    .pointerStyle(drag == nil ? nil : PointerStyle.grabActive)
     .background { shortcuts }
     .onChange(of: modules, initial: true) { reconcile() }
+    .onChange(of: appearsActive) { _, active in
+      if !active && drag != nil { cancelDrag() }
+    }
+    .onChange(of: tabGestureLive) { _, live in
+      if live { dragCancelled = false }
+    }
+    .onChange(of: focusedDivider) { _, focused in
+      // Tab focus arrives on a key event; a click or drag does not.
+      keyboardDivider = NSApp.currentEvent?.type == .keyDown ? focused : nil
+    }
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Painéis do Início")
   }
@@ -83,7 +106,9 @@ struct WorkspaceTabsView: View {
         dividerView(divider)
           .workspaceCanvasFrame(divider.frame)
       }
-      if let drag {
+      // While reordering in its own strip the tab itself shows the landing,
+      // so neither the insertion bar nor the ghost is drawn.
+      if let drag, drag.sort == nil {
         if let target = drag.target, let rect = resolver.indicator(for: target, dragging: drag.view) {
           WorkspaceDropIndicator(target: target)
             .allowsHitTesting(false)
@@ -109,16 +134,25 @@ struct WorkspaceTabsView: View {
 
   private func tabStrip(_ group: WorkspaceGroup, resolver: TabDropResolver) -> some View {
     ScrollView(.horizontal) {
-      HStack(spacing: 2) {
+      HStack(spacing: WorkspaceChrome.tabSpacing) {
         ForEach(group.views, id: \.self) { view in
+          let role = dragRole(of: view)
           WorkspaceTabButton(
             title: title(view),
             isSelected: view == group.selected,
             isInFocusedGroup: group.id == focusedGroupID,
-            isDragged: drag?.view == view
+            dragRole: role
           ) {
             select(view, in: group.id)
           }
+          .offset(x: drag?.sort?.offset(of: view) ?? 0)
+          .zIndex(role == .following ? 1 : 0)
+          // The followed tab tracks the pointer; only its siblings slide.
+          .transaction { transaction in
+            if role == .following { transaction.animation = nil }
+          }
+          // After the offset, so the measured frame stays the laid-out slot
+          // the sort and the drop resolver count from.
           .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .named(WorkspaceChrome.coordinateSpace))
           } action: { frame in
@@ -142,7 +176,10 @@ struct WorkspaceTabsView: View {
   private func panelView(_ slot: PanelSlot) -> some View {
     let shape = UnevenRoundedRectangle(
       bottomLeadingRadius: WorkspaceChrome.groupRadius, bottomTrailingRadius: WorkspaceChrome.groupRadius)
+    // The grid's panel padding (`GridDashboardView`), so a panel's title clears
+    // the tab strip and its last row clears the rounded bottom.
     return panel(slot.id)
+      .padding(16)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .clipShape(shape)
       .opacity(slot.isSelected ? 1 : 0)
@@ -163,20 +200,27 @@ struct WorkspaceTabsView: View {
   }
 
   private func dividerView(_ divider: WorkspaceGeometry.Divider) -> some View {
-    WorkspaceDividerHandle(axis: divider.axis, isActive: resize?.id == divider.id)
-      .gesture(dividerDrag(divider))
-      .onTapGesture(count: 2) { equalize(divider) }
-      .focusable()
-      .onKeyPress(keys: Self.arrowKeys(divider.axis)) { press in
-        let backwards = press.key == .leftArrow || press.key == .upArrow
-        nudge(divider, by: backwards ? -Self.keyboardStep : Self.keyboardStep)
-        return .handled
-      }
-      .accessibilityElement()
-      .accessibilityLabel("Redimensionar painéis")
-      .accessibilityAdjustableAction { direction in
-        nudge(divider, by: direction == .increment ? Self.keyboardStep : -Self.keyboardStep)
-      }
+    WorkspaceDividerHandle(
+      axis: divider.axis, isActive: resize?.id == divider.id || keyboardDivider == divider.id
+    )
+    .gesture(dividerDrag(divider))
+    .onTapGesture(count: 2) { equalize(divider) }
+    .focusable()
+    // The system ring drew a stray bar across the panels; the handle's own
+    // accent bar shows keyboard focus instead.
+    .focusEffectDisabled()
+    .focused($focusedDivider, equals: divider.id)
+    .onKeyPress(keys: Self.arrowKeys(divider.axis)) { press in
+      keyboardDivider = divider.id
+      let backwards = press.key == .leftArrow || press.key == .upArrow
+      nudge(divider, by: backwards ? -Self.keyboardStep : Self.keyboardStep)
+      return .handled
+    }
+    .accessibilityElement()
+    .accessibilityLabel("Redimensionar painéis")
+    .accessibilityAdjustableAction { direction in
+      nudge(divider, by: direction == .increment ? Self.keyboardStep : -Self.keyboardStep)
+    }
   }
 
   private static func arrowKeys(_ axis: WorkspaceAxis) -> Set<KeyEquivalent> {
@@ -205,17 +249,38 @@ struct WorkspaceTabsView: View {
 
   private func tabDrag(_ view: ModuleID, resolver: TabDropResolver) -> some Gesture {
     DragGesture(minimumDistance: Self.dragThreshold, coordinateSpace: .named(WorkspaceChrome.coordinateSpace))
+      .updating($tabGestureLive) { _, live, _ in live = true }
       .onChanged { value in
         guard !dragCancelled else { return }
-        drag = TabDrag(
-          view: view, location: value.location, target: resolver.target(at: value.location, dragging: view))
+        let next = TabDrag(
+          view: view,
+          location: value.location,
+          target: resolver.target(at: value.location, dragging: view),
+          sort: resolver.sort(
+            dragging: view, at: value.location, from: value.startLocation, spacing: WorkspaceChrome.tabSpacing)
+        )
+        if TabDropTarget.isNewLanding(from: drag?.target, to: next.target) {
+          NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        // Siblings move only when the landing slot changes or the tab enters
+        // or leaves its strip; every other update just follows the pointer.
+        if next.sort?.index != drag?.sort?.index {
+          withAnimation(WorkspaceChrome.sortAnimation(reduceMotion: reduceMotion)) { drag = next }
+        } else {
+          drag = next
+        }
       }
       .onEnded { value in
         let cancelled = dragCancelled
         dragCancelled = false
-        drag = nil
-        guard !cancelled, let target = resolver.target(at: value.location, dragging: view) else { return }
+        guard !cancelled, let target = resolver.target(at: value.location, dragging: view) else {
+          withAnimation(WorkspaceChrome.sortAnimation(reduceMotion: reduceMotion)) { drag = nil }
+          return
+        }
+        // One transaction for the offsets and the new order: each tab slides
+        // from where it is drawn to its new slot instead of snapping back first.
         withAnimation(Motion.ease(reduceMotion: reduceMotion)) {
+          drag = nil
           layout = TabDropResolver.apply(target, moving: view, to: layout)
         }
         focusedGroupID = layout.group(containing: view)?.id
@@ -233,6 +298,7 @@ struct WorkspaceTabsView: View {
         } else {
           origin = layout
           resize = DividerResize(id: divider.id, origin: layout)
+          keyboardDivider = nil
         }
         guard let split = origin.split(id: divider.splitID) else { return }
         let translation = divider.axis == .x ? value.translation.width : value.translation.height
@@ -262,7 +328,12 @@ struct WorkspaceTabsView: View {
 
   private func cancelDrag() {
     dragCancelled = true
-    drag = nil
+    withAnimation(WorkspaceChrome.sortAnimation(reduceMotion: reduceMotion)) { drag = nil }
+  }
+
+  private func dragRole(of view: ModuleID) -> WorkspaceTabDragRole {
+    guard let drag, drag.view == view else { return .none }
+    return drag.sort == nil ? .leftBehind : .following
   }
 
   private func nudge(_ divider: WorkspaceGeometry.Divider, by step: Double) {
@@ -292,6 +363,8 @@ private struct TabDrag: Equatable {
   /// In the canvas' coordinate space.
   var location: CGPoint
   var target: TabDropTarget?
+  /// Set while the pointer is over the tab's own strip.
+  var sort: TabStripSort?
 }
 
 private struct DividerResize: Equatable {

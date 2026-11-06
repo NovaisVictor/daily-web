@@ -104,7 +104,13 @@ struct JiraPullLinks: View {
           } label: {
             HStack(spacing: 6) {
               Image(systemName: "arrow.triangle.pull").accessibilityHidden(true)
-              Text("\(pull.repo)#\(pull.number)").monospacedDigit().fixedSize()
+              // The title gives way first; past that a long repo name is cut in
+              // the middle so the number at the end stays readable.
+              Text("\(pull.repo)#\(pull.number)")
+                .monospacedDigit()
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .layoutPriority(1)
               Text(pull.title).lineLimit(1).truncationMode(.tail)
             }
             .font(.daily(size: 12))

@@ -14,6 +14,7 @@ import SwiftUI
 /// narrower than they are, so it works from about 320 pt.
 struct JiraContent: View {
   @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Bindable var store: JiraStore
   let environment: AppEnvironment
   /// Around the scrolling content: the screen's margin, or none inside a panel
@@ -72,7 +73,7 @@ struct JiraContent: View {
       }
       .onChange(of: store.revealed) { _, key in
         guard let key else { return }
-        withAnimation { proxy.scrollTo(key, anchor: .center) }
+        Motion.animate(reduceMotion: reduceMotion, Motion.slow) { proxy.scrollTo(key, anchor: .center) }
       }
     }
     .task(
@@ -89,23 +90,31 @@ struct JiraContent: View {
   /// `Section` with the switcher as eyebrow, "N de M" as count and the daily
   /// summary as the action (`JiraPanel.tsx:626-653`).
   private func header(active: [JiraActiveFilter], visible: [JiraItem]) -> some View {
+    // In a narrow panel the person's name is what gives way: the count and the
+    // buttons claim their width first, and the switcher truncates its name.
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       PersonSwitcher(store: store)
+        .frame(minWidth: 0, alignment: .leading)
       if store.tab == .open, !active.isEmpty {
         Text("\(visible.count) de \(store.all.count)")
           .font(.daily(size: 14).monospacedDigit())
           .foregroundStyle(theme.inkDim)
           .fixedSize()
+          .layoutPriority(1)
       }
       Spacer(minLength: 0)
-      if store.activePerson == nil {
-        IconButton("Resumo para a daily", systemImage: "list.clipboard") { standupOpen = true }
-      }
-      if let onOpenWindow {
-        IconMenu("mais ações do Jira", systemImage: "ellipsis") {
-          Button("Abrir em nova janela", systemImage: "macwindow.badge.plus", action: onOpenWindow)
+      HStack(spacing: 12) {
+        if store.activePerson == nil {
+          IconButton("Resumo para a daily", systemImage: "list.clipboard") { standupOpen = true }
+        }
+        if let onOpenWindow {
+          IconMenu("mais ações do Jira", systemImage: "ellipsis") {
+            Button("Abrir em nova janela", systemImage: "macwindow.badge.plus", action: onOpenWindow)
+          }
         }
       }
+      .fixedSize()
+      .layoutPriority(1)
     }
   }
 
@@ -130,10 +139,32 @@ struct JiraContent: View {
   }
 
   private func filterBar(active: [JiraActiveFilter], known: [String: JiraItem]) -> some View {
+    // `FilterBar` would wrap the buttons under a field held at its minimum
+    // width; below about 300pt the search takes a full line of its own instead.
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        searchField.frame(minWidth: 180, idealWidth: 180, maxWidth: .infinity, alignment: .leading)
+        filterButtons(active: active, known: known).fixedSize()
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        searchField.frame(maxWidth: .infinity, alignment: .leading)
+        filterButtons(active: active, known: known)
+      }
+    }
+    .padding(.bottom, 12)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Filtrar o Jira")
+  }
+
+  private var searchField: some View {
+    SearchField(text: $store.filters.query, label: "buscar issues", placeholder: "chave ou resumo, até do épico")
+      .singleLine($store.filters.query)
+  }
+
+  private func filterButtons(active: [JiraActiveFilter], known: [String: JiraItem]) -> some View {
     // The search stays in plain sight, so the badge counts only what the popover hides.
     let secondary = active.filter { $0.id != .query }.count
-    return FilterBar("Filtrar o Jira") {
-      SearchField(text: $store.filters.query, label: "buscar issues", placeholder: "chave ou resumo, até do épico")
+    return HStack(spacing: 8) {
       Button {
         filtersOpen.toggle()
       } label: {
@@ -251,6 +282,7 @@ struct JiraContent: View {
       JiraGroupHeading(title: "Acompanhando", count: items.isEmpty ? nil : items.count)
       HStack(spacing: 8) {
         TextField("acompanhar issue do Jira", text: $store.watchKey, prompt: Text("ABC-123"))
+          .singleLine($store.watchKey)
           .textFieldStyle(.roundedBorder)
           .frame(maxWidth: 192)
           .accessibilityLabel("acompanhar issue do Jira")

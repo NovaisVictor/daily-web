@@ -93,6 +93,7 @@ public struct CommandPalette: View {
   @State private var highlighted: String?
   @FocusState private var isSearchFocused: Bool
   @Environment(\.theme) private var theme
+  private static let listInset: CGFloat = 6
 
   public init(commands: [PaletteCommand], onClose: @escaping () -> Void) {
     self.commands = commands
@@ -171,7 +172,7 @@ public struct CommandPalette: View {
             }
           }
         }
-        .padding(6)
+        .padding(Self.listInset)
       }
       .onChange(of: currentID) { _, id in
         guard let id else { return }
@@ -200,7 +201,8 @@ public struct CommandPalette: View {
       .contentShape(.rect)
       .background(
         isHighlighted ? theme.brandTint : .clear,
-        in: RoundedRectangle(cornerRadius: theme.radius / 2)
+        // Concentric with the palette's corner across the list inset.
+        in: RoundedRectangle(cornerRadius: Radius.nested(Radius.large, inset: Self.listInset))
       )
     }
     .buttonStyle(.plain)

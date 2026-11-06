@@ -43,9 +43,11 @@ struct ProfileSettingsView: View {
           if let error = store.profileError { PanelError(error) }
           field("Nome completo") {
             TextField("Nome completo", text: $store.fullName, prompt: Text("Seu nome completo"))
+              .singleLine($store.fullName)
           }
           field("E-mail") {
             TextField("E-mail", text: $store.email, prompt: Text("voce@exemplo.com"))
+              .singleLine($store.email)
               .textContentType(.emailAddress)
           }
           field("Usuário") {

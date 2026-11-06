@@ -51,6 +51,7 @@ struct TaskListView: View {
 
 struct TaskRow: View {
   @Environment(\.theme) private var theme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   let task: TodoTask
   let overdue: Bool
   let striped: Bool
@@ -85,7 +86,7 @@ struct TaskRow: View {
       .padding(.horizontal, 8)
       .padding(.vertical, theme.metrics.rowVerticalPadding)
       .background(hovering ? theme.brandTint : (striped ? theme.lineSoft.opacity(0.25) : .clear))
-      .clipShape(.rect(cornerRadius: 6))
+      .clipShape(.rect(cornerRadius: Radius.tiny))
       .onHover { hovering = $0 }
       .onGeometryChange(for: CGFloat.self) {
         $0.size.width
@@ -105,6 +106,7 @@ struct TaskRow: View {
           .overlay(alignment: .leading) {
             Rectangle().fill(theme.lineSoft).frame(width: 1).padding(.leading, 28).padding(.bottom, 12)
           }
+          .transition(Motion.reveal(reduceMotion: reduceMotion))
       }
       Divider().overlay(theme.lineSoft)
     }
@@ -167,11 +169,11 @@ struct TaskRow: View {
       Color.clear.frame(width: 24, height: 24)
     } else {
       Button {
-        expanded.toggle()
+        Motion.animate(reduceMotion: reduceMotion) { expanded.toggle() }
       } label: {
         Image(systemName: "chevron.right")
           .font(.system(size: 11, weight: .semibold))
-          .rotationEffect(.degrees(expanded ? 90 : 0))
+          .disclosureRotation(open: expanded)
           .frame(width: 24, height: 24)
           .contentShape(.rect)
       }
@@ -203,7 +205,9 @@ struct TaskRow: View {
   }
 
   private func startAddingSubtask() {
-    adding = true
-    expanded = true
+    Motion.animate(reduceMotion: reduceMotion) {
+      adding = true
+      expanded = true
+    }
   }
 }

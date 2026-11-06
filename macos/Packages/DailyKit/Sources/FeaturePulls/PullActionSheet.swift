@@ -112,8 +112,8 @@ struct PullActionSheet: View {
         .frame(minHeight: 96)
         .scrollContentBackground(.hidden)
         .padding(6)
-        .background(theme.surface2, in: .rect(cornerRadius: 6))
-        .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
+        .background(theme.surface2, in: .rect(cornerRadius: Radius.tiny))
+        .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.lineStrong) }
         .disabled(sending)
         .accessibilityLabel("comentário em \(ref)")
         .accessibilityHint(hint)
@@ -165,6 +165,7 @@ struct PullActionSheet: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("outros logins (separados por vírgula)").font(.daily(size: 13))
         TextField("outros logins (separados por vírgula)", text: $typed)
+          .singleLine($typed)
           .textFieldStyle(.roundedBorder)
           .labelsHidden()
           .disabled(sending)

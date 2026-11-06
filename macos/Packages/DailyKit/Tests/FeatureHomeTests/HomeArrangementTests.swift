@@ -392,6 +392,202 @@ private func item(_ module: ModuleID, x: Double, y: Double, w: Double, h: Double
     #expect(!navigator.isArrangeRequested)
     #expect(!window.grid.isArranging)
   }
+
+  // MARK: - Gestures
+
+  /// A press on the agenda carried to the first column of a 936 pt grid.
+  @discardableResult
+  func dragAgenda(by dx: CGFloat = -560) -> Bool {
+    window.dragPanel(
+      .agenda, kind: .move, startLocation: CGPoint(x: 600, y: 20), translation: CGSize(width: dx, height: 0),
+      containerWidth: 936)
+  }
+
+  @Test func aGestureShowsAPreviewAndWritesTheDraftOnRelease() {
+    serve()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    let shown = window.gridLayout
+    window.beginArranging()
+    #expect(dragAgenda())
+    let preview = DashboardLayoutEngine.dragPreview(startLayout: shown, id: .agenda, cell: GridCell(x: 0, y: 0))
+    #expect(window.gridLayout == preview)
+    #expect(window.grid.draft == nil, "nothing is written while the pointer is down")
+    #expect(window.grid.activePanel == .agenda)
+    #expect(window.grid.pointer.translation == CGSize(width: -560, height: 0))
+    window.endPanelGesture()
+    #expect(window.grid.draft == preview)
+    #expect(window.grid.session == nil)
+    #expect(window.grid.pointer.translation == .zero)
+  }
+
+  @Test func escCancelsTheGestureFirstThenLeavesTheMode() {
+    serve()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    let shown = window.gridLayout
+    window.beginArranging()
+    dragAgenda()
+    window.escapeArrangement()
+    #expect(window.grid.isArranging, "the first Esc only cancels the gesture")
+    #expect(window.grid.session == nil)
+    #expect(window.gridLayout == shown, "the panel went back to where the gesture found it")
+    #expect(window.grid.pointer.translation == .zero)
+    #expect(!dragAgenda(by: -600), "the pointer is still down; its events do not restart the gesture")
+    #expect(window.grid.session == nil)
+    window.escapeArrangement()
+    #expect(!window.grid.isArranging)
+    #expect(client.calls.isEmpty)
+  }
+
+  @Test func escKeepsTheDraftOfEarlierGestures() {
+    serve()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    window.movePanel(.slack, x: 0, y: 0)
+    let draft = window.gridLayout
+    dragAgenda()
+    window.escapeArrangement()
+    #expect(window.gridLayout == draft)
+  }
+
+  @Test func endingTheModeMidDragClearsTheGesture() {
+    serve()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    let shown = window.gridLayout
+    window.beginArranging()
+    dragAgenda()
+    // The drag surfaces go with the mode, so the drag's end is never heard.
+    window.updateWindowSize(CGSize(width: 900, height: 700))
+    #expect(!window.grid.isArranging)
+    #expect(window.grid.session == nil)
+    #expect(window.grid.activePanel == nil)
+    #expect(window.grid.pointer.translation == .zero)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    #expect(window.grid.session == nil)
+    #expect(window.gridLayout == shown)
+
+    dragAgenda()
+    window.discardArrangement()
+    #expect(window.grid.session == nil)
+    #expect(window.gridLayout == shown)
+  }
+
+  @Test func aPanelThatIsOffIsNotDragged() {
+    var state = Fixtures.full
+    state.modules = [.email, .agenda]
+    dashboard.apply(state)
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    let changed = window.dragPanel(
+      .slack, kind: .move, startLocation: .zero, translation: CGSize(width: 200, height: 200), containerWidth: 936)
+    #expect(!changed)
+    #expect(window.grid.session == nil)
+  }
+
+  @Test func savingMidGestureSavesWhatIsOnScreen() async throws {
+    serve()
+    let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: []))
+    client.respond { _ in answer }
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    dragAgenda()
+    await window.saveArrangement()
+    let call = try #require(client.calls.first)
+    let body = try JSONDecoder().decode(SaveBody.self, from: Data(try #require(call.body).utf8))
+    #expect(body.layout.first { $0.i == "agenda" }?.x == 0)
+    #expect(window.grid.session == nil)
+  }
+
+  @Test func arrowsMoveAndShiftArrowsResizeTheFocusedPanel() {
+    serve()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.nudgePanel(.agenda, dx: -1, dy: 0, resizing: false)
+    #expect(window.grid.draft == nil, "nothing moves outside the arrange mode")
+    window.beginArranging()
+    window.nudgePanel(.agenda, dx: -1, dy: 0, resizing: false)
+    #expect(window.gridLayout.first { $0.i == .agenda }?.x == 6)
+    window.nudgePanel(.agenda, dx: 1, dy: 1, resizing: true)
+    let agenda = window.gridLayout.first { $0.i == .agenda }
+    #expect(agenda?.w == 6)
+    #expect(agenda?.h == 10)
+  }
+
+  // MARK: - A save still waiting for the server
+
+  /// A server that answers the save only when `release` is called.
+  func holdTheSave() -> AsyncStream<Void>.Continuation {
+    let (gate, release) = AsyncStream.makeStream(of: Void.self)
+    let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: []))
+    client.respond { _ in
+      var waiting = gate.makeAsyncIterator()
+      _ = await waiting.next()
+      return answer
+    }
+    return release
+  }
+
+  func waitForTheSaveToBeSent() async throws {
+    for _ in 0..<1000 where client.calls.isEmpty {
+      await Task.yield()
+    }
+    try #require(!client.calls.isEmpty)
+  }
+
+  @Test func discardingWhileASaveIsPendingKeepsTheModeOff() async throws {
+    serve()
+    let release = holdTheSave()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    let window = window
+    let saving = Task { await window.saveArrangement() }
+    try await waitForTheSaveToBeSent()
+    #expect(window.grid.isSaving)
+    window.discardArrangement()
+    #expect(!window.grid.isArranging)
+    release.yield()
+    release.finish()
+    await saving.value
+    #expect(!window.grid.isArranging)
+    #expect(!window.grid.isSaving)
+  }
+
+  @Test func aLateSaveDoesNotEndANewerMode() async throws {
+    serve()
+    let release = holdTheSave()
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    window.beginArranging()
+    let window = window
+    let saving = Task { await window.saveArrangement() }
+    try await waitForTheSaveToBeSent()
+    window.discardArrangement()
+    window.beginArranging()
+    window.movePanel(.slack, x: 0, y: 0)
+    release.yield()
+    release.finish()
+    await saving.value
+    #expect(window.grid.isArranging)
+    #expect(window.grid.draft != nil)
+  }
+
+  // MARK: - "Concluir organização" from the menu
+
+  @Test func theMenuItemTogglesWithTheMode() async throws {
+    serve()
+    let answer = FakeAPIClient.json(LayoutResponse(layout: [], layouts: []))
+    client.respond { _ in answer }
+    window.updateWindowSize(CGSize(width: 1500, height: 950))
+    #expect(ArrangeMenuCommand(window.arrangeMenu) == .organize)
+    window.beginArranging()
+    #expect(ArrangeMenuCommand(window.arrangeMenu) == .finish)
+    await window.finishArranging()
+    let call = try #require(client.calls.first)
+    #expect(call.method == "PATCH")
+    #expect(call.path == "/api/preferences")
+    #expect(!window.grid.isArranging)
+    #expect(ArrangeMenuCommand(window.arrangeMenu) == .organize)
+    await window.finishArranging()
+    #expect(client.calls.count == 1, "finishing outside the mode saves nothing")
+  }
 }
 
 @Suite struct GridArrangementMergeTests {

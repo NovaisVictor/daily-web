@@ -31,7 +31,7 @@ struct EmailFolderTree: View {
           HStack(spacing: 4) {
             Image(systemName: "chevron.right")
               .font(.system(size: 9, weight: .semibold))  // SF Symbol sizing
-              .rotationEffect(.degrees(open ? 90 : 0))
+              .disclosureRotation(open: open)
             Text(group.account.label.uppercased())
               .font(.daily(size: 11, weight: .medium))
               .tracking(0.5)
@@ -154,9 +154,9 @@ struct EmailFolderRow: View {
     .padding(.trailing, 2)
     // The web's active row, not a system selection (spec 013 FR-013-07).
     .activeRow(active)
-    .background(targeted ? theme.brandTint : .clear, in: .rect(cornerRadius: 6))
+    .background(targeted ? theme.brandTint : .clear, in: .rect(cornerRadius: Radius.tiny))
     .overlay {
-      RoundedRectangle(cornerRadius: 6).strokeBorder(theme.brandEdge).opacity(targeted ? 1 : 0)
+      RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.brandEdge).opacity(targeted ? 1 : 0)
     }
     .onHover { hovering = $0 }
     .contextMenu {
@@ -302,8 +302,8 @@ private struct EmailDropTargetButton: View {
       .padding(.horizontal, 12)
       .frame(minWidth: Self.minWidth, maxWidth: fills ? .infinity : nil, minHeight: 28)
       .foregroundStyle(targeted ? tint : theme.inkMid)
-      .background(targeted ? tint.opacity(0.1) : .clear, in: .rect(cornerRadius: 6))
-      .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(targeted ? tint : theme.lineStrong) }
+      .background(targeted ? tint.opacity(0.1) : .clear, in: .rect(cornerRadius: Radius.tiny))
+      .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(targeted ? tint : theme.lineStrong) }
       .contentShape(.rect)
     }
     .buttonStyle(.plain)

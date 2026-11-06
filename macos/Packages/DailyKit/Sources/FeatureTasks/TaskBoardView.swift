@@ -397,7 +397,7 @@ struct NoteCard: View {
 /// triangle cut away, as the web's mask does (`globals.css:1624-1640`).
 struct NotePaperShape: Shape {
   let curl: CGFloat
-  private let radius: CGFloat = 2
+  private let radius = Radius.hairline
 
   func path(in rect: CGRect) -> Path {
     var path = Path()
@@ -518,6 +518,8 @@ struct AddNoteField: View {
   let store: TasksStore
   @State private var open = false
   @State private var title = ""
+  /// What the last cut at `titleLimit` left, for the limit hint.
+  @State private var cutTitle: String?
   @State private var saving = false
   @State private var returnFocus = false
   @FocusState private var focus: Field?
@@ -529,26 +531,36 @@ struct AddNoteField: View {
   var body: some View {
     Group {
       if open {
-        TextField("nova tarefa em \(column.label)", text: $title, prompt: Text("Título, e Enter para adicionar"))
-          .textFieldStyle(.roundedBorder)
-          .focused($focus, equals: .input)
-          .accessibilityLabel("nova tarefa em \(column.label)")
-          .onAppear { focus = .input }
-          .onSubmit(submit)
-          .onChange(of: title) { _, value in
-            let clipped = TaskDraft.clipped(value)
-            if clipped != value { title = clipped }
+        // One child: the Group's own modifiers would run once per child.
+        VStack(alignment: .leading, spacing: 4) {
+          TextField("nova tarefa em \(column.label)", text: $title, prompt: Text("Título, e Enter para adicionar"))
+            .textFieldStyle(.roundedBorder)
+            .focused($focus, equals: .input)
+            .accessibilityLabel("nova tarefa em \(column.label)")
+            .singleLine($title)
+            .onAppear { focus = .input }
+            .onSubmit(submit)
+            .onChange(of: title) { _, value in
+              let clipped = TaskDraft.clipped(value)
+              if clipped != value {
+                cutTitle = clipped
+                title = clipped
+              }
+            }
+            .onChange(of: focus) { _, now in
+              // Leaving an empty field closes it; one with text stays, so a stray
+              // click does not throw away what was typed.
+              if now != .input, title.trimmingCharacters(in: .whitespaces).isEmpty, !saving { close(withFocus: false) }
+            }
+            .onKeyPress(.escape) {
+              close(withFocus: true)
+              return .handled
+            }
+            .disabled(saving)
+          if TaskDraft.showsLimitHint(title: title, cutTitle: cutTitle) {
+            TitleLimitHint()
           }
-          .onChange(of: focus) { _, now in
-            // Leaving an empty field closes it; one with text stays, so a stray
-            // click does not throw away what was typed.
-            if now != .input, title.trimmingCharacters(in: .whitespaces).isEmpty, !saving { close(withFocus: false) }
-          }
-          .onKeyPress(.escape) {
-            close(withFocus: true)
-            return .handled
-          }
-          .disabled(saving)
+        }
       } else {
         Button {
           open = true
@@ -570,18 +582,22 @@ struct AddNoteField: View {
   private func close(withFocus: Bool) {
     returnFocus = withFocus
     title = ""
+    cutTitle = nil
     open = false
   }
 
   private func submit() {
-    let value = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let value = TextNormalization.singleLine(title).trimmingCharacters(in: .whitespacesAndNewlines)
     // A second Return while the first is on its way would create the same note twice.
     guard !value.isEmpty, !saving else { return }
     saving = true
     Task {
       let created = await store.quickCreate(title: value, in: column)
       saving = false
-      if created { title = "" }
+      if created {
+        title = ""
+        cutTitle = nil
+      }
       focus = .input
     }
   }

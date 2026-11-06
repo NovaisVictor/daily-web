@@ -89,3 +89,23 @@ import Testing
     #expect(navigator.route == .configuracao)
   }
 }
+
+@Suite struct ArrangeMenuCommandTests {
+  @Test func organizeUnlessTheKeyWindowArranges() {
+    #expect(ArrangeMenuCommand(nil) == .organize)
+    #expect(ArrangeMenuCommand(HomeArrangeMenu(isArranging: false, isSaving: false) {}) == .organize)
+    #expect(ArrangeMenuCommand(HomeArrangeMenu(isArranging: true, isSaving: false) {}) == .finish)
+  }
+
+  @Test func titlesFollowTheCommand() {
+    #expect(ArrangeMenuCommand.organize.title == "Organizar painéis")
+    #expect(ArrangeMenuCommand.finish.title == "Concluir organização")
+  }
+
+  @Test func finishCallsTheWindowBack() {
+    var finished = 0
+    let menu = HomeArrangeMenu(isArranging: true, isSaving: false) { finished += 1 }
+    menu.finish()
+    #expect(finished == 1)
+  }
+}

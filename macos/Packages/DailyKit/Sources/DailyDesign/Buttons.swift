@@ -142,8 +142,8 @@ private struct PillButtonBody: View {
       .contentShape(.capsule)
       .onHover { hovering = $0 && isEnabled }
       // `transition-all duration-150 ease-brand`.
-      .animation(Motion.ease(0.150, reduceMotion: reduceMotion), value: hovering)
-      .animation(Motion.ease(0.150, reduceMotion: reduceMotion), value: pressed)
+      .animation(Motion.ease(Motion.control, reduceMotion: reduceMotion), value: hovering)
+      .animation(Motion.ease(Motion.control, reduceMotion: reduceMotion), value: pressed)
   }
 }
 
@@ -309,6 +309,7 @@ private struct IconButtonBody: View {
       .onHover { hovering = $0 && isEnabled }
       // `transition-colors duration-100`.
       .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: hovering)
+      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: configuration.isPressed)
   }
 }
 
@@ -374,6 +375,7 @@ private struct LinkButtonBody: View {
       .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.5)
       .contentShape(.rect)
       .onHover { hovering = $0 && isEnabled }
+      .dailyAnimation(Motion.hover, value: hovering)
   }
 }
 

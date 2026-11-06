@@ -62,6 +62,7 @@ struct PeopleSearchCard: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
         TextField("buscar pessoa no Jira", text: $store.peopleQuery, prompt: Text("nome da pessoa"))
+          .singleLine($store.peopleQuery)
           .textFieldStyle(.roundedBorder)
           .focused($focused)
           .accessibilityLabel("buscar pessoa no Jira")

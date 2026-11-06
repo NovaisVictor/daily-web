@@ -18,6 +18,21 @@ final class HomeWindowState {
   private var layoutSize: CGSize = .zero
   /// The module the narrow grid shows, as the web's `?modulo=`.
   private var narrowSelection: ModuleID?
+  /// The last layouts computed, with what they were computed from.
+  @ObservationIgnored private var layoutCache: LayoutCache?
+
+  private struct LayoutInputs: Equatable {
+    var saved: [SavedLayout]
+    var legacy: [LayoutItem]
+    var size: CGSize
+    var modules: [ModuleID]
+  }
+
+  private struct LayoutCache {
+    var inputs: LayoutInputs
+    var full: [PanelPlacement]
+    var shown: [PanelPlacement]
+  }
 
   init(home: HomeStore) {
     self.home = home
@@ -43,18 +58,13 @@ final class HomeWindowState {
 
   /// Every panel's place for this window (`page.tsx:47-50`): the layout saved
   /// for the nearest size, else the legacy one, else the default; sanitized.
-  var fullLayout: [PanelPlacement] {
-    DashboardLayoutEngine.layout(
-      saved: home.layoutStore.layouts, legacy: home.layoutStore.layout,
-      width: Double(layoutSize.width), height: Double(layoutSize.height))
-  }
+  var fullLayout: [PanelPlacement] { layouts().full }
 
   /// The panels of the modules that are on, as the grid draws them.
-  var shownLayout: [PanelPlacement] {
-    DashboardLayoutEngine.synchronize(DashboardLayoutEngine.layoutFor(fullLayout, enabled: home.modules))
-  }
+  var shownLayout: [PanelPlacement] { layouts().shown }
 
-  /// What the grid draws now: the arrange draft, else `shownLayout`.
+  /// What the grid draws now: the gesture's preview or the arrange draft,
+  /// else `shownLayout`.
   var gridLayout: [PanelPlacement] { grid.displayed(shownLayout) }
 
   /// Whether "Organizar painéis" can start: the wide grid is on screen with panels.
@@ -68,12 +78,51 @@ final class HomeWindowState {
     grid.begin()
   }
 
+  /// One pointer event of a move or resize; true when the panel's target
+  /// cell or size changed.
+  @discardableResult
+  func dragPanel(
+    _ module: ModuleID, kind: GridDragSession.Kind, startLocation: CGPoint, translation: CGSize,
+    containerWidth: CGFloat
+  ) -> Bool {
+    grid.drag(
+      module, kind: kind, startLocation: startLocation, translation: translation,
+      containerWidth: containerWidth, shown: shownLayout)
+  }
+
+  func endPanelGesture() {
+    grid.endGesture()
+  }
+
+  func cancelPanelGesture() {
+    grid.cancelGesture()
+  }
+
   func movePanel(_ module: ModuleID, x: Int, y: Int) {
     grid.move(module, x: x, y: y, shown: shownLayout)
   }
 
   func resizePanel(_ module: ModuleID, w: Int, h: Int) {
     grid.resize(module, w: w, h: h, shown: shownLayout)
+  }
+
+  /// The arrows while arranging: one step of the focused panel, or with
+  /// Shift one row or column more or less of its size.
+  func nudgePanel(_ module: ModuleID, dx: Int, dy: Int, resizing: Bool) {
+    if resizing {
+      guard let placement = gridLayout.first(where: { $0.i == module }) else { return }
+      resizePanel(module, w: placement.w + dx, h: placement.h + dy)
+    } else {
+      grid.nudge(module, dx: dx, dy: dy, shown: shownLayout)
+    }
+  }
+
+  /// Esc while arranging, heard anywhere in the window (`DashboardGrid.tsx:261-269`).
+  /// A gesture in progress is the nearer thing to undo, so the first Esc only
+  /// cancels it; with none, the mode is discarded.
+  func escapeArrangement() {
+    guard !grid.cancelGesture() else { return }
+    discardArrangement()
   }
 
   func discardArrangement() {
@@ -85,7 +134,36 @@ final class HomeWindowState {
   /// "Salvar para esta tela": saved for the window's size right now.
   func saveArrangement() async {
     await grid.save(full: fullLayout, viewport: windowSize)
-    layoutSize = windowSize
+    // Arranging again while the server answered keeps that mode's layout size.
+    if !grid.isArranging { layoutSize = windowSize }
+  }
+
+  /// "Concluir organização" in the View menu: the same as saving.
+  func finishArranging() async {
+    guard grid.isArranging, !grid.isSaving else { return }
+    await saveArrangement()
+  }
+
+  /// What the View menu shows for this window (`focusedSceneValue`).
+  var arrangeMenu: HomeArrangeMenu {
+    HomeArrangeMenu(isArranging: grid.isArranging, isSaving: grid.isSaving) { [self] in
+      Task { await finishArranging() }
+    }
+  }
+
+  /// `fullLayout` and `shownLayout`, computed again only when what they are
+  /// made of changes: the grid reads them on every redraw, and parsing every
+  /// saved size to find the nearest is not free.
+  private func layouts() -> (full: [PanelPlacement], shown: [PanelPlacement]) {
+    let inputs = LayoutInputs(
+      saved: home.layoutStore.layouts, legacy: home.layoutStore.layout, size: layoutSize, modules: home.modules)
+    if let layoutCache, layoutCache.inputs == inputs { return (layoutCache.full, layoutCache.shown) }
+    let full = DashboardLayoutEngine.layout(
+      saved: inputs.saved, legacy: inputs.legacy, width: Double(inputs.size.width),
+      height: Double(inputs.size.height))
+    let shown = DashboardLayoutEngine.synchronize(DashboardLayoutEngine.layoutFor(full, enabled: inputs.modules))
+    layoutCache = LayoutCache(inputs: inputs, full: full, shown: shown)
+    return (full, shown)
   }
 
   /// "Grade" / "Abas" from this window: its draft goes, since the grid it

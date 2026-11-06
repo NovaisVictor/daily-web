@@ -172,3 +172,17 @@ import Testing
     #expect(AgentsLogic.pollMessage(.server(status: 404, message: "x", code: nil, retry: nil)).contains("expirou"))
   }
 }
+
+/// The cut hint the fields show where the web's `maxLength` cuts silently.
+@Suite struct AgentsCapTests {
+  @Test func cutsAndKeepsTheHintUntilTheTextIsShortened() {
+    #expect(AgentsLogic.capped("abcdef", limit: 4, wasCut: false).text == "abcd")
+    #expect(AgentsLogic.capped("abcdef", limit: 4, wasCut: false).cut)
+    #expect(AgentsLogic.capped("abcd", limit: 4, wasCut: true).text == "abcd")
+    #expect(AgentsLogic.capped("abcd", limit: 4, wasCut: true).cut)
+    #expect(AgentsLogic.capped("abc", limit: 4, wasCut: true).text == "abc")
+    #expect(!AgentsLogic.capped("abc", limit: 4, wasCut: true).cut)
+    #expect(AgentsLogic.capped("abcd", limit: 4, wasCut: false).text == "abcd")
+    #expect(!AgentsLogic.capped("abcd", limit: 4, wasCut: false).cut)
+  }
+}

@@ -32,6 +32,18 @@ nonisolated enum AccessLogic {
   /// `nam_label` limit (`lib/access/credentials.ts:11`).
   static let labelMax = 80
 
+  /// The text held to `limit`, and whether the field should say it was cut. The
+  /// web's `maxLength` drops a long paste silently; here the hint stays while the
+  /// text still sits at the limit after a cut, and goes once the user shortens it.
+  static func capped(_ text: String, limit: Int, wasCut: Bool) -> (text: String, cut: Bool) {
+    if text.count > limit { return (String(text.prefix(limit)), true) }
+    return (text, wasCut && text.count >= limit)
+  }
+
+  static func cutHint(_ limit: Int) -> String {
+    "Limite de \(limit) caracteres: o excedente foi cortado."
+  }
+
   /// What a token may do, as the list says it (`AccessPanel.tsx:48`).
   static func scopeSummary(_ scopes: [String]) -> String {
     scopes.contains("agents:write") ? "Consulta e envio" : "Somente consulta"

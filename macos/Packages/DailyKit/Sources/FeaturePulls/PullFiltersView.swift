@@ -9,23 +9,44 @@ struct PullFiltersView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      FilterBar("filtrar pull requests") {
-        SearchField(
-          text: $store.filters.query, label: "buscar pull requests", placeholder: "título, repo#número, autor, card")
-        Button {
-          showingPopover = true
-        } label: {
-          Label(
-            store.hiddenFilterCount > 0 ? "Filtros (\(store.hiddenFilterCount))" : "Filtros",
-            systemImage: "slider.horizontal.3")
+      // `FilterBar` would wrap the button under a field held at its minimum
+      // width; below about 300pt the search takes a full line of its own instead.
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          search.frame(minWidth: 180, idealWidth: 180, maxWidth: .infinity, alignment: .leading)
+          filtersButton.fixedSize()
         }
-        .pillButtonStyle(.outline, size: .small)
-        .accessibilityLabel("Filtros, \(countLabel(store.hiddenFilterCount))")
-        .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
-          PullFilterPopover(store: store)
+        VStack(alignment: .leading, spacing: 8) {
+          search.frame(maxWidth: .infinity, alignment: .leading)
+          filtersButton
         }
       }
+      .padding(.bottom, 12)
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("filtrar pull requests")
       PullActiveFiltersRow(filters: store.activeFilters, remove: store.clear, clearAll: store.clearFilters)
+    }
+  }
+
+  private var search: some View {
+    SearchField(
+      text: $store.filters.query, label: "buscar pull requests", placeholder: "título, repo#número, autor, card"
+    )
+    .singleLine($store.filters.query)
+  }
+
+  private var filtersButton: some View {
+    Button {
+      showingPopover = true
+    } label: {
+      Label(
+        store.hiddenFilterCount > 0 ? "Filtros (\(store.hiddenFilterCount))" : "Filtros",
+        systemImage: "slider.horizontal.3")
+    }
+    .pillButtonStyle(.outline, size: .small)
+    .accessibilityLabel("Filtros, \(countLabel(store.hiddenFilterCount))")
+    .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
+      PullFilterPopover(store: store)
     }
   }
 
@@ -113,6 +134,7 @@ private struct MultiValueFilter: View {
       }
       if options.count > 5 {
         TextField("Buscar opção...", text: $search)
+          .singleLine($search)
           .textFieldStyle(.roundedBorder)
           .controlSize(.small)
       }

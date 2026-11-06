@@ -14,6 +14,8 @@ struct TaskFormSheet: View {
   @State private var draft: TaskDraft
   private let initial: TaskDraft
   @State private var titleError: String?
+  /// What the last cut at `titleLimit` left, for the limit hint.
+  @State private var cutTitle: String?
   @State private var error: String?
   @State private var saving = false
   @State private var deleting = false
@@ -45,10 +47,18 @@ struct TaskFormSheet: View {
             TextField("Título", text: $draft.title, prompt: Text("O que precisa ser feito?"))
               .textFieldStyle(.roundedBorder)
               .focused($titleFocused)
-              .onChange(of: draft.title) {
-                draft.clipTitle()
+              .singleLine($draft.title)
+              .onChange(of: draft.title) { _, value in
+                let clipped = TaskDraft.clipped(value)
+                if clipped != value {
+                  cutTitle = clipped
+                  draft.title = clipped
+                }
                 titleError = nil
               }
+            if TaskDraft.showsLimitHint(title: draft.title, cutTitle: cutTitle) {
+              TitleLimitHint()
+            }
             if let titleError {
               Text(titleError).font(.daily(size: 13)).foregroundStyle(theme.danger)
             }
@@ -208,7 +218,7 @@ struct TaskFormSheet: View {
       HStack(spacing: 4) {
         Image(systemName: "chevron.right")
           .font(.system(size: 11, weight: .semibold))
-          .rotationEffect(.degrees(typing ? 90 : 0))
+          .disclosureRotation(open: typing)
           .accessibilityHidden(true)
         Text("Digitar data")
       }
@@ -219,15 +229,13 @@ struct TaskFormSheet: View {
     .foregroundStyle(theme.inkMid)
     .accessibilityValue(typing ? "expandido" : "recolhido")
     if typing {
-      TextField(
-        "Data em texto",
-        text: Binding(get: { draft.typed }, set: { draft.setTyped($0, now: now) }),
-        prompt: Text("amanhã 14:30")
-      )
-      .textFieldStyle(.roundedBorder)
-      .focused($typedFocused)
-      .accessibilityLabel("Data em texto")
-      .onAppear { typedFocused = true }
+      let typed = Binding(get: { draft.typed }, set: { draft.setTyped($0, now: now) })
+      TextField("Data em texto", text: typed, prompt: Text("amanhã 14:30"))
+        .textFieldStyle(.roundedBorder)
+        .focused($typedFocused)
+        .accessibilityLabel("Data em texto")
+        .singleLine(typed)
+        .onAppear { typedFocused = true }
       let hint = draft.typedHint(now: now)
       Text(hint.text)
         .typeRole(.caption)

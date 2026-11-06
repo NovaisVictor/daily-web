@@ -10,6 +10,12 @@ nonisolated enum TabDropTarget: Equatable, Sendable {
   case edge(groupID: String, edge: WorkspaceEdge)
   /// On the middle of a group: the tab joins it as its last tab.
   case group(groupID: String)
+
+  /// Whether moving from `old` to `new` lands on a new target, which the view
+  /// marks with an alignment haptic. Leaving every target is not a landing.
+  static func isNewLanding(from old: TabDropTarget?, to new: TabDropTarget?) -> Bool {
+    new != nil && new != old
+  }
 }
 
 /// Turns the pointer of a tab drag into a drop target, the way Trellis does
@@ -30,6 +36,17 @@ nonisolated struct TabDropResolver: Equatable {
     var strip: CGRect
     /// In strip order.
     var tabs: [Tab]
+
+    /// The index, among the tabs other than `view`, of the first tab whose
+    /// midpoint is right of `x` (`tabTarget`).
+    func insertionIndex(at x: CGFloat, dragging view: ModuleID) -> Int {
+      let others = tabs.filter { $0.view != view }
+      for (index, tab) in others.enumerated() {
+        guard let frame = tab.frame else { continue }
+        if x < frame.midX { return index }
+      }
+      return others.count
+    }
   }
 
   /// `dropEdge`: how close to an edge, as a share of the group's size, splits it.
@@ -63,7 +80,7 @@ nonisolated struct TabDropResolver: Equatable {
     guard let zone = zones.first(where: { $0.frame.contains(point) }) else { return nil }
     let raw: TabDropTarget
     if zone.strip.contains(point) {
-      raw = .strip(groupID: zone.groupID, index: insertionIndex(in: zone, at: point.x, dragging: view))
+      raw = .strip(groupID: zone.groupID, index: zone.insertionIndex(at: point.x, dragging: view))
     } else if let edge = Self.edge(at: point, in: zone.frame) {
       raw = .edge(groupID: zone.groupID, edge: edge)
     } else {
@@ -85,17 +102,6 @@ nonisolated struct TabDropResolver: Equatable {
     default:
       return target
     }
-  }
-
-  /// The index, among the tabs other than `view`, of the first tab whose
-  /// midpoint is right of `x` (`tabTarget`).
-  private func insertionIndex(in zone: Zone, at x: CGFloat, dragging view: ModuleID) -> Int {
-    let others = zone.tabs.filter { $0.view != view }
-    for (index, tab) in others.enumerated() {
-      guard let frame = tab.frame else { continue }
-      if x < frame.midX { return index }
-    }
-    return others.count
   }
 
   /// `dropEdge`: the nearest edge when it is within `edgeBand` of the size.

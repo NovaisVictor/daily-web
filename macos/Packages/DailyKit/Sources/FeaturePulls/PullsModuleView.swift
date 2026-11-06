@@ -9,6 +9,7 @@ import SwiftUI
 struct PullsModuleView: View {
   @Environment(\.theme) private var theme
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Bindable var store: PullsStore
   let environment: AppEnvironment
   /// The header's "Abrir em nova janela"; nil hides the menu.
@@ -101,7 +102,7 @@ struct PullsModuleView: View {
         }
         .onChange(of: store.highlighted, initial: true) { _, id in
           guard let id else { return }
-          withAnimation { proxy.scrollTo(id, anchor: .center) }
+          Motion.animate(reduceMotion: reduceMotion, Motion.slow) { proxy.scrollTo(id, anchor: .center) }
         }
       }
     }
@@ -153,6 +154,12 @@ struct PullsModuleView: View {
           }
         }
         .typeRole(.subhead)
+        // Long `owner/name` pairs used to wrap centered across several lines in a
+        // narrow panel; one line cut in the middle keeps both owner and name legible.
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(group.repo)
         .accessibilityAddTraits(.isHeader)
         Divider()
         subsection("Issues", group.issues, truncation: truncated.first { $0.repo == group.repo && $0.kind == .issues })
@@ -226,7 +233,7 @@ struct PullsModuleView: View {
     ForEach(store.mineGroups, id: \.group) { entry in
       VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 6) {
-          Text(entry.group.label)
+          Text(entry.group.label).lineLimit(1)
           Text("\(entry.items.count)").monospacedDigit().fontWeight(.regular)
         }
         .typeRole(.subhead)
@@ -272,7 +279,7 @@ struct DefaultBranchAlert: View {
       .padding(.horizontal, 16)
       .padding(.vertical, 12)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(theme.warningTint, in: .rect(cornerRadius: 4))
+      .background(theme.warningTint, in: .rect(cornerRadius: Radius.tiny))
       .overlay(alignment: .leading) { Rectangle().fill(theme.warning).frame(width: 2) }
       .padding(.bottom, 12)
       .accessibilityElement(children: .contain)

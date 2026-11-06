@@ -120,6 +120,14 @@ final class Reports {
     #expect(boardCalls.last?.query == "days=7&scope=roots&sort=newest&limit=100")
   }
 
+  @Test func searchSaysWhenAPasteWasCut() {
+    store.setSearchText(String(repeating: "a", count: 250))
+    #expect(store.searchText.count == AgentsLogic.searchMax)
+    #expect(store.searchTextCut)
+    store.setSearchText("deploy")
+    #expect(!store.searchTextCut)
+  }
+
   @Test func searchFollowsTheFieldAfterThePause() async {
     store.setSearchText("deploy")
     await settle()
@@ -328,6 +336,14 @@ final class Reports {
     #expect(post?.idempotent == true)
     #expect(store.text.isEmpty)
     #expect(store.notice?.isError == false)
+  }
+
+  @Test func saysWhenTheReplyWasCut() {
+    store.setText(String(repeating: "a", count: AgentsLogic.messageMax + 10))
+    #expect(store.text.count == AgentsLogic.messageMax)
+    #expect(store.textCut)
+    store.setText("")
+    #expect(!store.textCut)
   }
 
   @Test func keepsTheDraftWhenDeliveryIsUncertain() async {

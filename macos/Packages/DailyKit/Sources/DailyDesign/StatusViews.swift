@@ -125,10 +125,18 @@ public struct Badge: View {
       .font(.daily(size: 12, weight: .medium).monospacedDigit())
       .lineLimit(1)
       .foregroundStyle(colors.foreground)
+      .contentTransition(numericTransition)
+      .dailyAnimation(value: text)
       .padding(.horizontal, 8)
       .padding(.vertical, 2)
       .background(colors.background, in: .capsule)
       .overlay { Capsule().strokeBorder(colors.border) }
+  }
+
+  /// A count rolls its digits when it changes; a word label is swapped as is.
+  private var numericTransition: ContentTransition {
+    guard let value = Int(text) else { return .identity }
+    return .numericText(value: Double(value))
   }
 
   private var colors: (foreground: Color, background: Color, border: Color) {

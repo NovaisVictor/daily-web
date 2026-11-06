@@ -74,9 +74,8 @@ struct GridArrangeBar: View {
         Button(isSaving ? "Salvando…" : "Salvar para esta tela", action: save)
           .pillButtonStyle(.primary, size: .small)
           .disabled(isSaving)
-        // Esc leaves the mode the way "Descartar" does.
+        // Esc is `GridEscapeKey`'s: it cancels a gesture first, which a click here never meets.
         IconButton("Descartar", systemImage: "xmark", variant: .outline, action: discard)
-          .keyboardShortcut(.cancelAction)
       }
       .fixedSize()
     }
@@ -86,6 +85,23 @@ struct GridArrangeBar: View {
     .glassSurface(.pill, elevation: .e4)
     .padding(.horizontal, 16)
     .padding(.bottom, 24)
+  }
+}
+
+/// Esc while arranging, wherever the focus is (`DashboardGrid.tsx:261-269`
+/// listens on the window). A key equivalent reaches the window before any
+/// focused view, which `onExitCommand` needed and the arrange mode lacks.
+struct GridEscapeKey: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button("Cancelar organização", action: action)
+      .keyboardShortcut(.cancelAction)
+      // Invisible but still in the window, so its key equivalent stays live.
+      .opacity(0)
+      .frame(width: 0, height: 0)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
   }
 }
 

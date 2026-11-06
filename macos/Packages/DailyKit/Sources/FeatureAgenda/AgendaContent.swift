@@ -144,8 +144,6 @@ private struct AgendaRow: View {
 /// text, at the web's staggered widths, pulsing like `animate-pulse`.
 struct AgendaSkeletonRows: View {
   @Environment(\.theme) private var theme
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var dimmed = false
   let count: Int
 
   /// `55 + ((i * 13) % 35)` percent.
@@ -157,7 +155,7 @@ struct AgendaSkeletonRows: View {
     VStack(alignment: .leading, spacing: 12) {
       ForEach(0..<count, id: \.self) { index in
         GeometryReader { proxy in
-          RoundedRectangle(cornerRadius: Radius.small / 2)
+          RoundedRectangle(cornerRadius: Radius.tiny)
             .fill(theme.neutralTint)
             .frame(width: proxy.size.width * Self.widthFraction(index))
         }
@@ -166,11 +164,7 @@ struct AgendaSkeletonRows: View {
     }
     .padding(.vertical, 8)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .opacity(dimmed ? 0.5 : 1)
-    .onAppear {
-      guard !reduceMotion else { return }
-      withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { dimmed = true }
-    }
+    .ambientPulse(active: true)
     .accessibilityHidden(true)
   }
 }

@@ -14,6 +14,7 @@ public struct NotificationsBell: View {
   @State private var popoverMaxHeight: CGFloat?
   @State private var anchor = WindowAnchor()
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let navigator: AppNavigator
 
   public init(environment: AppEnvironment) {
@@ -31,23 +32,28 @@ public struct NotificationsBell: View {
     Button {
       if isOpen { isOpen = false } else { present() }
     } label: {
-      Image(systemName: store.unreadCount > 0 ? "bell.badge" : "bell")
+      // Always the plain bell: `bell.badge` draws a dot of its own next to the count.
+      Image(systemName: "bell")
     }
+    .iconButtonStyle(isActive: isOpen)
     // The number is information, not decoration: it shows as text on the
-    // icon, not only as the bell's shape.
+    // icon, not only as the bell's shape. It sits inside the 32pt button so it
+    // never pokes out of the toolbar's glass bar.
     .overlay(alignment: .topTrailing) {
       if store.unreadCount > 0 {
         Text("\(store.unreadCount)")
           .font(.daily(size: 10, weight: .semibold).monospacedDigit())
+          .contentTransition(.numericText(value: Double(store.unreadCount)))
           .foregroundStyle(theme.brandInk)
-          .padding(.horizontal, 4)
-          .frame(minWidth: 16, minHeight: 16)
+          .padding(.horizontal, 3)
+          .frame(minWidth: 14, minHeight: 14)
           .background(theme.brand, in: .capsule)
-          .offset(x: 6, y: -6)
           .allowsHitTesting(false)
           .accessibilityHidden(true)
+          .transition(.opacity)
       }
     }
+    .animation(Motion.ease(Motion.standard, reduceMotion: reduceMotion), value: store.unreadCount)
     .help("Notificações")
     .accessibilityLabel(NotificationsLogic.bellLabel(unread: store.unreadCount))
     .accessibilityValue(isOpen ? "aberta" : "fechada")

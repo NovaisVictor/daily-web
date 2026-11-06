@@ -67,6 +67,9 @@ public struct HomeScreen: View {
     .background {
       WindowSizeReader { size in window.updateWindowSize(size) }
         .accessibilityHidden(true)
+      if window.grid.isArranging {
+        GridEscapeKey { window.escapeArrangement() }
+      }
     }
     .onGeometryChange(for: CGFloat.self) { proxy in
       proxy.size.height
@@ -79,8 +82,9 @@ public struct HomeScreen: View {
     .onChange(of: arrangeRequestInputs, initial: true) {
       window.handleArrangeRequest(from: navigator, isKeyWindow: appearsActive)
     }
-    .onExitCommand { window.discardArrangement() }
     .onDisappear { window.discardArrangement() }
+    // The View menu offers "Concluir organização" while this window arranges.
+    .focusedSceneValue(\.homeArrangeMenu, window.arrangeMenu)
   }
 
   /// Everything that can let a pending "Organizar painéis" be answered.

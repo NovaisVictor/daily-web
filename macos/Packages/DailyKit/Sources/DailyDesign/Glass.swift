@@ -102,10 +102,82 @@ public enum GlassRole: String, Sendable, CaseIterable {
   }
 }
 
-/// Puts a view on a Liquid Glass surface of a role, tinted with the active theme
-/// and carrying the web elevation of the same component.
+// MARK: - Panel material
+
+/// The material of the content-layer panels, a user preference. The HIG asks for
+/// Liquid Glass on controls and navigation and warns against it in the content layer
+/// ("Don't use Liquid Glass in the content layer"), so `standard` keeps glass on the
+/// bars, menus and pills and moves only the panels to a standard material.
+public enum PanelMaterial: String, CaseIterable, Sendable {
+  /// Liquid Glass, regular variant: the app's default look.
+  case liquidGlass
+  /// Liquid Glass, clear variant: more of the backdrop shows through.
+  case clearGlass
+  /// A standard blur material tinted with the theme surface.
+  case standard
+}
+
+extension EnvironmentValues {
+  /// The material of `GlassRole.panel` surfaces. The app sets it at the root from
+  /// the stored preference.
+  @Entry public var panelMaterial: PanelMaterial = .liquidGlass
+}
+
+/// What paints a glass surface once the role, the panel material and the system
+/// accessibility settings are applied. Data, so the rules are testable.
+enum GlassFill: Equatable {
+  case glass(Glass)
+  /// Clear glass over a dark dimming layer, for bright backdrops.
+  case dimmedGlass(Glass)
+  /// A standard material under a theme tint.
+  case material(tint: Color)
+  /// No translucency at all: Reduce Transparency.
+  case opaque(Color)
+}
+
+extension GlassRole {
+  /// The HIG's dimming for clear glass over bright content: a dark layer of 35%.
+  static let clearGlassDimming = 0.35
+
+  /// How this role paints. Only the content layer (`panel`) follows `material` and
+  /// Reduce Transparency here; the other roles keep regular Liquid Glass, which
+  /// already turns frosted and opaque by itself under Reduce Transparency, as both
+  /// glass variants follow the system's Liquid Glass preference.
+  func fill(
+    in theme: Theme,
+    material: PanelMaterial,
+    reduceTransparency: Bool,
+    scheme: ColorScheme
+  ) -> GlassFill {
+    guard self == .panel else { return .glass(glass(in: theme)) }
+    if reduceTransparency { return .opaque(surface(in: theme)) }
+    switch material {
+    case .liquidGlass:
+      return .glass(glass(in: theme))
+    case .clearGlass:
+      // The clear variant exists to show the backdrop; the theme tint of the
+      // regular look would turn it back into that look, so it stays untinted.
+      // Light themes sit on bright backdrops, which is where the HIG asks for
+      // the dimming layer; dark backdrops already give clear glass its contrast.
+      return scheme == .light ? .dimmedGlass(Glass.clear) : .glass(Glass.clear)
+    case .standard:
+      return .material(tint: surface(in: theme).opacity(tintOpacity))
+    }
+  }
+}
+
+// MARK: - Glass surface
+
+/// Puts a view on the surface of a role: Liquid Glass tinted with the active theme,
+/// or, for a panel, the material the person chose. It carries the web elevation of
+/// the same component and declares its shape as the container shape, so nested
+/// views can draw concentric corners (`ConcentricRectangle`).
 public struct GlassSurface: ViewModifier {
   @Environment(\.theme) private var theme
+  @Environment(\.panelMaterial) private var material
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.colorScheme) private var scheme
   private let role: GlassRole
   private let cornerRadius: CGFloat?
   private let elevationOverride: Elevation?
@@ -118,11 +190,73 @@ public struct GlassSurface: ViewModifier {
 
   public func body(content: Content) -> some View {
     let shape = role.shape(cornerRadius: cornerRadius)
-    // Elevation first: its inset glow then sits on the glass, under the content,
-    // and its drop shadows fall outside the shape, beside the glass.
+    let fill = role.fill(in: theme, material: material, reduceTransparency: reduceTransparency, scheme: scheme)
+    // Increase Contrast asks for visible edges; glass alone has none.
+    let border = contrast == .increased ? theme.lineStrong : nil
+    // Elevation first: its inset glow then sits on the surface, under the content,
+    // and its drop shadows fall outside the shape, beside the surface.
     content
       .elevation(elevationOverride ?? role.elevation, in: shape)
-      .glassEffect(role.glass(in: theme), in: shape)
+      .modifier(GlassFillModifier(fill: fill, shape: shape))
+      .modifier(GlassContainerModifier(kind: shape.kind, border: border))
+  }
+}
+
+private struct GlassFillModifier: ViewModifier {
+  let fill: GlassFill
+  let shape: GlassShape
+
+  func body(content: Content) -> some View {
+    switch fill {
+    case .glass(let glass):
+      content.glassEffect(glass, in: shape)
+    case .dimmedGlass(let glass):
+      // Behind the glass, so the glass refracts the dimmed backdrop.
+      content
+        .glassEffect(glass, in: shape)
+        .background { shape.fill(.black.opacity(GlassRole.clearGlassDimming)) }
+    case .material(let tint):
+      content.background {
+        ZStack {
+          shape.fill(.regularMaterial)
+          shape.fill(tint)
+        }
+      }
+    case .opaque(let color):
+      content.background(color, in: shape)
+    }
+  }
+}
+
+/// The container shape and the contrast border. `containerShape` needs a
+/// `RoundedRectangularShape` for concentric corners and `strokeBorder` an insettable
+/// shape; `GlassShape` is neither, so each kind uses the system shape it draws.
+private struct GlassContainerModifier: ViewModifier {
+  let kind: GlassShape.Kind
+  let border: Color?
+
+  func body(content: Content) -> some View {
+    switch kind {
+    case .roundedRectangle(let cornerRadius):
+      content.modifier(ShapedContainer(shape: RoundedRectangle(cornerRadius: cornerRadius), border: border))
+    case .capsule:
+      content.modifier(ShapedContainer(shape: Capsule(), border: border))
+    }
+  }
+}
+
+private struct ShapedContainer<S: RoundedRectangularShape>: ViewModifier {
+  let shape: S
+  let border: Color?
+
+  func body(content: Content) -> some View {
+    content
+      .overlay {
+        if let border {
+          shape.strokeBorder(border, lineWidth: 1).allowsHitTesting(false)
+        }
+      }
+      .containerShape(shape)
   }
 }
 

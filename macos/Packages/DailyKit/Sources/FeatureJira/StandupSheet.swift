@@ -40,8 +40,8 @@ struct StandupSheet: View {
           .padding(10)
       }
       .frame(minHeight: 256)
-      .background(theme.surface1, in: .rect(cornerRadius: 8))
-      .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(theme.lineStrong) }
+      .background(theme.surface1, in: .rect(cornerRadius: Radius.small))
+      .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(theme.lineStrong) }
       .accessibilityLabel("texto do resumo")
       if copied == false {
         Text("Não deu para copiar. Selecione o texto acima e copie com ⌘C.")

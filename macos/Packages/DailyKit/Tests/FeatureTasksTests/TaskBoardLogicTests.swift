@@ -106,9 +106,11 @@ import Testing
 
   @Test func narrowBoardShowsOneColumnBehindTabs() {
     #expect(BoardTabs.usesTabs(width: 320))
-    #expect(BoardTabs.usesTabs(width: 479))
-    #expect(!BoardTabs.usesTabs(width: 480))
+    #expect(BoardTabs.usesTabs(width: 480))
+    #expect(BoardTabs.usesTabs(width: 559))
+    #expect(!BoardTabs.usesTabs(width: 560))
     #expect(BoardTabs.columns(width: 420, active: .doing) == [.doing])
+    #expect(BoardTabs.columns(width: 520, active: .todo) == [.todo])
     #expect(BoardTabs.columns(width: 420, active: .done) == [.done])
     #expect(BoardTabs.columns(width: 700, active: .doing) == [.todo, .doing, .done])
   }

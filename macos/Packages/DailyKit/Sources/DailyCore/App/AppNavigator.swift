@@ -1,4 +1,5 @@
 import Observation
+import SwiftUI
 
 /// Which sidebar entry the main window shows. Lives in core so a feature (a
 /// toast's "Abrir a nota", a Home card) and a clicked notification can move
@@ -75,4 +76,43 @@ public final class AppNavigator {
     guard pending == PendingItem(route: route, itemID: itemID) else { return }
     pending = nil
   }
+}
+
+/// What the key window's Início tells the View menu about its arrange mode.
+/// Published per window with `focusedSceneValue`, like `shellMenu`, so the
+/// menu answers for the window in front.
+public struct HomeArrangeMenu {
+  public let isArranging: Bool
+  public let isSaving: Bool
+  /// "Concluir organização": saves the arrangement, as "Salvar para esta tela".
+  public let finish: () -> Void
+
+  public init(isArranging: Bool, isSaving: Bool, finish: @escaping () -> Void) {
+    self.isArranging = isArranging
+    self.isSaving = isSaving
+    self.finish = finish
+  }
+}
+
+/// The View menu's arrange item: "Organizar painéis" starts the mode, and
+/// while the key window arranges the same item ends it, so the menu is never
+/// a dead "Organizar painéis" in the middle of arranging.
+public enum ArrangeMenuCommand: Equatable, Sendable {
+  case organize
+  case finish
+
+  public init(_ menu: HomeArrangeMenu?) {
+    self = menu?.isArranging == true ? .finish : .organize
+  }
+
+  public var title: String {
+    switch self {
+    case .organize: "Organizar painéis"
+    case .finish: "Concluir organização"
+    }
+  }
+}
+
+extension FocusedValues {
+  @Entry public var homeArrangeMenu: HomeArrangeMenu?
 }

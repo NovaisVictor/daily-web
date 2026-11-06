@@ -97,10 +97,16 @@ import Testing
   }
 
   @Test func titleIsClippedToTheBrowserLimit() {
-    var draft = TaskDraft(task: nil)
-    draft.title = String(repeating: "a", count: 300)
-    draft.clipTitle()
-    #expect(draft.title.utf16.count == TaskDraft.titleLimit)
+    #expect(TaskDraft.clipped(String(repeating: "a", count: 300)).utf16.count == TaskDraft.titleLimit)
+  }
+
+  /// A cut is said under the field until the person edits the text again.
+  @Test func limitHintShowsOnlyWhileTheTextIsWhatTheCutLeft() {
+    let cut = TaskDraft.clipped(String(repeating: "a", count: 300))
+    #expect(TaskDraft.showsLimitHint(title: cut, cutTitle: cut))
+    #expect(!TaskDraft.showsLimitHint(title: String(cut.dropLast()), cutTitle: cut))
+    #expect(!TaskDraft.showsLimitHint(title: String(repeating: "a", count: 255), cutTitle: nil))
+    #expect(!TaskDraft.showsLimitHint(title: "", cutTitle: nil))
   }
 
   /// The quick-add field clips with the same rule: counted in UTF-16 as the

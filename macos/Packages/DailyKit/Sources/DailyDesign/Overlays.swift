@@ -184,6 +184,7 @@ public struct ToastView: View {
       Image(systemName: icon)
         .font(.system(size: 14))
         .foregroundStyle(tone)
+        .contentTransition(.symbolEffect(.replace))
         .accessibilityHidden(true)
       Text(message.text)
         .font(.daily(size: 14))
@@ -207,9 +208,9 @@ public struct ToastView: View {
     .padding(.horizontal, 14)
     .padding(.vertical, 12)
     .frame(width: 356)
-    // sonner paints the toast with `--popover` and `--radius` (components/ui/sonner.tsx:28-31),
-    // the same surface as a menu, so it takes the popover glass and its `shadow-e4`.
-    .glassSurface(.popover, cornerRadius: theme.radius)
+    // sonner paints the toast with `--popover` (components/ui/sonner.tsx:28-31), the
+    // same surface as a menu, so it takes the popover glass, radius and `shadow-e4`.
+    .glassSurface(.popover)
     .accessibilityElement(children: .contain)
     .onAppear { AccessibilityNotification.Announcement(message.text).post() }
   }
@@ -233,9 +234,11 @@ public struct ToastView: View {
 }
 
 /// Renders the toasts it is given, newest at the bottom, in the window's
-/// bottom-trailing corner. It holds no state of its own.
+/// bottom-trailing corner. It holds no state of its own; the caller pads it from
+/// the window edges.
 public struct ToastStack: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Namespace private var glassNamespace
   private let messages: [ToastMessage]
   private let dismiss: (ToastMessage.ID) -> Void
 
@@ -245,15 +248,25 @@ public struct ToastStack: View {
   }
 
   public var body: some View {
-    VStack(alignment: .trailing, spacing: 8) {
-      ForEach(messages) { message in
-        ToastView(message) { dismiss(message.id) }
-          .transition(.move(edge: .bottom).combined(with: .opacity))
+    // One glass layer for the stack: toasts close to each other blend, and one
+    // that comes or goes morphs out of its neighbour instead of popping.
+    GlassGroup(spacing: 8) {
+      VStack(alignment: .trailing, spacing: 8) {
+        ForEach(messages) { message in
+          ToastView(message) { dismiss(message.id) }
+            .glassEffectID(message.id, in: glassNamespace)
+            .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
+            .transition(toastTransition)
+        }
       }
     }
-    .padding(16)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     .animation(Motion.ease(Motion.standard, reduceMotion: reduceMotion), value: messages)
+  }
+
+  /// Rising from the bottom edge, or only fading with Reduce Motion.
+  private var toastTransition: AnyTransition {
+    reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
   }
 }
 

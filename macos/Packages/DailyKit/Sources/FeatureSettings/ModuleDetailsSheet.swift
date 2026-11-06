@@ -232,6 +232,7 @@ private struct ConnectionFormView: View {
       if spec.multi {
         field(label: "Nome desta conexão", required: false, help: nil) {
           TextField("Nome desta conexão", text: labelBinding, prompt: Text("Trabalho, Pessoal…"))
+            .singleLine(labelBinding)
         }
       }
       ForEach(store.visibleFields) { spec in
@@ -289,8 +290,10 @@ private struct ConnectionFormView: View {
       }
     case .password:
       SecureField(field.label, text: value(field.name), prompt: placeholder)
+        .singleLine(value(field.name))
     default:
       TextField(field.label, text: value(field.name), prompt: placeholder)
+        .singleLine(value(field.name))
     }
   }
 

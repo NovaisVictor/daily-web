@@ -82,9 +82,9 @@ struct NoteSearchResultsView: View {
     .padding(.vertical, 6)
     .frame(maxWidth: .infinity, alignment: .leading)
     .activeRow(result.id == activeID)
-    .clipShape(.rect(cornerRadius: 6))
+    .clipShape(.rect(cornerRadius: Radius.tiny))
     .overlay {
-      RoundedRectangle(cornerRadius: 6)
+      RoundedRectangle(cornerRadius: Radius.tiny)
         .strokeBorder(theme.brandEdge)
         .opacity(focused && selection == result.id ? 1 : 0)
         .allowsHitTesting(false)

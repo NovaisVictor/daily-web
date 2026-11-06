@@ -171,9 +171,13 @@ final class AgentsStore {
 
   /// What the search field shows; the query follows after a pause (`SearchField`, `BoardViews.tsx:84-118`).
   private(set) var searchText = ""
+  /// Whether the last edit went past `searchMax` and was cut, so the field can say so.
+  private(set) var searchTextCut = false
 
   func setSearchText(_ text: String) {
-    searchText = String(text.prefix(200))
+    let capped = AgentsLogic.capped(text, limit: AgentsLogic.searchMax, wasCut: searchTextCut)
+    searchText = capped.text
+    searchTextCut = capped.cut
     searchTask?.cancel()
     let sleep = self.sleep
     searchTask = Task { [weak self] in

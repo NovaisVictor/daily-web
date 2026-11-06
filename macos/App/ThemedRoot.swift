@@ -1,9 +1,10 @@
 import DailyCore
 import DailyDesign
 import DailyModels
+import FeatureSettings
 import SwiftUI
 
-/// Applies the stored appearance: color scheme, palette and backdrop.
+/// Applies the stored appearance: color scheme, palette, backdrop and panel material.
 struct ThemedRoot<Content: View>: View {
   let preferences: PreferencesStore
   @ViewBuilder let content: Content
@@ -20,11 +21,15 @@ struct ThemedRoot<Content: View>: View {
     let density: Density
     @ViewBuilder let inner: Inner
     @Environment(\.colorScheme) private var scheme
+    // A device preference, not a server one: the web has no such option, so it
+    // never round-trips through `PATCH /api/preferences`.
+    @AppStorage(PanelMaterial.storageKey) private var panelMaterial: PanelMaterial = .defaultValue
 
     var body: some View {
       let theme = Theme.resolve(scheme: scheme, backdrop: backdrop, density: density)
       inner
         .environment(\.theme, theme)
+        .environment(\.panelMaterial, panelMaterial)
         // Selection and prominent controls follow the brand, as on the web,
         // instead of the system accent color.
         .tint(theme.brand)

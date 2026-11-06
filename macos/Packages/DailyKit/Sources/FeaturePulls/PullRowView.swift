@@ -64,10 +64,12 @@ struct PullRowView: View {
           Link(item.repo, destination: url)
             .foregroundStyle(theme.inkDim)
             .lineLimit(1)
+            .truncationMode(.middle)
+            .help(item.repo)
             .frame(maxWidth: 220, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
         } else {
-          Text(item.repo).foregroundStyle(theme.inkDim).lineLimit(1)
+          Text(item.repo).foregroundStyle(theme.inkDim).lineLimit(1).truncationMode(.middle)
         }
       }
       Text("#\(item.number)").monospacedDigit().foregroundStyle(theme.inkDim)

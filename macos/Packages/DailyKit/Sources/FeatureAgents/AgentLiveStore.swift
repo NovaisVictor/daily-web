@@ -24,6 +24,8 @@ final class AgentLiveStore {
   var content: Content = .pane
   /// The reply being written.
   var text = ""
+  /// Whether the last edit went past `messageMax` and was cut, so the box can say so.
+  private(set) var textCut = false
   private(set) var isSending = false
   private(set) var notice: Notice?
 
@@ -91,9 +93,10 @@ final class AgentLiveStore {
   private var replyKey: String?
 
   func setText(_ value: String) {
-    let next = String(value.prefix(AgentsLogic.messageMax))
-    if next != text { replyKey = nil }
-    text = next
+    let capped = AgentsLogic.capped(value, limit: AgentsLogic.messageMax, wasCut: textCut)
+    if capped.text != text { replyKey = nil }
+    text = capped.text
+    textCut = capped.cut
   }
 
   /// Sends the reply; the draft stays when the delivery is not confirmed.
@@ -109,6 +112,7 @@ final class AgentLiveStore {
       _ = try await client.send(AgentsEndpoints.message(sessionID: sessionID, text: message, key: key))
       replyKey = nil
       text = ""
+      textCut = false
       notice = Notice(isError: false, text: "Mensagem na fila: o agente recebe assim que o terminal estiver pronto.")
     } catch {
       Logger.agents.error("Agent message failed: \(String(describing: error), privacy: .public)")

@@ -406,16 +406,17 @@ private func hasOverlaps(_ layout: [PanelPlacement]) -> Bool {
 
   @Test func pointsMapBackToGridUnits() {
     let width: CGFloat = 12 * 56 + 11 * 24
-    let dropped = Engine.gridPosition(
-      origin: CGPoint(x: 7 * 80 + 30, y: 9 * 56 - 20), w: 5, h: 4, containerWidth: width)
-    #expect(dropped.x == 7 && dropped.y == 9)
-    let outside = Engine.gridPosition(origin: CGPoint(x: 5000, y: -300), w: 5, h: 4, containerWidth: width)
-    #expect(outside.x == 7 && outside.y == 0)
-    let size = Engine.gridSize(
-      size: CGSize(width: 5 * 56 + 4 * 24, height: 12 * 32 + 11 * 24), x: 7, containerWidth: width)
-    #expect(size.w == 5 && size.h == 12)
-    let tooWide = Engine.gridSize(size: CGSize(width: 5000, height: 10), x: 7, containerWidth: width)
-    #expect(tooWide.w == 5 && tooWide.h == 1)
+    let dropped = Engine.cell(
+      for: CGPoint(x: 7 * 80 + 30, y: 9 * 56 - 20), w: 5, containerWidth: width, previous: nil)
+    #expect(dropped == GridCell(x: 7, y: 9))
+    let outside = Engine.cell(for: CGPoint(x: 5000, y: -300), w: 5, containerWidth: width, previous: nil)
+    #expect(outside == GridCell(x: 7, y: 0))
+    let size = Engine.span(
+      for: CGSize(width: 5 * 56 + 4 * 24, height: 12 * 32 + 11 * 24), x: 7, containerWidth: width, previous: nil)
+    #expect(size == GridSpan(w: 5, h: 12))
+    // The panel limits now apply here too, so the size reported is the size drawn.
+    let tooWide = Engine.span(for: CGSize(width: 5000, height: 10), x: 7, containerWidth: width, previous: nil)
+    #expect(tooWide == GridSpan(w: 5, h: 4))
     let height: CGFloat = 36 * 32 + 35 * 24
     #expect(Engine.contentHeight(Engine.defaultLayout()) == height)
   }

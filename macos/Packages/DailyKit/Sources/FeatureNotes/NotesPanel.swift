@@ -165,11 +165,9 @@ public struct NotesPanel: View {
   private func sidebar(inSheet: Bool) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       if inSheet { creationHeader }
-      SearchField(
-        text: Binding(get: { store.searchText }, set: { store.setSearchText($0) }),
-        label: "Buscar notas",
-        placeholder: "Buscar no título ou conteúdo"
-      )
+      let search = Binding(get: { store.searchText }, set: { store.setSearchText($0) })
+      SearchField(text: search, label: "Buscar notas", placeholder: "Buscar no título ou conteúdo")
+        .singleLine(search)
       if store.isSearching && store.scope != .all {
         Toggle("Só nesta pasta e subpastas", isOn: $store.onlyInFolder)
           .toggleStyle(.checkbox)

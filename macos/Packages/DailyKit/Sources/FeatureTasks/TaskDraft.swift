@@ -151,11 +151,6 @@ nonisolated struct TaskDraft: Equatable, Sendable {
     }
   }
 
-  /// Clips the title to the browser's `maxLength`.
-  mutating func clipTitle() {
-    title = Self.clipped(title)
-  }
-
   /// `title` cut to `titleLimit` UTF-16 units, as the browser's `maxLength`
   /// counts, without splitting a character (an emoji counts two or more).
   static func clipped(_ title: String) -> String {
@@ -166,6 +161,12 @@ nonisolated struct TaskDraft: Equatable, Sendable {
       clipped.append(character)
     }
     return clipped
+  }
+
+  /// Whether the title still is what the last cut at `titleLimit` left (`cutTitle`):
+  /// the hint shows after a cut and goes as soon as the text is edited again.
+  static func showsLimitHint(title: String, cutTitle: String?) -> Bool {
+    cutTitle == title
   }
 
   /// `POST /api/tasks` from the form. `status` only for "Fazendo": the

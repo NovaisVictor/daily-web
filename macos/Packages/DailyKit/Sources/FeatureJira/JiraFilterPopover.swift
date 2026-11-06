@@ -128,6 +128,7 @@ struct JiraMultiFilter: View {
   }
 
   private var exclude: Bool { group.mode == .exclude }
+  private static let modeTrackInset: CGFloat = 3
 
   private var triggerText: String {
     switch group.values.count {
@@ -148,7 +149,7 @@ struct JiraMultiFilter: View {
             .font(.daily(size: 11, weight: .bold))
             .foregroundStyle(exclude ? Color.white : theme.brandInk)
             .padding(.horizontal, 4)
-            .background(exclude ? theme.danger : theme.brand, in: .rect(cornerRadius: 3))
+            .background(exclude ? theme.danger : theme.brand, in: .rect(cornerRadius: Radius.hairline))
             .help(exclude ? "Modo: não é igual a (exclusão)" : "Modo: é igual a (inclusão)")
         }
         Text(triggerText)
@@ -162,9 +163,9 @@ struct JiraMultiFilter: View {
       .frame(height: 28)
       .background(
         group.values.isEmpty ? theme.surface2 : (exclude ? theme.dangerTint : theme.brandTint),
-        in: .rect(cornerRadius: 6)
+        in: .rect(cornerRadius: Radius.tiny)
       )
-      .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
+      .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.lineStrong) }
     }
     .buttonStyle(.plain)
     .accessibilityLabel("abrir menu \(label)\(state)")
@@ -182,7 +183,10 @@ struct JiraMultiFilter: View {
         .foregroundStyle(current ? (mode == .exclude ? Color.white : theme.ink) : theme.inkDim)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
-        .background(current ? tint : .clear, in: .rect(cornerRadius: 6))
+        // Concentric with the track around it, which pads it by `modeTrackInset`.
+        .background(
+          current ? tint : .clear, in: .rect(cornerRadius: Radius.nested(Radius.small, inset: Self.modeTrackInset))
+        )
         .contentShape(.rect)
     }
     .buttonStyle(.plain)
@@ -207,10 +211,10 @@ struct JiraMultiFilter: View {
           modeButton(mode)
         }
       }
-      .padding(3)
-      .background(theme.surface1, in: .rect(cornerRadius: 8))
+      .padding(Self.modeTrackInset)
+      .background(theme.surface1, in: .rect(cornerRadius: Radius.small))
       if allOptions.count > 5 {
-        TextField("Buscar opção...", text: $search).textFieldStyle(.roundedBorder)
+        TextField("Buscar opção...", text: $search).singleLine($search).textFieldStyle(.roundedBorder)
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 2) {

@@ -35,6 +35,28 @@ enum JiraLimits {
   static let flagReason = 2000
   static let summary = 255
   static let description = 10_000
+
+  /// The text held to `limit`, and whether the field should say it was cut. The
+  /// web's `maxLength` drops a long paste silently; here the hint stays while the
+  /// text still sits at the limit after a cut, and goes once the user shortens it.
+  nonisolated static func capped(_ text: String, limit: Int, wasCut: Bool) -> (text: String, cut: Bool) {
+    if text.count > limit { return (String(text.prefix(limit)), true) }
+    return (text, wasCut && text.count >= limit)
+  }
+
+  nonisolated static func cutHint(_ limit: Int) -> String {
+    "Limite de \(limit) caracteres: o excedente foi cortado."
+  }
+}
+
+/// The note under a field whose paste went past its limit.
+struct JiraCutHint: View {
+  @Environment(\.theme) private var theme
+  let limit: Int
+
+  var body: some View {
+    Text(JiraLimits.cutHint(limit)).font(.daily(size: 12)).foregroundStyle(theme.warning)
+  }
 }
 
 /// A dialog's title, description, body and buttons (`EditDialog`).
@@ -97,7 +119,7 @@ struct CommentSheet: View {
             .font(.daily(size: 13))
             .frame(minHeight: 96)
             .disabled(sending)
-            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
+            .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.lineStrong) }
             .accessibilityLabel("comentário em \(issue.key)")
           if let problem = refusal ?? (tooLong ? "passou de \(JiraLimits.comment) caracteres (\(trimmed.count))" : nil)
           {
@@ -145,6 +167,7 @@ struct FlagSheet: View {
 
   @State private var flagging: Bool
   @State private var text = ""
+  @State private var textCut = false
   @State private var sending = false
   @State private var error: String?
   @State private var warning: String?
@@ -181,12 +204,15 @@ struct FlagSheet: View {
             .font(.daily(size: 13))
             .frame(minHeight: 72)
             .disabled(sending)
-            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
+            .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.lineStrong) }
             .accessibilityLabel(flagging ? "Motivo" : "Observação (opcional)")
             .onChange(of: text) { _, next in
               // `maxLength` on the web's textarea.
-              if next.count > JiraLimits.flagReason { text = String(next.prefix(JiraLimits.flagReason)) }
+              let capped = JiraLimits.capped(next, limit: JiraLimits.flagReason, wasCut: textCut)
+              if capped.text != next { text = capped.text }
+              textCut = capped.cut
             }
+          if textCut { JiraCutHint(limit: JiraLimits.flagReason) }
           Text(
             flagging
               ? "o motivo vira um comentário na issue" : "se preenchida, a observação vira um comentário na issue"
@@ -551,7 +577,9 @@ struct CreateStorySheet: View {
   let store: JiraStore
 
   @State private var summary = ""
+  @State private var summaryCut = false
   @State private var description = ""
+  @State private var descriptionCut = false
   @State private var sending = false
   @State private var refusal: String?
   @State private var created: JiraCreatedStory?
@@ -580,21 +608,28 @@ struct CreateStorySheet: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Resumo").font(.daily(size: 13, weight: .medium))
           TextField("Resumo", text: $summary)
+            .singleLine($summary)
             .labelsHidden()
             .disabled(sending)
             .onChange(of: summary) { _, next in
-              if next.count > JiraLimits.summary { summary = String(next.prefix(JiraLimits.summary)) }
+              let capped = JiraLimits.capped(next, limit: JiraLimits.summary, wasCut: summaryCut)
+              if capped.text != next { summary = capped.text }
+              summaryCut = capped.cut
             }
+          if summaryCut { JiraCutHint(limit: JiraLimits.summary) }
           Text("Descrição (opcional)").font(.daily(size: 13, weight: .medium))
           TextEditor(text: $description)
             .font(.daily(size: 13))
             .frame(minHeight: 72)
             .disabled(sending)
-            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.lineStrong) }
+            .overlay { RoundedRectangle(cornerRadius: Radius.tiny).strokeBorder(theme.lineStrong) }
             .accessibilityLabel("Descrição (opcional)")
             .onChange(of: description) { _, next in
-              if next.count > JiraLimits.description { description = String(next.prefix(JiraLimits.description)) }
+              let capped = JiraLimits.capped(next, limit: JiraLimits.description, wasCut: descriptionCut)
+              if capped.text != next { description = capped.text }
+              descriptionCut = capped.cut
             }
+          if descriptionCut { JiraCutHint(limit: JiraLimits.description) }
           JiraRefusal(message: refusal, issue: issue)
         }
       } footer: {

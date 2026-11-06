@@ -208,7 +208,7 @@ struct EmailThreadRow: View {
     // (`EmailPanel.tsx:1305-1309`).
     .scaleEffect(reduceMotion ? 1 : (stack?.scale ?? 1) as CGFloat)
     .offset(y: reduceMotion ? 0 : (stack?.offsetY ?? 0) as CGFloat)
-    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: stack)
+    .animation(Motion.ease(Motion.control, reduceMotion: reduceMotion), value: stack)
   }
 
   private var row: some View {
@@ -552,7 +552,7 @@ struct EmailDragPreview: View {
   private static let sheetOffsets: [CGFloat] = [12, 6]
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: 10)
+    let shape = RoundedRectangle(cornerRadius: Radius.small)
     HStack(spacing: 8) {
       Text(title).lineLimit(1).truncationMode(.tail)
       if count > 1 {

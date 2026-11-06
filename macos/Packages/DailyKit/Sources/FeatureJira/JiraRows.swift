@@ -88,7 +88,7 @@ struct JiraRowView: View {
     HStack(alignment: .top, spacing: 12) {
       if depth > 0 {
         // A branch tick reads as hierarchy without drawing a full tree of guides.
-        UnevenRoundedRectangle(bottomLeadingRadius: 3)
+        UnevenRoundedRectangle(bottomLeadingRadius: Radius.hairline)
           .stroke(theme.lineStrong, lineWidth: 1)
           .frame(width: 8, height: 8)
           .padding(.top, 4)
@@ -332,14 +332,12 @@ private struct JiraCaretBody: View {
     configuration.label
       .font(.system(size: 14))
       .foregroundStyle(hovering ? theme.ink : theme.inkDim)
-      .rotationEffect(.degrees(isOpen ? 90 : 0))
+      .disclosureRotation(open: isOpen)
       .frame(width: 18, height: 18)
       .background(hovering || configuration.isPressed ? theme.lineSoft : .clear, in: shape)
       .dailyFocusRing(isFocused, in: shape)
       .contentShape(shape)
       .onHover { hovering = $0 }
-      // `transition-transform duration-100 ease-brand motion-reduce:transition-none`.
-      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: isOpen)
-      .animation(Motion.ease(Motion.fast, reduceMotion: reduceMotion), value: hovering)
+      .animation(Motion.ease(Motion.hover, reduceMotion: reduceMotion), value: hovering)
   }
 }

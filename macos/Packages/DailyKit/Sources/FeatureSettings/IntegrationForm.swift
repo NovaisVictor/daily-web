@@ -84,11 +84,26 @@ enum IntegrationForm {
   }
 
   /// Only what the form shows goes in the body: hidden fields belong to the
-  /// server (`IntegrationsPanel.tsx:233-240`).
+  /// server (`IntegrationsPanel.tsx:233-240`). Secrets go trimmed: a token
+  /// copied with a trailing newline or space would otherwise be saved as typed
+  /// and fail every later call with an authentication error.
   static func body(_ spec: ModuleSpec, values: [String: String], label: String) -> IntegrationsEndpoints.ConnectionBody
   {
-    let allowed = Set(visibleFields(spec, values: values).map(\.name))
-    return IntegrationsEndpoints.ConnectionBody(label: label, values: values.filter { allowed.contains($0.key) })
+    var sent: [String: String] = [:]
+    for field in visibleFields(spec, values: values) {
+      guard let value = values[field.name] else { continue }
+      sent[field.name] = isSecret(field) ? trimmedSecret(value) : value
+    }
+    return IntegrationsEndpoints.ConnectionBody(label: label, values: sent)
+  }
+
+  static func isSecret(_ field: FieldSpec) -> Bool {
+    field.secret == true || field.type == .password
+  }
+
+  /// Only the ends: an app password such as Gmail's keeps its inner spaces.
+  static func trimmedSecret(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// The one connect action of a module's details (`IntegrationsPanel.tsx:356-397`).

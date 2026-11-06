@@ -129,6 +129,7 @@ struct AgentLivePanel: View {
         .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(theme.lineStrong) }
         .disabled(store.isStopped)
         .accessibilityLabel("Responder ao agente")
+      if store.textCut { AgentsCutHint(limit: AgentsLogic.messageMax) }
       HStack(spacing: 8) {
         Text(store.notice?.text ?? store.hint)
           .font(.daily(size: 11))

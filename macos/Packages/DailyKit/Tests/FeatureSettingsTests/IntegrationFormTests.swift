@@ -112,6 +112,14 @@ func spec(_ module: ModuleID) throws -> ModuleSpec {
     #expect(body.values == ["preset": "gmail", "user": "a@b.com", "password": "x"])
   }
 
+  @Test func trimsOnlyTheSecretsEnds() throws {
+    let values = ["cloud": "acme", "email": " voce@example.com ", "token": "\n abc def \r\n"]
+    let body = IntegrationForm.body(try spec(.jira), values: values, label: "Jira")
+    // The secret loses the pasted line break but keeps its inner space; plain
+    // fields go as typed.
+    #expect(body.values == ["cloud": "acme", "email": " voce@example.com ", "token": "abc def"])
+  }
+
   @Test func picksTheConnectActionLikeTheWeb() throws {
     var payload = try decodedPayload()
     let state = { (module: ModuleID) in

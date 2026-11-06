@@ -79,12 +79,13 @@ public struct AccessScreen: View {
         .foregroundStyle(theme.inkMid)
         .fixedSize(horizontal: false, vertical: true)
       Form {
-        TextField(
-          "Nome do acesso",
-          text: Binding(get: { store.label }, set: { store.setLabel($0) }),
-          prompt: Text("Ex.: Claude no notebook")
-        )
-        .onSubmit { Task { await store.create() } }
+        let label = Binding(get: { store.label }, set: { store.setLabel($0) })
+        TextField("Nome do acesso", text: label, prompt: Text("Ex.: Claude no notebook"))
+          .singleLine(label)
+          .onSubmit { Task { await store.create() } }
+        if store.labelCut {
+          Text(AccessLogic.cutHint(AccessLogic.labelMax)).font(.daily(size: 12)).foregroundStyle(theme.warning)
+        }
         Picker("Permissão", selection: $store.permission) {
           ForEach(AccessPermission.allCases, id: \.self) { permission in
             Text(permission.label).tag(permission)

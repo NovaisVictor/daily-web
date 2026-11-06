@@ -227,8 +227,9 @@ struct NoteTreeView: View {
       Button {
         store.toggle(key)
       } label: {
-        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+        Image(systemName: "chevron.right")
           .font(.system(size: 10, weight: .semibold))  // SF Symbol sizing
+          .disclosureRotation(open: expanded)
           .foregroundStyle(theme.inkDim)
           .frame(width: 16, height: 16)
           .contentShape(.rect)
@@ -431,7 +432,7 @@ private struct DropModifier: ViewModifier {
       .padding(.vertical, 1)
       .background {
         if target == key {
-          RoundedRectangle(cornerRadius: 6)
+          RoundedRectangle(cornerRadius: Radius.tiny)
             .fill(theme.brandTint)
             .strokeBorder(theme.brand.opacity(0.6))
         }
@@ -473,6 +474,7 @@ struct RenameField: View {
       .textFieldStyle(.roundedBorder)
       .labelsHidden()
       .accessibilityLabel(label)
+      .singleLine($text)
       .focused($focused)
       .onAppear { focused = true }
       .onSubmit { finish(text) }
@@ -582,9 +584,9 @@ private struct NoteTreeRowChrome: ViewModifier {
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
     )
-    .clipShape(.rect(cornerRadius: 6))
+    .clipShape(.rect(cornerRadius: Radius.tiny))
     .overlay {
-      RoundedRectangle(cornerRadius: 6)
+      RoundedRectangle(cornerRadius: Radius.tiny)
         .strokeBorder(theme.brandEdge)
         .opacity(isCursor ? 1 : 0)
         .allowsHitTesting(false)

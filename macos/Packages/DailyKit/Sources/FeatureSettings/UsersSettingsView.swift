@@ -65,6 +65,7 @@ struct UsersSettingsView: View {
   private var createForm: some View {
     FlowLayout(spacing: 8) {
       TextField("novo usuário", text: $store.username, prompt: Text("usuário"))
+        .singleLine($store.username)
         .frame(minWidth: 140)
       SecureField("senha do novo usuário", text: $store.password, prompt: Text("senha (mín. 8)"))
         .frame(minWidth: 140)

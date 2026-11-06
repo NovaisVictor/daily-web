@@ -50,6 +50,8 @@ public struct IconMenu<Content: View>: View {
     .menuIndicator(.hidden)
     .fixedSize()
     .onHover { hovering = $0 }
+    // `transition-colors duration-100`, as `IconButtonStyle`.
+    .dailyAnimation(Motion.hover, value: hovering)
     .help(label)
     .accessibilityLabel(label)
   }

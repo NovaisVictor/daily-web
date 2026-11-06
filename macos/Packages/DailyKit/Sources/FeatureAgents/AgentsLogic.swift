@@ -379,4 +379,18 @@ nonisolated enum AgentsLogic {
   static let messageMax = 4000
   static let titleMax = 200
   static let descriptionMax = 4000
+  /// The search box's `maxLength` (`BoardViews.tsx`).
+  static let searchMax = 200
+
+  /// The text held to `limit`, and whether the field should say it was cut. The
+  /// web's `maxLength` drops a long paste silently; here the hint stays while the
+  /// text still sits at the limit after a cut, and goes once the user shortens it.
+  static func capped(_ text: String, limit: Int, wasCut: Bool) -> (text: String, cut: Bool) {
+    if text.count > limit { return (String(text.prefix(limit)), true) }
+    return (text, wasCut && text.count >= limit)
+  }
+
+  static func cutHint(_ limit: Int) -> String {
+    "Limite de \(limit) caracteres: o excedente foi cortado."
+  }
 }

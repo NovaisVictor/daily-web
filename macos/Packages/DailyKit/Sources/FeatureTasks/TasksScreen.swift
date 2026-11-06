@@ -28,6 +28,7 @@ struct TasksContent: View {
   @Environment(\.theme) private var theme
   @Bindable var store: TasksStore
   @Environment(\.isPrimaryWindow) private var isPrimaryWindow
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let environment: AppEnvironment
   /// The panel takes no ⌘T and no menu-bar reveal: those belong to the screen,
   /// which may be open at the same time in its own window.
@@ -127,6 +128,7 @@ struct TasksContent: View {
   private func filters(today: Date) -> some View {
     FilterBar("Filtrar tarefas") {
       SearchField(text: $store.query, label: "buscar tarefas", placeholder: "título")
+        .singleLine($store.query)
       Chip("Alta", isOn: store.priorityFilter == .high) { store.togglePriority(.high) }
       Chip("Baixa", isOn: store.priorityFilter == .low) { store.togglePriority(.low) }
       if store.view == .list {
@@ -189,7 +191,7 @@ struct TasksContent: View {
     else { return }
     environment.navigator.finishPendingItem(id, for: route)
     guard store.all.contains(where: { $0.id == id }) else { return }
-    withAnimation { proxy.scrollTo(id, anchor: .center) }
+    Motion.animate(reduceMotion: reduceMotion, Motion.slow) { proxy.scrollTo(id, anchor: .center) }
     revealed = id
   }
 
